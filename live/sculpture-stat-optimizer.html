@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sculpture Grid Stat Rate vs Specific Stat Drop Rate Optimizer</title>
+<title>Sculpture Stat Optimizer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;500;600;700&display=swap">
@@ -11,7 +11,7 @@
   // Restore theme immediately to prevent any flicker
   (function(){
     try {
-      var saved = localStorage.getItem('APOZ_THEME') || 'dark-beach';
+      var saved = localStorage.getItem('AWOO_THEME') || 'dark-beach';
       if (saved === 'beach') {
         document.documentElement.setAttribute('data-theme', 'light');
       } else {
@@ -166,9 +166,16 @@ textarea.paste-box{
 /* ---- main column ---- */
 .main-inner{display:flex;flex-direction:column;gap:1.1rem}
 
-/* ---- live userscript banner ---- */
-.live-banner{background:rgba(106,72,234,.08);border:1px solid var(--highlight-soft);border-radius:8px;padding:.5rem .8rem;display:flex;justify-content:space-between;align-items:center;font-size:.78rem}
-.live-banner strong{color:var(--highlight)}
+/* ---- live game profile sync banner ---- */
+.sync-banner{background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;padding:.6rem .8rem;display:flex;justify-content:space-between;align-items:center;font-size:.78rem;margin-bottom:.5rem;gap:.5rem;flex-wrap:wrap}
+.sync-status{display:flex;align-items:center;gap:.6rem}
+.sync-dot{width:9px;height:9px;border-radius:50%;background:var(--text-faint);flex:none;transition:background .2s,box-shadow .2s}
+.sync-dot.live{background:var(--success);box-shadow:0 0 8px var(--success)}
+.sync-dot.stale{background:var(--warm)}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(2px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1rem}
+.modal-card{background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;max-width:560px;width:100%;box-shadow:var(--shadow);overflow:hidden}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem;border-bottom:1px solid var(--border)}
+.modal-body{padding:1rem;font-size:.82rem;line-height:1.5;max-height:80vh;overflow-y:auto}
 
 /* ---- verdict card ---- */
 .verdict{
@@ -277,10 +284,22 @@ details.panel summary::marker{color:var(--text-faint)}
         <button class="btn btn-theme" id="btnThemeToggle">Theme: Dark Beach</button>
       </div>
 
-      <!-- 1. Live Userscript Handover Banner (Hidden if not launched from userscript) -->
-      <div class="live-banner" id="liveUserscriptBanner" hidden>
-        <div><strong>Live Data Ready:</strong> Handed over from Apoz userscript.</div>
-        <button class="btn btn-primary" id="btnApplyLive">Apply Live</button>
+      <!-- 1. Live Game Sync Bar -->
+      <div class="sync-banner" id="gameSyncBanner">
+        <div class="sync-status">
+          <span class="sync-dot" id="syncStatusDot"></span>
+          <div>
+            <div style="font-weight:600;display:flex;align-items:center;gap:.4rem">
+              <span id="syncStatusText">Game Sync Ready</span>
+              <span class="badge badge-accent" id="syncCharBadge" style="display:none"></span>
+            </div>
+            <div class="note" id="syncFreshnessText" style="margin:0">BroadcastChannel active</div>
+          </div>
+        </div>
+        <div class="btn-bar" style="margin:0">
+          <button class="btn btn-primary" id="btnSyncFromGame" title="Trigger instant profile grab from live Queslar game tab">Sync from Game</button>
+          <button class="btn" id="btnOpenSyncAssistant" title="Instructions on how to sync or import profile data">Help &amp; Import</button>
+        </div>
       </div>
 
       <!-- 2. Paste Profile Import Card -->
@@ -1035,7 +1054,7 @@ function applyTheme(name) {
     root.setAttribute('data-dark', name);
   }
   if (btn) btn.textContent = THEME_LABELS[name] || name;
-  try { localStorage.setItem('APOZ_THEME', name); } catch(e) {}
+  try { localStorage.setItem('AWOO_THEME', name); } catch(e) {}
 }
 
 function toggleTheme() {
@@ -1548,14 +1567,14 @@ function scheduleSave() {
   if (saveTimer) clearTimeout(saveTimer);
   saveTimer = setTimeout(function() {
     try {
-      localStorage.setItem('APOZ_SCULPTURE_OPT_STATE', JSON.stringify(state));
+      localStorage.setItem('AWOO_SCULPTURE_OPT_STATE', JSON.stringify(state));
     } catch(e) {}
   }, 800);
 }
 
 function loadSavedState() {
   try {
-    var raw = localStorage.getItem('APOZ_SCULPTURE_OPT_STATE');
+    var raw = localStorage.getItem('AWOO_SCULPTURE_OPT_STATE');
     if (raw) {
       var parsed = JSON.parse(raw);
       for (var k in parsed) {
@@ -1571,7 +1590,7 @@ function init() {
   loadSavedState();
 
   // Apply restored theme
-  var savedTheme = localStorage.getItem('APOZ_THEME') || state.theme || 'dark-beach';
+  var savedTheme = localStorage.getItem('AWOO_THEME') || state.theme || 'dark-beach';
   applyTheme(savedTheme);
 
   // Populate UI from state
@@ -1609,26 +1628,185 @@ function init() {
   document.getElementById('inpPartnerCount').value = state.partner.count;
   document.getElementById('inpStatGainMultiplier').value = state.statGainMultiplier;
 
-  // Live Userscript Handover Check
-  if (window.APOZ_LIVE) {
-    var banner = document.getElementById('liveUserscriptBanner');
-    if (banner) banner.removeAttribute('hidden');
-    document.getElementById('btnApplyLive').addEventListener('click', function() {
-      if (!window.APOZ_LIVE) return;
-      var live = window.APOZ_LIVE;
-      if (live.stats) {
-        if (live.stats.strength) state.charStats.strength = live.stats.strength;
-        if (live.stats.health) state.charStats.health = live.stats.health;
-        if (live.stats.dexterity) state.charStats.dexterity = live.stats.dexterity;
-        if (live.stats.agility) state.charStats.agility = live.stats.agility;
-        document.getElementById('inpCharStrength').value = fmtInt(state.charStats.strength);
-        document.getElementById('inpCharHealth').value = fmtInt(state.charStats.health);
-        document.getElementById('inpCharDexterity').value = fmtInt(state.charStats.dexterity);
-        document.getElementById('inpCharAgility').value = fmtInt(state.charStats.agility);
+  // ---- Live Profile Synchronization & Hydration ----
+  function applyProfileToOptimizer(profile, sourceName) {
+    if (!profile || typeof profile !== 'object') return false;
+    sourceName = sourceName || 'Live Sync';
+    var fieldsUpdated = 0;
+
+    // 1. Character Name & Level
+    var charName = (profile.core && profile.core.name) || (profile.meta && profile.meta.characterName);
+    var charLevel = (profile.core && profile.core.level) || (profile.meta && profile.meta.characterLevel);
+    var charBadge = document.getElementById('syncCharBadge');
+    if (charBadge && (charName || charLevel)) {
+      charBadge.textContent = (charName || 'Character') + (charLevel ? ' Lv.' + fmtInt(charLevel) : '');
+      charBadge.style.display = 'inline-block';
+    }
+
+    // 2. Base Stats (C_i: Strength, Health, Dexterity, Agility)
+    if (profile.baseStats && typeof profile.baseStats === 'object') {
+      if (typeof profile.baseStats.strength === 'number') {
+        state.charStats.strength = profile.baseStats.strength;
+        document.getElementById('inpCharStrength').value = fmtInt(profile.baseStats.strength);
+        fieldsUpdated++;
       }
-      scheduleRender();
+      if (typeof profile.baseStats.health === 'number') {
+        state.charStats.health = profile.baseStats.health;
+        document.getElementById('inpCharHealth').value = fmtInt(profile.baseStats.health);
+        fieldsUpdated++;
+      }
+      if (typeof profile.baseStats.dexterity === 'number') {
+        state.charStats.dexterity = profile.baseStats.dexterity;
+        document.getElementById('inpCharDexterity').value = fmtInt(profile.baseStats.dexterity);
+        fieldsUpdated++;
+      }
+      if (typeof profile.baseStats.agility === 'number') {
+        state.charStats.agility = profile.baseStats.agility;
+        document.getElementById('inpCharAgility').value = fmtInt(profile.baseStats.agility);
+        fieldsUpdated++;
+      }
+    }
+
+    // 3. Stat Boost Sources
+    if (profile.statBoosts && typeof profile.statBoosts === 'object') {
+      var b = profile.statBoosts;
+      if (typeof b.equipment === 'number') {
+        state.baseSources.enchants = b.equipment;
+        document.getElementById('inpEnchants').value = b.equipment;
+        fieldsUpdated++;
+      }
+      if (typeof b.villageBuildings === 'number') {
+        state.baseSources.stable = b.villageBuildings;
+        document.getElementById('inpVillageStable').value = b.villageBuildings;
+        fieldsUpdated++;
+      }
+      if (typeof b.pvpTiles === 'number') {
+        state.pvpTile = b.pvpTiles;
+        document.getElementById('inpPvpTile').value = b.pvpTiles;
+        fieldsUpdated++;
+      }
+      if (typeof b.battleBoosts === 'number') {
+        state.potionPct = b.battleBoosts;
+        document.getElementById('inpPotionPct').value = b.battleBoosts;
+        fieldsUpdated++;
+      }
+      if (typeof b.combatPet === 'number') {
+        state.baseSources.pets = b.combatPet;
+        document.getElementById('inpPetsStat').value = b.combatPet;
+        fieldsUpdated++;
+      }
+    }
+
+    // 4. Combat Pet Modifiers
+    if (profile.pets && profile.pets.combat && Array.isArray(profile.pets.combat.equipped)) {
+      var petStr = 0, petHp = 0, petDex = 0, petAgi = 0;
+      profile.pets.combat.equipped.forEach(function(pet) {
+        if (pet && pet.modifiers) {
+          if (typeof pet.modifiers.strength === 'number') petStr += pet.modifiers.strength;
+          if (typeof pet.modifiers.health === 'number') petHp += pet.modifiers.health;
+          if (typeof pet.modifiers.dexterity === 'number') petDex += pet.modifiers.dexterity;
+          if (typeof pet.modifiers.agility === 'number') petAgi += pet.modifiers.agility;
+        }
+      });
+      if (petStr > 0) { state.externalDrops.strength = petStr; document.getElementById('inpExtStrength').value = petStr; fieldsUpdated++; }
+      if (petHp > 0) { state.externalDrops.health = petHp; document.getElementById('inpExtHealth').value = petHp; fieldsUpdated++; }
+      if (petDex > 0) { state.externalDrops.dexterity = petDex; document.getElementById('inpExtDexterity').value = petDex; fieldsUpdated++; }
+      if (petAgi > 0) { state.externalDrops.agility = petAgi; document.getElementById('inpExtAgility').value = petAgi; fieldsUpdated++; }
+    }
+
+    // 5. Partner Speed & Drops
+    if (profile.partner && typeof profile.partner === 'object') {
+      if (typeof profile.partner.speed === 'number') {
+        state.partner.speedPoints = profile.partner.speed;
+        document.getElementById('inpPartnerSpeedPoints').value = profile.partner.speed;
+        fieldsUpdated++;
+      }
+      if (profile.sanctum && typeof profile.sanctum.goldKeyPartnerStatsUnlocked === 'boolean') {
+        state.partner.dropsActive = profile.sanctum.goldKeyPartnerStatsUnlocked;
+        document.getElementById('chkPartnerDrops').checked = state.partner.dropsActive;
+        fieldsUpdated++;
+      }
+    }
+
+    // Update Sync Status Bar
+    var dot = document.getElementById('syncStatusDot');
+    if (dot) dot.className = 'sync-dot live';
+    var statusText = document.getElementById('syncStatusText');
+    if (statusText) statusText.textContent = 'Synced via ' + sourceName;
+    var freshness = document.getElementById('syncFreshnessText');
+    if (freshness) {
+      var ts = profile.meta && profile.meta.timestamp ? profile.meta.timestamp : Date.now();
+      freshness.textContent = 'Last synced ' + new Date(ts).toLocaleTimeString() + ' (' + fieldsUpdated + ' fields populated)';
+    }
+
+    scheduleRender();
+    return fieldsUpdated > 0;
+  }
+
+  // Cross-tab BroadcastChannel communication
+  var profileBc = null;
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      profileBc = new BroadcastChannel('awoo-profile');
+      profileBc.onmessage = function(event) {
+        var data = event && event.data;
+        if (!data || typeof data !== 'object') return;
+        if (data.type === 'PROFILE_UPDATED' && data.profile) {
+          applyProfileToOptimizer(data.profile, 'Live Game Tab');
+        }
+      };
+    }
+  } catch(e) {}
+
+  function requestLiveSync() {
+    if (profileBc) {
+      profileBc.postMessage({ type: 'REQUEST_PROFILE_SYNC', timestamp: Date.now() });
+    }
+    var statusText = document.getElementById('syncStatusText');
+    if (statusText) statusText.textContent = 'Requesting sync...';
+    var freshness = document.getElementById('syncFreshnessText');
+    if (freshness) freshness.textContent = 'Searching open Queslar tabs...';
+  }
+
+  document.getElementById('btnSyncFromGame').addEventListener('click', function() {
+    requestLiveSync();
+  });
+
+  // Modal controls
+  var syncModal = document.getElementById('syncAssistantModal');
+  document.getElementById('btnOpenSyncAssistant').addEventListener('click', function() {
+    if (syncModal) syncModal.style.display = 'flex';
+  });
+  document.getElementById('btnCloseSyncAssistant').addEventListener('click', function() {
+    if (syncModal) syncModal.style.display = 'none';
+  });
+  if (syncModal) {
+    syncModal.addEventListener('click', function(e) {
+      if (e.target === syncModal) syncModal.style.display = 'none';
     });
   }
+
+  document.getElementById('btnApplyAssistantPaste').addEventListener('click', function() {
+    var txt = document.getElementById('assistantPasteInput').value;
+    if (!txt.trim()) return;
+    pasteInput.value = txt;
+    document.getElementById('btnApplyParsed').click();
+    if (syncModal) syncModal.style.display = 'none';
+  });
+
+  document.getElementById('btnPasteSample').addEventListener('click', function() {
+    var sample = JSON.stringify({
+      schemaVersion: 1,
+      meta: { timestamp: Date.now(), source: "sample", characterName: "AwooPlayer", characterLevel: 420 },
+      core: { name: "AwooPlayer", level: 420, vipLevel: 5 },
+      baseStats: { strength: 521939, health: 485400, dexterity: 485400, agility: 485400 },
+      statBoosts: { equipment: 525.7, villageBuildings: 360, pvpTiles: 10.31, battleBoosts: 48.93, combatPet: 600 },
+      pets: { combat: { equipped: [{ name: "Cerberus", modifiers: { strength: 600 } }] } },
+      partner: { speed: 5000 },
+      sanctum: { goldKeyPartnerStatsUnlocked: true }
+    }, null, 2);
+    document.getElementById('assistantPasteInput').value = sample;
+  });
 
   // Sidebar events
   var sidebarInputs = document.querySelectorAll('.sidebar input, .sidebar select');
@@ -1653,19 +1831,19 @@ function init() {
 
   document.getElementById('btnReset').addEventListener('click', function() {
     state = JSON.parse(JSON.stringify(DEFAULTS));
-    localStorage.removeItem('APOZ_SCULPTURE_OPT_STATE');
+    localStorage.removeItem('AWOO_SCULPTURE_OPT_STATE');
     init();
   });
 
   document.getElementById('btnSaveDefault').addEventListener('click', function() {
     readInputs();
     try {
-      localStorage.setItem('APOZ_SCULPTURE_OPT_STATE', JSON.stringify(state));
+      localStorage.setItem('AWOO_SCULPTURE_OPT_STATE', JSON.stringify(state));
       alert('Saved current configuration as default!');
     } catch(e) {}
   });
 
-  // Profile paste handlers
+  // Profile paste handlers (Supports both awoo:profile:v1 JSON and in-game hover text)
   var pasteInput = document.getElementById('profilePasteInput');
   var parseStatusBadge = document.getElementById('parseStatusBadge');
   var parseSummary = document.getElementById('parseSummary');
@@ -1673,6 +1851,22 @@ function init() {
   document.getElementById('btnApplyParsed').addEventListener('click', function() {
     var txt = pasteInput.value;
     if (!txt.trim()) return;
+
+    // Check for JSON profile
+    var trimmed = txt.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        var json = JSON.parse(trimmed);
+        if (json && (json.baseStats || json.statBoosts || json.schemaVersion || json.core)) {
+          var ok = applyProfileToOptimizer(json, 'JSON Paste');
+          parseStatusBadge.textContent = ok ? 'JSON Applied' : 'No fields found';
+          parseStatusBadge.className = ok ? 'badge badge-success' : 'badge badge-warn';
+          parseSummary.innerHTML = 'Successfully imported JSON profile snapshot with <b>' + (json.core && json.core.name || 'character') + '</b> data.';
+          return;
+        }
+      } catch(e) { /* fallback to text parser */ }
+    }
+
     var parsed = parseProfileStatBoost(txt);
     if (!parsed) return;
 
@@ -1722,6 +1916,27 @@ function init() {
     parseSummary.textContent = '';
   });
 
+  // Auto-hydration check
+  if (window.AWOO_INITIAL_PROFILE) {
+    applyProfileToOptimizer(window.AWOO_INITIAL_PROFILE, 'Userscript Handover');
+  } else if (window.AWOO_LIVE) {
+    var live = window.AWOO_LIVE;
+    if (live.stats) {
+      if (live.stats.strength) state.charStats.strength = live.stats.strength;
+      if (live.stats.health) state.charStats.health = live.stats.health;
+      if (live.stats.dexterity) state.charStats.dexterity = live.stats.dexterity;
+      if (live.stats.agility) state.charStats.agility = live.stats.agility;
+      document.getElementById('inpCharStrength').value = fmtInt(state.charStats.strength);
+      document.getElementById('inpCharHealth').value = fmtInt(state.charStats.health);
+      document.getElementById('inpCharDexterity').value = fmtInt(state.charStats.dexterity);
+      document.getElementById('inpCharAgility').value = fmtInt(state.charStats.agility);
+      scheduleRender();
+    }
+  }
+
+  // Probe open tabs on startup
+  requestLiveSync();
+
   renderMatrixTable();
   computeAndRender();
 
@@ -1744,5 +1959,34 @@ if (document.readyState === 'loading') {
   init();
 }
 </script>
+<!-- Smart Sync Assistant Modal -->
+<div class="modal-backdrop" id="syncAssistantModal" style="display:none">
+  <div class="modal-card">
+    <div class="modal-head">
+      <div style="font-weight:700;font-size:1.05rem">Profile Sync &amp; Import Assistant</div>
+      <button class="btn btn-subtle" id="btnCloseSyncAssistant" style="font-size:1.2rem;line-height:1;padding:.2rem .4rem">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div style="margin-bottom:1rem">
+        <div style="font-weight:600;margin-bottom:.2rem">Option 1: 1-Click Live Sync (Automatic)</div>
+        <div class="note" style="color:var(--text)">
+          Have Queslar open in another tab with the <b>AWOO+</b> userscript active. Click <b>"Sync from Game"</b> in this tool, or click <b>AWOO+ ▾ &gt; Force Resync</b> in the game. All stats and modifiers update in &lt;50ms across tabs.
+        </div>
+      </div>
+      <div style="margin-bottom:1rem">
+        <div style="font-weight:600;margin-bottom:.2rem">Option 2: Smart Paste (JSON or In-Game Text)</div>
+        <div class="note" style="color:var(--text);margin-bottom:.4rem">
+          In Queslar, click <b>AWOO+ ▾ &gt; Copy Snapshot</b>, OR hover over your in-game <b>Stat Boost</b> breakdown and copy the text. Paste it below:
+        </div>
+        <textarea class="paste-box" id="assistantPasteInput" rows="5" placeholder="Paste full JSON snapshot or hover-card text here..."></textarea>
+        <div class="btn-bar" style="margin-top:.4rem">
+          <button class="btn btn-primary" id="btnApplyAssistantPaste">Apply to Optimizer</button>
+          <button class="btn" id="btnPasteSample">Load Sample JSON</button>
+        </div>
+        <div id="assistantPasteMsg" class="note" style="margin-top:.3rem"></div>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>

@@ -429,7 +429,7 @@ footer.pagefoot{font-size:11px;color:var(--ink-mute);border-top:1px solid var(--
 
 <script>
 /* GENERATED from data/ by userscripts/build.mjs — do not edit. */
-window.APOZ_FACTS = (function () {
+window.AWOO_FACTS = (function () {
   /* tables/roll-coefficients.json :: rollCoefficients.table  [CODE] */
   const rollCoefficients = {"gold":{"default":{"baseValue":0,"levelMultiplier":0.00075,"levelExponent":0.49}},"damageReductionFlat":{"default":{"baseValue":0.005,"levelMultiplier":0},"implicit":{"baseValue":0.005,"levelMultiplier":0}},"hitChanceFlat":{"default":{"baseValue":0.005,"levelMultiplier":0},"implicit":{"baseValue":0.005,"levelMultiplier":0}},"dodgeChanceFlat":{"default":{"baseValue":0.005,"levelMultiplier":0},"implicit":{"baseValue":0.005,"levelMultiplier":0}},"fireResistance":{"default":{"baseValue":0.04,"levelMultiplier":0},"implicit":{"baseValue":0.04,"levelMultiplier":0}},"waterResistance":{"default":{"baseValue":0.04,"levelMultiplier":0},"implicit":{"baseValue":0.04,"levelMultiplier":0}},"earthResistance":{"default":{"baseValue":0.04,"levelMultiplier":0},"implicit":{"baseValue":0.04,"levelMultiplier":0}},"windResistance":{"default":{"baseValue":0.04,"levelMultiplier":0},"implicit":{"baseValue":0.04,"levelMultiplier":0}},"healing":{"default":{"baseValue":0.04,"levelMultiplier":0.0001},"implicit":{"baseValue":0.04,"levelMultiplier":0.0001}},"critChance":{"default":{"baseValue":0.04,"levelMultiplier":0.0001},"implicit":{"baseValue":0.04,"levelMultiplier":0.0001}},"attackSpeed":{"default":{"baseValue":0.01,"levelMultiplier":0.0001},"implicit":{"baseValue":0.01,"levelMultiplier":0.0001,"levelExponent":0.49,"_correction":"CORRECTED 2026-09-10 (LIVE, user's own real gear): baseValue was 0.03 with no levelExponent (defaulting to 1, per equipment.statRoll.unifiedRollEngine's general branch description). The user pasted the game's own in-UI 'Formula' viewer text for a real Attack Speed implicit: 'max(0.01, 0.01 + (iLevel^0.49)*0.0001) * variance(0.97-1.03) * tierMultiplier' - baseValue 0.01 (matching 'default', not the previously-recorded 'implicit' 0.03) and an explicit exponent of 0.49 (NOT the unified-engine's assumed default of 1 for this branch). This is more direct evidence than the branch-logic inference it corrects - a rendered formula string for the exact stat in question beats a general description of which branch a minified function takes.","_openDiscrepancy":"Even with this correction, plugging the user's own real example (iLevel 10622, T12, tierMultiplier 3.5) predicts ~6.79% (variance=1) against their observed 13.84% - off by almost exactly 2.04x, a gap this correction does NOT close. Not yet explained: possibilities include a second multiplicative term not captured by the pasted formula (the user may have copied only part of a longer tooltip), a wrong tierMultiplier assumption for this specific key, or a further coefficient error. Flagged as OPEN rather than silently forcing a fit - see capture/sessions/2026-09-10_exploration-bleed-damage-formula.md's continuation for the full derivation. NEXT CHECK: a second real Attack Speed implicit example at a different iLevel/tier would let CONVENTIONS.md 1a discriminate between 'wrong exponent/baseValue' (ratio would change with iLevel) and 'missing constant multiplicative term' (ratio would stay ~2.04x regardless of iLevel)."}},"critDamage":{"default":{"baseValue":0.04,"levelMultiplier":0.0001},"implicit":{"baseValue":0.04,"levelMultiplier":0.0001}},"multistrike":{"default":{"baseValue":0.04,"levelMultiplier":0.0001},"implicit":{"baseValue":0.04,"levelMultiplier":0.0001}},"strength":{"default":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":20},"implicit":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":20}},"health":{"default":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":3},"implicit":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":3}},"agility":{"default":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":5},"implicit":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":5}},"dexterity":{"default":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":5},"implicit":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":5}},"damage":{"default":{"baseValue":50,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":20},"weapon":{"baseValue":200,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":10},"dagger":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":10},"implicit":{"baseValue":50,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":20}},"defense":{"default":{"baseValue":50,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":6},"shield":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":3},"implicit":{"baseValue":50,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":6}},"monsterGoldPercentage":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"monsterGoldFlat":{"default":{"baseValue":0,"levelMultiplier":0.1,"levelExponent":0.49,"isLog":true}},"monsterExperiencePercentage":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"monsterExperienceFlat":{"default":{"baseValue":0,"levelMultiplier":0.1,"levelExponent":0.49,"isLog":true}},"sanctumExperiencePercentage":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"sanctumExperienceFlat":{"default":{"baseValue":0,"levelMultiplier":0.1,"levelExponent":0.49,"isLog":true}},"craftingExperience":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"craftingExperienceFlat":{"default":{"baseValue":0,"levelMultiplier":0.1,"levelExponent":0.49,"isLog":true}},"statGainPercentage":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"statGainFlat":{"default":{"baseValue":0,"levelMultiplier":0.025,"levelExponent":0.49,"isLog":true}},"stat":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedDamage":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedDefense":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedStrength":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedHealth":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedAgility":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedDexterity":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"statStrength":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"statAgility":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"statDexterity":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"statHealth":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeGainFlat":{"default":{"baseValue":0,"levelMultiplier":0.025,"levelExponent":0.49,"isLog":true}},"drop":{"default":{"baseValue":0,"levelMultiplier":0.0005,"levelExponent":0.49}},"dropRecipe":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"dropRelics":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeReroll":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeStatReroll":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeEnhance":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeInstantaneous":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeImplicit":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeSanctum":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeSculpture":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeEquipment":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeTypeReroll":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"dropVillageEssence":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeFighterGear":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeGem":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipePets":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeCopy":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeDescriptions":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeUpgrade":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeVirtue":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeLock":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeUnlock":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeMerge":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"dropWootz":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"potionEffect":{"default":{"baseValue":0,"levelMultiplier":0.0025,"levelExponent":0.49}},"questProgress":{"default":{"baseValue":0,"levelMultiplier":0.002,"levelExponent":0.49}},"partnerSpeedFlat":{"default":{"baseValue":5,"levelMultiplier":1,"levelExponent":0.49,"minValue":5,"roundResult":true}},"partnerIntelligenceFlat":{"default":{"baseValue":5,"levelMultiplier":1,"levelExponent":0.49,"minValue":5,"roundResult":true}},"partnerExperienceFlat":{"default":{"baseValue":15,"levelMultiplier":2,"levelExponent":0.49,"minValue":15,"roundResult":true}},"recipeExtraAction":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49,"isLog":true}},"questQueue":{"default":{"baseValue":0,"levelMultiplier":0.4,"levelExponent":0.49,"isLog":true}},"houseQueue":{"default":{"baseValue":0,"levelMultiplier":0.4,"levelExponent":0.49,"isLog":true}},"sanctumQueue":{"default":{"baseValue":0,"levelMultiplier":0.4,"levelExponent":0.49,"isLog":true}},"caveQueue":{"default":{"baseValue":0,"levelMultiplier":0.4,"levelExponent":0.49,"isLog":true}},"potionCount":{"default":{"baseValue":0,"levelMultiplier":0.4,"levelExponent":0.49,"isLog":true}},"relicsAmountFlat":{"default":{"baseValue":5,"levelMultiplier":3,"levelExponent":0.49,"minValue":5,"roundResult":true}},"monsterDamage":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"monsterAgility":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"monsterDexterity":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"monsterStrength":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"monsterHealth":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"monsterCritChanceFlat":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49,"isLog":true}},"monsterCritDamageFlat":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49,"isLog":true}},"monsterMultistrikeChanceFlat":{"default":{"baseValue":0,"levelMultiplier":0.003,"levelExponent":0.49,"isLog":true}},"monsterHealingChanceFlat":{"default":{"baseValue":0,"levelMultiplier":0.003,"levelExponent":0.49,"isLog":true}},"monsterDefenseFlat":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49,"isLog":true}},"wootzGainFlat":{"default":{"baseValue":0,"levelMultiplier":0.025,"levelExponent":0.49,"isLog":true}},"experience":{"default":{"baseValue":0,"levelMultiplier":0.00075,"levelExponent":0.49}},"partnerExperience":{"default":{"baseValue":0,"levelMultiplier":0.0005,"levelExponent":0.49}},"relicsAmount":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"dungeon":{"default":{"baseValue":1,"levelMultiplier":0.1,"levelExponent":0.49,"minValue":1,"roundResult":true}},"resource":{"default":{"baseValue":0,"levelMultiplier":0.002,"levelExponent":0.49}},"meat":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49}},"iron":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49}},"wood":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49}},"stone":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49}},"partnerAsMeat":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"partnerAsIron":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"partnerAsWood":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"partnerAsStone":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}}};
   /* tables/modifier-tiers.json :: tiers.equipment.boostPercent  [CODE] */
@@ -463,12 +463,12 @@ window.APOZ_FACTS = (function () {
 (function(){
   var TIERS = ['T1','T2','T3','T4','T5','T6','T7','T8','T9','T10','T11','T12','T13','T14','T15','T16'];
   // tables/modifier-tiers.json tiers.equipment.boostPercent, generated into
-  // APOZ_FACTS.equipmentTierBoostPct by build.mjs — no hand-copy to drift.
+  // AWOO_FACTS.equipmentTierBoostPct by build.mjs — no hand-copy to drift.
   // Implicits cap at T12 (confirmed live: implicit tier select never offers
   // past T12) but use the SAME equipment curve, just truncated — there is
   // no separate "implicit tier curve" fact anywhere in data/.
-  function tierMultEquip(tier){ return 1 + APOZ_FACTS.equipmentTierBoostPct[Math.max(0,Math.min(15,tier-1))]/100; }
-  function tierMultImplicit(tier){ return 1 + APOZ_FACTS.equipmentTierBoostPct[Math.max(0,Math.min(11,tier-1))]/100; }
+  function tierMultEquip(tier){ return 1 + AWOO_FACTS.equipmentTierBoostPct[Math.max(0,Math.min(15,tier-1))]/100; }
+  function tierMultImplicit(tier){ return 1 + AWOO_FACTS.equipmentTierBoostPct[Math.max(0,Math.min(11,tier-1))]/100; }
 
   var tierSel = document.getElementById('tier');
   TIERS.forEach(function(t,i){ var o=document.createElement('option'); o.value=i+1; o.textContent=t; if(t==='T16') o.selected=true; tierSel.appendChild(o); });
@@ -480,13 +480,13 @@ window.APOZ_FACTS = (function () {
   // The full STAT_KEY -> statKey map (this tool's short keys -> the real
   // roll-coefficients.json fact keys), plus dmg/def's per-role branch:
   // Left Hand is always a weapon; Right Hand toggles dagger/shield;
-  // everything else is default. Sourced from APOZ_FACTS.rollCoefficients
+  // everything else is default. Sourced from AWOO_FACTS.rollCoefficients
   // (tables/roll-coefficients.json rollCoefficients.table) — the exact same
   // table engine/income/profile.js's characterEquipmentStatRoll reads, not
   // a hand-copy of its numbers.
   var COEF_KEY = { dmg:'damage', str:'strength', dex:'dexterity', hp:'health', def:'defense', agi:'agility' };
   function coefFor(statKey, role){
-    var entry = APOZ_FACTS.rollCoefficients[COEF_KEY[statKey]];
+    var entry = AWOO_FACTS.rollCoefficients[COEF_KEY[statKey]];
     return entry[role] || entry.default;
   }
   function pieceRole(pieceIndex){
@@ -497,13 +497,13 @@ window.APOZ_FACTS = (function () {
   var rightHandRole = 'dagger';
 
   // characterEquipment.assembly.boostOrder: rolled -> floor -> *tier -> *slot.
-  // Slot-boost fraction is APOZ_FACTS.slotBoostPercent, generated verbatim
+  // Slot-boost fraction is AWOO_FACTS.slotBoostPercent, generated verbatim
   // from equipment.slotUpgrade.boostFormula (returns a FRACTION despite the
   // name, matching engine/income/profile.js's equipmentSlotBoostPercent).
   function pieceStatValue(statKey, pieceIndex, itemLevel, tier, slotLevel){
     var coef = coefFor(statKey, pieceRole(pieceIndex));
     var raw = coef.baseValue + Math.sqrt(Math.max(itemLevel,1)) * (itemLevel/coef.levelDivisor);
-    return Math.floor(raw) * tierMultEquip(tier) * (1 + APOZ_FACTS.slotBoostPercent(slotLevel));
+    return Math.floor(raw) * tierMultEquip(tier) * (1 + AWOO_FACTS.slotBoostPercent(slotLevel));
   }
 
   // Default selection reproduces the user's own worked example exactly:
@@ -565,7 +565,7 @@ window.APOZ_FACTS = (function () {
   var IMPLICIT_TYPES = ['Hit%','Attack Speed','Local DMG%'];
   var implicits = EQUIP_SLOTS.map(function(){ return { type:'Attack Speed', tier:10 }; });
   function implicitRoll(statKey, itemLevel){
-    var entry = APOZ_FACTS.rollCoefficients[statKey];
+    var entry = AWOO_FACTS.rollCoefficients[statKey];
     var cfg = entry.implicit || entry.default;
     var exponent = cfg.levelExponent != null ? cfg.levelExponent : 1;
     var raw = cfg.baseValue + Math.pow(Math.max(itemLevel,1), exponent) * cfg.levelMultiplier;
@@ -617,23 +617,23 @@ window.APOZ_FACTS = (function () {
   }
 
   // Pets — tables/modifier-tiers.json tiers.pet.boostPercent (generated as
-  // APOZ_FACTS.petTierBoostPct): a REAL, separate T1-T16 curve, not an
+  // AWOO_FACTS.petTierBoostPct): a REAL, separate T1-T16 curve, not an
   // "equivalent" of equipment's — T16 is index 15, 230% -> 3.30x, derived
   // from the real table rather than hardcoded. pets.slotUpgrade.boostFormula
-  // (APOZ_FACTS.petSlotBoostPercent, a FRACTION despite the name) DIVERGES
+  // (AWOO_FACTS.petSlotBoostPercent, a FRACTION despite the name) DIVERGES
   // from equipment's past slot level 150 (block>=5): the block term freezes
   // at its level-150 value and the whole thing saw-tooths every 30 levels
   // instead of continuing to climb — that divergence lives in the generated
   // function itself now, not a second hand-copy of the curve.
-  var PET_TIER_MULT = 1 + APOZ_FACTS.petTierBoostPct[15]/100; // T16, per the standardized spec
+  var PET_TIER_MULT = 1 + AWOO_FACTS.petTierBoostPct[15]/100; // T16, per the standardized spec
   // Pet damage uses the BETTER (weapon-equivalent) coefficient per this
   // session's confirmation; strength uses the standard coefficient. iLevel
   // reuses the Equipment level input — pets have no separate slider here,
   // a stated simplification, not a separate real input the user gave us.
   function petStatValue(statKey, slotLevel, itemLevel){
-    var coef = statKey==='dmg' ? APOZ_FACTS.rollCoefficients.damage.weapon : APOZ_FACTS.rollCoefficients.strength.default;
+    var coef = statKey==='dmg' ? AWOO_FACTS.rollCoefficients.damage.weapon : AWOO_FACTS.rollCoefficients.strength.default;
     var raw = coef.baseValue + Math.sqrt(Math.max(itemLevel,1)) * (itemLevel/coef.levelDivisor);
-    return Math.floor(raw) * PET_TIER_MULT * (1 + APOZ_FACTS.petSlotBoostPercent(slotLevel));
+    return Math.floor(raw) * PET_TIER_MULT * (1 + AWOO_FACTS.petSlotBoostPercent(slotLevel));
   }
   var PET_TYPES = ['Combat','Utility','Gathering'];
   var petSlots = { Combat:0, Utility:0, Gathering:0 };
@@ -736,7 +736,7 @@ window.APOZ_FACTS = (function () {
     var scale = monsterTierScale(mLevel);
     var health = monsterBaseStatCurve(mLevel) * scale.healthMult;
     if (scale.tier > 1000) health *= 1 + 0.0025 * (scale.tier - 1000); // applyDeepTierScaling
-    return APOZ_FACTS.fightBaseLife + health * APOZ_FACTS.fightHealthPerStat;
+    return AWOO_FACTS.fightBaseLife + health * AWOO_FACTS.fightHealthPerStat;
   }
   // exploration.bleed.formula (data/formulas/exploration.json) — prose fact,
   // hand-transcribed: newBleedPct = min(95, bleedPct + 15*1.25^(bleedPct/10)).
@@ -744,13 +744,13 @@ window.APOZ_FACTS = (function () {
   function nextBleedPct(p){ return Math.min(95, p + 15*Math.pow(1.25, p/10)); }
   function marginNeeded(bleedPct){ return 1/(1-bleedPct/100); }
 
-  // relic-boosts.json relicBoost.valuePerLevel (APOZ_FACTS.boostValue):
+  // relic-boosts.json relicBoost.valuePerLevel (AWOO_FACTS.boostValue):
   // level/2000 for crit chance/crit damage/multistrike (0.05%-equivalent
   // per point). critChance/critDamage/multistrikeChance are counts, not
   // percentages (battleStats.boostIsTheCount) — this preview uses their
   // EXPECTED value (deterministic), not a stochastic rollCount(), which is
   // the one simplification left in this conversion.
-  function relicStatValue(pointsSpent){ return APOZ_FACTS.boostValue(pointsSpent, 'critChance'); }
+  function relicStatValue(pointsSpent){ return AWOO_FACTS.boostValue(pointsSpent, 'critChance'); }
 
   // The real profile builder: sums each piece's roll for whatever stats it
   // has selected, applies Local DMG% post-sum to damage only, adds base
@@ -767,7 +767,7 @@ window.APOZ_FACTS = (function () {
     var totalStr = baseStats.str + totals.str + pets.str;
     var totalDex = baseStats.dex + totals.dex;
     var totalAgi = baseStats.agi + totals.agi;
-    var combatDamage = APOZ_FACTS.fightBaseDamage + totalStr * APOZ_FACTS.fightDamagePerStat + equipDamage + pets.dmg;
+    var combatDamage = AWOO_FACTS.fightBaseDamage + totalStr * AWOO_FACTS.fightDamagePerStat + equipDamage + pets.dmg;
     var pointsEach = relicCombatPts/3;
     var critChance = relicStatValue(pointsEach), critDamage = relicStatValue(pointsEach), multistrike = relicStatValue(pointsEach);
     return { dex: totalDex, agi: totalAgi, damage: combatDamage, critChance: critChance, critDamage: critDamage, multistrikeChance: multistrike };
@@ -778,8 +778,8 @@ window.APOZ_FACTS = (function () {
   // strikes = multistrikeChance+1, each strike's damage = preReduced*(1+critDamage*critChance).
   function turnsToKill(profile, level){
     var mDef = monsterDex(level); // monster defense === dexterity === agility, confirmed
-    var softCapped = mDef + Math.min(APOZ_FACTS.drDefenseSoftCap, mDef) * 4;
-    var dr = 1 - 1/Math.pow(1 + softCapped/APOZ_FACTS.drDivisor, APOZ_FACTS.drExponent);
+    var softCapped = mDef + Math.min(AWOO_FACTS.drDefenseSoftCap, mDef) * 4;
+    var dr = 1 - 1/Math.pow(1 + softCapped/AWOO_FACTS.drDivisor, AWOO_FACTS.drExponent);
     var preReduced = profile.damage * (1-dr);
     var perHit = preReduced * (1 + profile.critDamage*profile.critChance);
     var perTurn = perHit * (profile.multistrikeChance+1);

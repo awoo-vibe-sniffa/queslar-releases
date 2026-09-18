@@ -1,23 +1,30 @@
 {
   "channel": "live",
-  "generated": "2026-09-12T08:06:40.660Z",
+  "generated": "2026-09-18T20:44:40.214Z",
   "core": {
-    "version": "6.13.7",
-    "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/apoz-core-releases/main/live/apoz-core.user.js"
+    "version": "7.0.0",
+    "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js"
   },
   "modules": [
     {
-      "id": "eta-tracker",
-      "label": "Combat Slot ETA Tracker",
-      "version": "4.11.6",
-      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/apoz-core-releases/main/live/eta-tracker.user.js",
+      "id": "fighter-allocator",
+      "label": "Fighter Allocator",
+      "version": "1.12.0",
+      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/fighter-allocator.user.js",
       "notes": ""
     },
     {
-      "id": "fighter-allocator",
-      "label": "Fighter Allocator",
-      "version": "1.11.3",
-      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/apoz-core-releases/main/live/fighter-allocator.user.js",
+      "id": "pet-slot-alarm",
+      "label": "Pet Slot Alarm",
+      "version": "4.12.0",
+      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/pet-slot-alarm.user.js",
+      "notes": ""
+    },
+    {
+      "id": "tools",
+      "label": "Tools",
+      "version": "1.0.0",
+      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/tools.user.js",
       "notes": ""
     }
   ]

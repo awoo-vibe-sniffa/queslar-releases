@@ -296,11 +296,11 @@ code{font-family:var(--mono);background:var(--surface-2);padding:.03rem .25rem;b
 
       <div class="card live" id="liveCard">
         <div class="live-head">
-          <span class="sec-label" style="margin:0">Live import<span class="ico" tabindex="0" data-tip="Filled in by the Apoz Core userscript when you open this page from the in-game menu. Nothing is sent anywhere - the values are handed over in-page.">i</span></span>
+          <span class="sec-label" style="margin:0">Live import<span class="ico" tabindex="0" data-tip="Filled in by the AWOO+ userscript when you open this page from the in-game menu. Nothing is sent anywhere - the values are handed over in-page.">i</span></span>
           <span class="live-when" id="liveWhen"></span>
         </div>
         <div class="live-list" id="liveList"></div>
-        <div class="live-empty" id="liveEmpty">Not opened from the game. Open <strong>Apoz Core &rsaquo; Tools &rsaquo; Party Gold ROI</strong> inside Queslar to fill this in automatically.</div>
+        <div class="live-empty" id="liveEmpty">Not opened from the game. Open <strong>AWOO+ &rsaquo; Tools &rsaquo; Party Gold ROI</strong> inside Queslar to fill this in automatically.</div>
         <div class="btnrow" id="liveActions" hidden>
           <button type="button" class="btn btn-primary" id="liveApplyBtn">Apply live values</button>
         </div>
@@ -574,7 +574,7 @@ code{font-family:var(--mono);background:var(--surface-2);padding:.03rem .25rem;b
 
 <script>
 /* GENERATED from data/ by userscripts/build.mjs — do not edit. */
-window.APOZ_FACTS = (function () {
+window.AWOO_FACTS = (function () {
   /* formulas/pets.json :: pets.slotUpgrade.costFormula  [CODE] */
   function petSlotUpgradeCost(currentLevel, newLevel) { let total = 0; for (let r = currentLevel + 1; r <= newLevel; r++) total += r <= 150 ? Math.floor(500000 * r**3) : Math.floor(500000 * 150**3 * (r/150)**15); return { currency: 'gold', value: total }; } // per-level marginal cost at level L->L+1: floor(500000*(L+1)^3) while L+1<=150, else floor(500000*150^3*((L+1)/150)^15). Exactly continuous at the seam: both branches evaluate to floor(500000*150^3) = 1,687,500,000,000 at r=150.
   /* formulas/pets.json :: pets.slotUpgrade.boostFormula  [CODE] */
@@ -629,7 +629,7 @@ window.APOZ_FACTS = (function () {
                     useLivePet: 'useLivePetInput', useLiveGoldBoost: 'useLiveGoldBoostInput' };
   var VIP_PCT_WHEN_ON = 0.10;
 
-  // ---- core facts, all generated into window.APOZ_FACTS by the build ----
+  // ---- core facts, all generated into window.AWOO_FACTS by the build ----
   // slotBoostPercent is emitted from pets.slotUpgrade.boostFormula -- the PET
   // curve, which stopped being the equipment one on 2026-09-07. Every call
   // below is a pet slot (combat or utility), so there is no equipment caller
@@ -637,11 +637,11 @@ window.APOZ_FACTS = (function () {
   // Despite the name it returns a FRACTION, so *100 happens here and nowhere
   // else. The percent form is always a whole number, so rounding is exact and
   // is the only thing between the UI and "+70.00000000000001%".
-  function slotBoostPct(L){ return Math.round(APOZ_FACTS.petSlotBoostPercent(L) * 100); }
-  function stepCost(L){ return APOZ_FACTS.petSlotUpgradeCost(L - 1, L).value; }
+  function slotBoostPct(L){ return Math.round(AWOO_FACTS.petSlotBoostPercent(L) * 100); }
+  function stepCost(L){ return AWOO_FACTS.petSlotUpgradeCost(L - 1, L).value; }
 
   function petTierMultiplier(tier){
-    var t = APOZ_FACTS.petTierBoostPercent;
+    var t = AWOO_FACTS.petTierBoostPercent;
     tier = Math.max(1, Math.min(t.length, Math.round(tier)));
     return 1 + t[tier-1]/100;
   }
@@ -717,7 +717,7 @@ window.APOZ_FACTS = (function () {
     };
     p.rolls = petRawRolls(p);
     p.pooled = pooledBase(p);
-    p.levelMult = APOZ_FACTS.goldLevelMultiplier(p.characterLevel);
+    p.levelMult = AWOO_FACTS.goldLevelMultiplier(p.characterLevel);
     return p;
   }
 
@@ -755,7 +755,7 @@ window.APOZ_FACTS = (function () {
   function pooledBase(p){
     var mine = personalGoldTotal(p);
     var others = (p.partyMembers - 1) * (p.othersSameAsMe ? mine : p.othersGoldBoost);
-    return (mine + others) * APOZ_FACTS.partySizeMultiplier(p.partyMembers);
+    return (mine + others) * AWOO_FACTS.partySizeMultiplier(p.partyMembers);
   }
 
   // The hot path. A crossover scan evaluates this ~1,600 times per combat level
@@ -885,7 +885,7 @@ window.APOZ_FACTS = (function () {
     var gpa = gb * lm * mix.mult;
     var kept = gpa * (1 - p.tax);
     var baseSum = p.enchants + p.market + p.village + p.sculptures + p.skillTree + p.petGoldMod;
-    var penalty = APOZ_FACTS.partySizeMultiplier(p.partyMembers);
+    var penalty = AWOO_FACTS.partySizeMultiplier(p.partyMembers);
 
     document.getElementById('headlineGold').textContent = fmt(gpa);
     var keptRow = document.getElementById('keptRow');
@@ -1179,7 +1179,7 @@ window.APOZ_FACTS = (function () {
 
   function initLive(){
     var card = document.getElementById('liveCard');
-    var src = (typeof window !== 'undefined' && window.APOZ_LIVE) || null;
+    var src = (typeof window !== 'undefined' && window.AWOO_LIVE) || null;
     if (!src || !src.fields) return;
 
     if (src.pet && typeof src.pet.flat === 'number' && typeof src.pet.pct === 'number') {
@@ -1293,7 +1293,7 @@ window.APOZ_FACTS = (function () {
 
   function initProvenance(){
     var ul = document.getElementById('provenanceList');
-    var names = (window.APOZ_FACTS && Object.keys(window.APOZ_FACTS)) || [];
+    var names = (window.AWOO_FACTS && Object.keys(window.AWOO_FACTS)) || [];
     ul.innerHTML = names.length
       ? names.map(function(n){ return '<li><code>' + n + '</code></li>'; }).join('') +
         '<li>Emitted into this page by <code>userscripts/build.mjs</code> from <code>data/</code>. Correct the fact in the core and rebuild — nothing here is retyped.</li>'

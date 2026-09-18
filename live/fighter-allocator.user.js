@@ -1,15 +1,15 @@
 // ==UserScript==
-// @name         Apoz Core: Fighter Allocator
-// @namespace    apoz-core
+// @name         AWOO+: Fighter Allocator
+// @namespace    awoo-core
 // @author       Apoz
-// @version      1.11.3
-// @description  Apoz Core module (requires "Apoz Core"). Allocates gold-purchased fighter stats (Health/Damage/Hit/Dodge/Defense/Crit Damage) across your 6 fighters. Class-keyed profiles with a full table (category, classes, date, source), World Boss-aware math (Hit target from boss level, exact Damage/Crit Damage split), and two-way import/export with the community "Fighter Optimizer" gold-plan format. Fills the game's own stat inputs; never auto-clicks Save Preset.
+// @version      1.12.0
+// @description  AWOO+ module (requires "AWOO+"). Allocates gold-purchased fighter stats (Health/Damage/Hit/Dodge/Defense/Crit Damage) across your 6 fighters. Class-keyed profiles with a full table (category, classes, date, source), World Boss-aware math (Hit target from boss level, exact Damage/Crit Damage split), and two-way import/export with the community "Fighter Optimizer" gold-plan format. Fills the game's own stat inputs; never auto-clicks Save Preset.
 // @match        https://v2.queslar.com/*
 // @match        https://*.queslar.com/*
 // @grant        none
 // @run-at       document-start
-// @updateURL    https://raw.githubusercontent.com/awoo-vibe-sniffa/apoz-core-releases/main/live/fighter-allocator.user.js
-// @downloadURL  https://raw.githubusercontent.com/awoo-vibe-sniffa/apoz-core-releases/main/live/fighter-allocator.user.js
+// @updateURL    https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/fighter-allocator.user.js
+// @downloadURL  https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/fighter-allocator.user.js
 // ==/UserScript==
 
 (function () {
@@ -48,20 +48,20 @@
   // ==== END GENERATED ====
 
   // ---- Core intake shim (generated) ----
-  // Requires the "Apoz Core" userscript. Without it this module does nothing.
+  // Requires the "AWOO+" userscript. Without it this module does nothing.
   (function (id, version, factory) {
     var host = (typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || null;
-    var q = (window.__apozModules = window.__apozModules || []);
+    var q = (window.__awooModules = window.__awooModules || []);
     q.push({ id: id, version: version, hostVersion: host, factory: factory, claimed: false, descriptor: null });
-    if (window.__ApozCore && window.__ApozCore.claim) { window.__ApozCore.claim(); return; }
+    if (window.__AwooCore && window.__AwooCore.claim) { window.__AwooCore.claim(); return; }
     setTimeout(function () {
-      if (!window.__ApozCore) console.warn('[Apoz] "' + id + '" is installed but the Apoz Core script is not. Install Apoz Core and reload.');
+      if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("fighter-allocator", "1.11.3", function (Core) {
+  })("fighter-allocator", "1.12.0", function (Core) {
 
 
   const MODULE_ID = 'fighter-allocator';
-  const STORAGE_KEY = `apoz:${MODULE_ID}:v1`;
+  const STORAGE_KEY = `awoo:${MODULE_ID}:v1`;
 
   // ==== domain constants ====
 
@@ -418,7 +418,7 @@
     }, partial);
   }
 
-  // ==== profile store — dirty-flag + debounced flush, exactly eta-tracker's ====
+  // ==== profile store — dirty-flag + debounced flush, exactly pet-slot-alarm's ====
   // ==== pattern (INSTRUMENTATION.md §5 S1): no per-change synchronous write  ====
   let profiles = [];
 
@@ -513,10 +513,20 @@
   // "Fighter Optimizer" script) as the reference mapping, ported rather than
   // copied: proper Error messages surfaced in-panel instead of alert()/thrown
   // strings, and no client-side mutation of global state mid-parse.
+  // THE FORMAT TAG IS A WIRE FORMAT, NOT BRANDING. It is written into plan files
+  // people have saved and shared, and import accepts a file only on an exact
+  // match. The 2026-09-18 rebrand's find-and-replace renamed it, twice, which
+  // would have made every plan exported before that date unimportable; the
+  // only test was an export->import round trip, which passes whatever the tag
+  // says as long as both sides agree. So: new exports carry the new tag, and
+  // every tag ever shipped stays importable. Never remove an entry from this
+  // list. The legacy spelling is split so the next rename cannot rewrite it.
+  const NATIVE_FORMATS = ['awoo-fighter-allocator-v1', 'ap' + 'oz-fighter-allocator-v1'];
+
   function detectAndNormalizeImport(raw, defaultName) {
     if (!raw || typeof raw !== 'object') throw new Error('That is not a valid plan (not a JSON object).');
 
-    if (raw.format === 'apoz-fighter-allocator-v1') {
+    if (NATIVE_FORMATS.includes(raw.format)) {
       return normalizeNativeExport(raw);
     }
     if (Array.isArray(raw.allocations)) {
@@ -581,7 +591,7 @@
   // creating silently. The community format's `sourceBudgetB`/`budgetB`
   // field is BILLIONS-denominated by its own name and convention — the
   // reported plan's own `name` field said so outright, "4535.101b total
-  // plan" for a `sourceBudgetB` of 4535.10056 — but everything on APOZ's
+  // plan" for a `sourceBudgetB` of 4535.10056 — but everything on AWOO's
   // side that this value gets compared against (`liveBudgetB`, read by
   // getTotalBudget() below, and scaleLevel()'s ratio) is RAW gold, with no
   // division ever applied. `findSourceBudgetB` was returning the
@@ -594,7 +604,7 @@
   //
   // Fixed at the one place this function returns a value: an alias whose
   // OWN name declares billions ("...b"/"...billions") gets multiplied by
-  // 1e9 here, once, converting it into APOZ's raw-gold convention before it
+  // 1e9 here, once, converting it into AWOO's raw-gold convention before it
   // ever reaches scaleLevel(). The bare aliases (a plain "budget"/
   // "totalBudget"/"usableGold", no "b" suffix) make no such claim about
   // their own unit and are left exactly as written — guessing a conversion
@@ -703,7 +713,7 @@
 
   function exportNative(profile) {
     return JSON.stringify({
-      format: 'apoz-fighter-allocator-v1',
+      format: NATIVE_FORMATS[0],
       name: profile.name,
       category: profile.category,
       classLayout: profile.classLayout,
@@ -998,7 +1008,7 @@
   function categoryBadge(category) {
     const span = document.createElement('span');
     span.textContent = category;
-    span.style.cssText = 'font-size:10px; opacity:.7; border:1px solid var(--apoz-border, var(--border)); border-radius:3px; padding:1px 5px;';
+    span.style.cssText = 'font-size:10px; opacity:.7; border:1px solid var(--awoo-border, var(--border)); border-radius:3px; padding:1px 5px;';
     return span;
   }
 
@@ -1012,8 +1022,8 @@
   }
 
   const INLINE_EDIT_INPUT_CSS = 'width:100%; font: inherit; font-size:11px; box-sizing:border-box; '
-    + 'background: var(--apoz-input, var(--input)); color: var(--apoz-foreground, var(--foreground)); '
-    + 'border: 1px solid var(--apoz-border, var(--border)); border-radius:4px; padding:3px 5px;';
+    + 'background: var(--awoo-input, var(--input)); color: var(--awoo-foreground, var(--foreground)); '
+    + 'border: 1px solid var(--awoo-border, var(--border)); border-radius:4px; padding:3px 5px;';
 
   // A square icon action button for the table's actions column — Allocate/
   // Share stay as their own labelled/icon buttons (feedback: "Allocate is
@@ -1024,7 +1034,7 @@
   function buildIconBtn({ svg, tooltip, danger, onClick }) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'apoz-ui-icon-btn' + (danger ? ' apoz-ui-btn-danger' : '');
+    btn.className = 'awoo-ui-icon-btn' + (danger ? ' awoo-ui-btn-danger' : '');
     btn.setAttribute('data-tooltip', tooltip);
     btn.setAttribute('data-tooltip-right', '');
     btn.innerHTML = svg;
@@ -1082,11 +1092,11 @@
           const names = (p.classLayout && p.classLayout.length)
             ? p.classLayout : Object.keys(p.stats);
           const wrap = document.createElement('span');
-          wrap.className = 'apoz-fa-classes';
+          wrap.className = 'awoo-fighter-allocator-classes';
           names.forEach((n, i) => {
             if (i) wrap.appendChild(document.createTextNode(' '));
             const el = document.createElement('span');
-            el.className = 'apoz-fa-class';
+            el.className = 'awoo-fighter-allocator-class';
             el.textContent = abbrevClass(n);
             el.setAttribute('data-tooltip', `${POSITIONS[i] || 'Position ' + (i + 1)} — ${n}`);
             wrap.appendChild(el);
@@ -1148,7 +1158,7 @@
         }
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'apoz-ui-btn apoz-ui-btn-primary';
+        btn.className = 'awoo-ui-btn awoo-ui-btn-primary';
         btn.textContent = 'Allocate';
         btn.addEventListener('click', () => loadProfileFlow(p));
         return btn;
@@ -1216,12 +1226,12 @@
   // label sitting BELOW it as its own line — two visual fragments (a rule,
   // then a caption) reading as two things instead of one divider. This is a
   // single element: one thin 1px rule with the label sitting ON it
-  // (::before/::after fill the space either side, in the .apoz-fa-divider
+  // (::before/::after fill the space either side, in the .awoo-fighter-allocator-divider
   // rule below), all on design tokens so it stays "obviously a separator"
   // without adding a new opacity/font-size literal.
   function buildArchivedDivider(count) {
     const divider = document.createElement('div');
-    divider.className = 'apoz-fa-divider';
+    divider.className = 'awoo-fighter-allocator-divider';
     divider.textContent = `Archived (${count})`;
     return divider;
   }
@@ -1231,7 +1241,7 @@
   // broken table rather than an empty one — and a table that grows from zero
   // resizes the whole panel the moment you add your first plan.
   // Was 5 — reported "the plans table should be longer by default even when
-  // empty... looks stubby". Raised alongside .apoz-fa-table-scroll's
+  // empty... looks stubby". Raised alongside .awoo-fighter-allocator-table-scroll's
   // min-height (buildPanelContent's <style>) so the resting shape actually
   // reads as deliberate; the max-height SCROLL CEILING there is unchanged.
   const RESTING_ROWS = 8;
@@ -1240,7 +1250,7 @@
     if (!body) return;
     for (let i = realRows; i < RESTING_ROWS; i++) {
       const tr = document.createElement('tr');
-      tr.className = 'apoz-fa-ghost';
+      tr.className = 'awoo-fighter-allocator-ghost';
       for (let c = 0; c < colCount; c++) tr.appendChild(document.createElement('td'));
       body.appendChild(tr);
     }
@@ -1834,18 +1844,18 @@
     return pct == null ? 1 : 1 + pct / 100;
   }
 
-  // A PASTE-BACK PROBE, in the same spirit as `__apozDiag()` and
-  // `__apozWhereIsTheNav()`. Two attempts at reading gear have now been made
+  // A PASTE-BACK PROBE, in the same spirit as `__awooDiag()` and
+  // `__awooWhereIsTheNav()`. Two attempts at reading gear have now been made
   // from bundle-traced shapes, and one of them found nothing live. Rather than
   // guess a third time, this reports what the fiber walk ACTUALLY contains so
   // the next attempt is aimed at something real.
   //
   // Deliberately plain text and deliberately global: it is for pasting back,
   // not for programs. Open a fighter first so their gear is rendered.
-  window.__apozFighterProbe = function () {
-    const out = ['--- Apoz Fighter Allocator: gear probe ---'];
+  window.__awooFighterProbe = function () {
+    const out = ['--- AWOO+ Fighter Allocator: gear probe ---'];
     if (!Core.walkFiberAll) {
-      out.push('Core.walkFiberAll is missing — update Apoz Core.');
+      out.push('Core.walkFiberAll is missing — update AWOO+.');
       const t = out.join('\n'); console.log(t); return t;
     }
     const shapes = new Map();
@@ -2050,14 +2060,14 @@
   function buildOptimizerContent() {
     const wrap = document.createElement('div');
     // flex:1 + min-height:0: this is the ONLY child of the window's own
-    // flex-column body (.apoz-window-body, core.js), so giving it flex:1
+    // flex-column body (.awoo-window-body, core.js), so giving it flex:1
     // lets it actually EXPAND to fill the window instead of sizing to its
     // own content — which is what lets the log below grow with the window
     // rather than being capped (item 2: the window is resizable now).
-    wrap.style.cssText = 'display:flex; flex-direction:column; gap:var(--apoz-s4); flex:1; min-height:0;';
+    wrap.style.cssText = 'display:flex; flex-direction:column; gap:var(--awoo-s4); flex:1; min-height:0;';
 
     const intro = document.createElement('div');
-    intro.style.cssText = 'font-size:var(--apoz-fs-control); opacity:var(--apoz-em-normal); line-height:1.4;';
+    intro.style.cssText = 'font-size:var(--awoo-fs-control); opacity:var(--awoo-em-normal); line-height:1.4;';
     intro.textContent = 'Opens each fighter in turn to read their equipped Crit Chance, then computes '
       + 'the exact Hit target for this boss level and the optimal Damage/Crit Damage split with '
       + 'whatever gold remains — automatic, split evenly across your 6 fighters. Needs the Fighters '
@@ -2080,13 +2090,13 @@
     // never applied to the field automatically. See recordBossLevelObservation/
     // predictBossLevelFromLog above for why this refuses more often than not.
     const levelContext = document.createElement('div');
-    levelContext.style.cssText = 'font-size:var(--apoz-fs-caption); opacity:var(--apoz-em-muted); '
-      + 'display:flex; align-items:center; gap:var(--apoz-s3); flex-wrap:wrap;';
+    levelContext.style.cssText = 'font-size:var(--awoo-fs-caption); opacity:var(--awoo-em-muted); '
+      + 'display:flex; align-items:center; gap:var(--awoo-s3); flex-wrap:wrap;';
     wrap.appendChild(levelContext);
     ui.optLevelContext = levelContext;
 
     const budgetLine = document.createElement('div');
-    budgetLine.style.cssText = 'font-size:var(--apoz-fs-control); opacity:var(--apoz-em-normal);';
+    budgetLine.style.cssText = 'font-size:var(--awoo-fs-control); opacity:var(--awoo-em-normal);';
     wrap.appendChild(budgetLine);
     ui.optBudgetLine = budgetLine;
 
@@ -2097,9 +2107,9 @@
     // using for the fixed rows around it; min-height is only the floor for a
     // freshly-opened, un-resized window.
     const log = document.createElement('div');
-    log.style.cssText = 'font-size:var(--apoz-fs-control); border:1px solid var(--apoz-border, var(--border)); '
-      + 'border-radius:var(--apoz-r-md); padding:var(--apoz-s3) var(--apoz-s4); min-height:220px; flex:1; '
-      + 'overflow-y:auto; background: var(--apoz-input, var(--input)); white-space:pre-wrap;';
+    log.style.cssText = 'font-size:var(--awoo-fs-control); border:1px solid var(--awoo-border, var(--border)); '
+      + 'border-radius:var(--awoo-r-md); padding:var(--awoo-s3) var(--awoo-s4); min-height:220px; flex:1; '
+      + 'overflow-y:auto; background: var(--awoo-input, var(--input)); white-space:pre-wrap;';
     log.textContent = 'Ready.';
     wrap.appendChild(log);
     ui.optLog = log;
@@ -2107,11 +2117,11 @@
     const btnRow = document.createElement('div');
     btnRow.style.cssText = 'display:flex; gap:8px;';
     const startBtn = document.createElement('button');
-    startBtn.type = 'button'; startBtn.className = 'apoz-ui-btn apoz-ui-btn-primary';
+    startBtn.type = 'button'; startBtn.className = 'awoo-ui-btn awoo-ui-btn-primary';
     startBtn.textContent = 'Start';
     startBtn.addEventListener('click', () => runWorldBossOptimization());
     const stopBtn = document.createElement('button');
-    stopBtn.type = 'button'; stopBtn.className = 'apoz-ui-btn apoz-ui-btn-danger';
+    stopBtn.type = 'button'; stopBtn.className = 'awoo-ui-btn awoo-ui-btn-danger';
     stopBtn.textContent = 'Stop';
     stopBtn.disabled = true;
     stopBtn.title = 'Stops after the fighter currently being scanned — nothing is generated from a stopped run.';
@@ -2129,16 +2139,16 @@
     // exists — the others are set from what was actually detected).
     const resultRow = document.createElement('div');
     resultRow.hidden = true;
-    resultRow.className = 'apoz-fa-group';
+    resultRow.className = 'awoo-fighter-allocator-group';
     resultRow.style.cssText += 'flex-direction:row; align-items:center; gap:8px;';
     const resultNameInput = document.createElement('input');
     resultNameInput.type = 'text';
-    resultNameInput.style.cssText = 'flex:1; font: inherit; font-size:11.5px; background: var(--apoz-input, var(--input)); '
-      + 'color: var(--apoz-foreground, var(--foreground)); border: 1px solid var(--apoz-border, var(--border)); '
+    resultNameInput.style.cssText = 'flex:1; font: inherit; font-size:11.5px; background: var(--awoo-input, var(--input)); '
+      + 'color: var(--awoo-foreground, var(--foreground)); border: 1px solid var(--awoo-border, var(--border)); '
       + 'border-radius:4px; padding:4px 7px;';
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = 'apoz-ui-btn apoz-ui-btn-primary';
+    addBtn.className = 'awoo-ui-btn awoo-ui-btn-primary';
     addBtn.textContent = 'Add to profile list';
     addBtn.addEventListener('click', () => {
       if (!pendingOptimizerResult) return;
@@ -2213,7 +2223,7 @@
     el.appendChild(predSpan);
     const useBtn = document.createElement('button');
     useBtn.type = 'button';
-    useBtn.className = 'apoz-ui-btn';
+    useBtn.className = 'awoo-ui-btn';
     useBtn.textContent = `Use ${prediction.level}`;
     useBtn.title = 'Fills the field with the predicted level — a suggestion from your own observed history, '
       + 'never applied automatically.';
@@ -2429,7 +2439,7 @@
   function buildShareButton(profile) {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = 'apoz-ui-icon-btn';
+    btn.className = 'awoo-ui-icon-btn';
     btn.setAttribute('data-tooltip', 'Export / share this plan');
     btn.setAttribute('data-tooltip-right', '');
     btn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" '
@@ -2439,7 +2449,7 @@
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       Core.ui.menu(btn, [
-        { label: 'Export — Apoz format', onClick: () => copyOrPrompt(() => exportNative(profile)) },
+        { label: 'Export — AWOO+ format', onClick: () => copyOrPrompt(() => exportNative(profile)) },
         { label: 'Export — community format', onClick: () => copyOrPrompt(() => exportFriendFormat(profile)) },
         { label: 'Import over this plan…', onClick: () => openImportExportModal(profile) },
       ]);
@@ -2473,7 +2483,7 @@
   //   explanation was a native title tooltip, not this file's own styled
   //   data-tooltip convention), and a working-but-REDUNDANT pair in the one
   //   place they weren't disabled (a row's share menu, which already has its
-  //   own direct "Export — Apoz format" / "Export — community format" items
+  //   own direct "Export — AWOO+ format" / "Export — community format" items
   //   ONE CLICK before this modal even opens — see buildShareButton above).
   //
   //   Removed rather than wired up: there was nothing broken to fix, the
@@ -2496,9 +2506,9 @@
 
     function section(label, formatBadge, doImport) {
       const box = document.createElement('div');
-      box.className = 'apoz-fa-group';
+      box.className = 'awoo-fighter-allocator-group';
       const head = document.createElement('div');
-      head.className = 'apoz-fa-group-label';
+      head.className = 'awoo-fighter-allocator-group-label';
       head.textContent = label;
       const badge = document.createElement('span');
       badge.style.cssText = 'margin-left:6px; opacity:.6; font-weight:normal; text-transform:none;';
@@ -2508,7 +2518,7 @@
       const row = document.createElement('div');
       row.style.cssText = 'display:flex; gap:6px;';
       const importBtn = document.createElement('button');
-      importBtn.type = 'button'; importBtn.className = 'apoz-ui-btn';
+      importBtn.type = 'button'; importBtn.className = 'awoo-ui-btn';
       importBtn.textContent = 'Import…';
       importBtn.addEventListener('click', doImport);
       row.appendChild(importBtn);
@@ -2543,7 +2553,7 @@
       promptAndImport((raw) => detectAndNormalizeImport(raw, 'Imported plan'), 'a Fighter Optimizer gold-plan export'),
     ));
     body.appendChild(section(
-      'Apoz Fighter Allocator', '(this tool\'s own format)',
+      'AWOO+ Fighter Allocator', '(this tool\'s own format)',
       promptAndImport((raw) => detectAndNormalizeImport(raw, 'Imported plan'), 'a plan exported from this tool'),
     ));
 
@@ -2565,12 +2575,12 @@
   // checkbox, so the Settings tab reads as one system.
   function buildToggleRow({ label, info, checked, onChange }) {
     const row = document.createElement('label');
-    row.style.cssText = 'display:flex; align-items:center; gap:var(--apoz-s3); '
-      + 'font-size:var(--apoz-fs-control); cursor:pointer; margin:var(--apoz-s2) 0;';
+    row.style.cssText = 'display:flex; align-items:center; gap:var(--awoo-s3); '
+      + 'font-size:var(--awoo-fs-control); cursor:pointer; margin:var(--awoo-s2) 0;';
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.checked = !!checked;
-    input.style.cssText = 'width:13px; height:13px; accent-color: var(--apoz-primary); margin:0;';
+    input.style.cssText = 'width:13px; height:13px; accent-color: var(--awoo-primary); margin:0;';
     input.addEventListener('change', () => onChange(input.checked));
     const span = document.createElement('span');
     span.textContent = label;
@@ -2585,7 +2595,7 @@
 
     const style = document.createElement('style');
     style.textContent = `
-      /* Uses the --apoz-* namespaced tokens (with a raw-var fallback), the
+      /* Uses the --awoo-* namespaced tokens (with a raw-var fallback), the
          SAME source Core's own chrome draws from — not the game's raw
          --border/--input/etc directly. REPORTED: the export menu's colors
          "didn't match the theme somehow" — root cause was exactly this
@@ -2594,15 +2604,15 @@
          read the game's LIVE variables regardless of the liveAdaptTheme
          setting, so the two could disagree any time they weren't
          coincidentally equal. */
-      .apoz-fa-group { border: 1px solid var(--apoz-border, var(--border));
-        border-radius: var(--apoz-r-md); padding: var(--apoz-s4) 10px;
-        display: flex; flex-direction: column; gap: var(--apoz-s3); }
-      .apoz-fa-group-label { font-weight: bold; opacity: var(--apoz-em-normal);
-        text-transform: uppercase; font-size: var(--apoz-fs-caption); letter-spacing: .04em; }
+      .awoo-fighter-allocator-group { border: 1px solid var(--awoo-border, var(--border));
+        border-radius: var(--awoo-r-md); padding: var(--awoo-s4) 10px;
+        display: flex; flex-direction: column; gap: var(--awoo-s3); }
+      .awoo-fighter-allocator-group-label { font-weight: bold; opacity: var(--awoo-em-normal);
+        text-transform: uppercase; font-size: var(--awoo-fs-caption); letter-spacing: .04em; }
       /* State at rest, not an alert box: which page you are on and what gold
          was read. Events go to the activity strip instead. */
-      #apoz-fa-context { font-size: var(--apoz-fs-caption); opacity: var(--apoz-em-muted);
-        padding: var(--apoz-s1) 0; }
+      #awoo-fighter-allocator-context { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted);
+        padding: var(--awoo-s1) 0; }
 
       /* THE TABLE GROWS, THEN SCROLLS.
          Nothing set a height before, so extra window height became blank space
@@ -2612,36 +2622,36 @@
          plans are added, and a scrollbar only once it reaches a generous
          ceiling. The resting height is why adding your first plan replaces a
          ghost row in place instead of resizing the panel. */
-      .apoz-fa-table-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+      .awoo-fighter-allocator-table-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
       /* min-height raised 148->220 alongside RESTING_ROWS 5->8 (item 3):
          an empty table should read as deliberately spacious, not stubby. The
          SCROLL CEILING (max-height) is untouched on purpose — this only
          changes the floor. */
-      .apoz-fa-table-scroll { overflow: auto; min-height: 220px; max-height: 420px; flex: 1; }
-      /* EMPTY, NOT FILLED. These drew a bar per cell tinted from --apoz-border,
+      .awoo-fighter-allocator-table-scroll { overflow: auto; min-height: 220px; max-height: 420px; flex: 1; }
+      /* EMPTY, NOT FILLED. These drew a bar per cell tinted from --awoo-border,
          which is a warm brown, so an empty table read as a stack of smudges --
          reported as distracting, and fairly: a placeholder that draws
          something looks like content that failed to load rather than like
          room. The row keeps its height and its separator line, and nothing
          else. The resting count (RESTING_ROWS) is what actually does the work
          here; the bars were never the point. */
-      .apoz-fa-ghost td { height: 22px; color: transparent; }
+      .awoo-fighter-allocator-ghost td { height: 22px; color: transparent; }
       /* Small-caps and tracking so an abbreviation reads as a deliberate
          short form rather than a truncated word. */
-      .apoz-fa-classes { font-variant: small-caps; letter-spacing: .04em; white-space: nowrap; }
-      .apoz-fa-class { cursor: help; }
-      .apoz-fa-class:hover { color: var(--apoz-primary, var(--primary)); }
-      .apoz-fa-hint { text-align: center; font-size: var(--apoz-fs-caption);
-        opacity: var(--apoz-em-muted); padding: var(--apoz-s4) var(--apoz-s2) var(--apoz-s1);
+      .awoo-fighter-allocator-classes { font-variant: small-caps; letter-spacing: .04em; white-space: nowrap; }
+      .awoo-fighter-allocator-class { cursor: help; }
+      .awoo-fighter-allocator-class:hover { color: var(--awoo-primary, var(--primary)); }
+      .awoo-fighter-allocator-hint { text-align: center; font-size: var(--awoo-fs-caption);
+        opacity: var(--awoo-em-muted); padding: var(--awoo-s4) var(--awoo-s2) var(--awoo-s1);
         line-height: 1.5; }
       /* THE ARCHIVED-PLANS DIVIDER (item 4) — one thin rule, label sitting ON
          it via ::before/::after either side, instead of a rule plus a
          separate caption line underneath (the "too fragmented" report). */
-      .apoz-fa-divider { display: flex; align-items: center; gap: var(--apoz-s3);
-        margin: var(--apoz-s5) 0 var(--apoz-s3); font-size: var(--apoz-fs-micro);
-        text-transform: uppercase; letter-spacing: .05em; opacity: var(--apoz-em-muted); }
-      .apoz-fa-divider::before, .apoz-fa-divider::after { content: ""; flex: 1; height: 1px;
-        background: var(--apoz-border, var(--border)); }
+      .awoo-fighter-allocator-divider { display: flex; align-items: center; gap: var(--awoo-s3);
+        margin: var(--awoo-s5) 0 var(--awoo-s3); font-size: var(--awoo-fs-micro);
+        text-transform: uppercase; letter-spacing: .05em; opacity: var(--awoo-em-muted); }
+      .awoo-fighter-allocator-divider::before, .awoo-fighter-allocator-divider::after { content: ""; flex: 1; height: 1px;
+        background: var(--awoo-border, var(--border)); }
     `;
     document.head.appendChild(style);
 
@@ -2657,9 +2667,9 @@
     // number was nearest is how a panel ends up shouting a figure nobody
     // opened it for. The gold reading lives in the context line instead.
     const tableWrap = document.createElement('div');
-    tableWrap.className = 'apoz-fa-group apoz-fa-table-wrap';
+    tableWrap.className = 'awoo-fighter-allocator-group awoo-fighter-allocator-table-wrap';
     const tableHeading = document.createElement('div');
-    tableHeading.className = 'apoz-fa-group-label';
+    tableHeading.className = 'awoo-fighter-allocator-group-label';
     tableHeading.style.cssText += 'display:flex; justify-content:space-between; align-items:center;';
     const tableHeadingLeft = document.createElement('span');
     tableHeadingLeft.textContent = 'Fighter Plans';
@@ -2673,7 +2683,7 @@
     // separate label.
     const archivedToggleBtn = document.createElement('button');
     archivedToggleBtn.type = 'button';
-    archivedToggleBtn.className = 'apoz-ui-btn';
+    archivedToggleBtn.className = 'awoo-ui-btn';
     archivedToggleBtn.style.cssText = 'opacity:.7; font-weight:normal;';
     function renderArchivedToggleBtn() {
       archivedToggleBtn.textContent = ui.showArchived ? 'Hide archived' : 'Show archived';
@@ -2693,7 +2703,7 @@
     // the dropdown's larger icon-button font.
     const importBtn = document.createElement('button');
     importBtn.type = 'button';
-    importBtn.className = 'apoz-ui-btn';
+    importBtn.className = 'awoo-ui-btn';
     importBtn.textContent = 'Import';
     importBtn.title = 'Import a plan — Fighter Optimizer format or this tool\'s own';
     importBtn.addEventListener('click', () => openImportExportModal(null));
@@ -2705,7 +2715,7 @@
     // people not to look there. It comes back when it does something.
     const wbBtn = document.createElement('button');
     wbBtn.type = 'button';
-    wbBtn.className = 'apoz-ui-btn';
+    wbBtn.className = 'awoo-ui-btn';
     wbBtn.textContent = 'Optimize for World Boss';
     wbBtn.title = 'Scans every fighter\'s equipped Crit Chance, then computes the exact Hit target and '
       + 'Damage/Crit Damage split for the current World Boss level — no manual fields to fill in.';
@@ -2715,12 +2725,12 @@
     tableWrap.appendChild(tableHeading);
 
     const tableContainer = document.createElement('div');
-    tableContainer.className = 'apoz-fa-table-scroll';
+    tableContainer.className = 'awoo-fighter-allocator-table-scroll';
     tableWrap.appendChild(tableContainer);
     ui.profileTableContainer = tableContainer;
 
     const hint = document.createElement('div');
-    hint.className = 'apoz-fa-hint';
+    hint.className = 'awoo-fighter-allocator-hint';
     tableWrap.appendChild(hint);
     ui.tableHint = hint;
 
@@ -2730,14 +2740,14 @@
     const statusRow = document.createElement('div');
     statusRow.style.cssText = 'display:flex; align-items:center; gap:8px;';
     const contextLine = document.createElement('div');
-    contextLine.id = 'apoz-fa-context';
+    contextLine.id = 'awoo-fighter-allocator-context';
     contextLine.style.flex = '1';
     statusRow.appendChild(contextLine);
     ui.contextLine = contextLine;
 
     const stopAllocateBtn = document.createElement('button');
     stopAllocateBtn.type = 'button';
-    stopAllocateBtn.className = 'apoz-ui-btn apoz-ui-btn-danger';
+    stopAllocateBtn.className = 'awoo-ui-btn awoo-ui-btn-danger';
     stopAllocateBtn.textContent = 'Stop';
     stopAllocateBtn.hidden = true;
     stopAllocateBtn.title = 'Stops after the fighter currently being filled — check its sliders before Save Preset.';
@@ -2785,7 +2795,7 @@
       updateAmbientStatus();
       windowHandle.open();
     } else {
-      // See eta-tracker's identical call: an expanded strip grew the window,
+      // See pet-slot-alarm's identical call: an expanded strip grew the window,
       // and closing while grown persisted that height into saved geometry.
       if (activity && typeof activity.collapse === 'function') activity.collapse();
       windowHandle.close();
@@ -2858,7 +2868,7 @@
         label: 'Fighter Allocator',
         render(container) {
           const speedHead = document.createElement('div');
-          speedHead.className = 'apoz-settings-cat';
+          speedHead.className = 'awoo-settings-cat';
           speedHead.textContent = 'Allocation speed';
           container.appendChild(speedHead);
 
@@ -2879,12 +2889,12 @@
           container.appendChild(speedRow);
 
           const saveHead = document.createElement('div');
-          saveHead.className = 'apoz-settings-cat';
+          saveHead.className = 'awoo-settings-cat';
           saveHead.textContent = 'Save Preset';
           container.appendChild(saveHead);
 
           const warn = document.createElement('div');
-          warn.style.cssText = 'font-size:var(--apoz-fs-control); opacity:var(--apoz-em-normal); line-height:1.45;';
+          warn.style.cssText = 'font-size:var(--awoo-fs-control); opacity:var(--awoo-em-normal); line-height:1.45;';
           warn.textContent = 'OFF by default. Allocate always fills and verifies your sliders on the page; '
             + 'it never touches the Save button unless this is turned on. When it IS on, Allocate still '
             + 'refuses to click Save if any slider fails verification, or if the page\'s own budget line '
@@ -2905,9 +2915,9 @@
           container.appendChild(autoSaveRow);
         },
       },
-      // Enabling always shows the window right away, matching eta-tracker.
+      // Enabling always shows the window right away, matching pet-slot-alarm.
       // Nothing to gate on reload here yet — this module doesn't persist
-      // panelOpen the way eta-tracker does, so there's no prior-session
+      // panelOpen the way pet-slot-alarm does, so there's no prior-session
       // state to restore either way.
       onToggle: (enabled) => togglePanel(enabled),
       onQuickClick: () => togglePanel(),
