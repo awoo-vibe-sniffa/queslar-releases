@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.0
+// @version      7.0.1
 // @description  The shell every AWOO+ module plugs into: nav launcher, module + tool registries, shared number handling for the game's per-character decimal convention, and update checking. INSTALL THIS FIRST - on its own it adds a menu and nothing else. Every script in this family is named "AWOO+..." so they sort together in your dashboard.
 // @match        https://v2.queslar.com/*
 // @match        https://*.queslar.com/*
@@ -18,7 +18,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.0",
+    "version": "7.0.1",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json"
   };
   // ==== END GENERATED ====
@@ -54,14 +54,17 @@
   // resetPosition/resetFull split, real theme presets, generalized
   // [data-tooltip]; 9 = onNavigate; 10 = createScope/ui.write/ui.dom — the
   // framework layer (userscripts/FRAMEWORK.md); 11 = jobs (the local job-host
-  // client — see server/README.md).
+  // client — see server/README.md); 12 = the Companion delegation
+  // pattern (labelled v12 in the code below before this constant was bumped)
+  // plus the named themes on the token contract, appearance(), toolHtml(),
+  // themes, and Settings > Fonts.
   //
   // CORRECTED 2026-09-07: this list claimed v5 shipped a "bus". It never did —
   // see the "NOT TAKEN from the AWOO+ Framework" note further down, which
   // is the actual decision. A version history is the first thing a module
   // author reads to decide what exists, so a phantom entry in it is worse than
   // no list at all.
-  const AWOO_CORE_VERSION = 11;
+  const AWOO_CORE_VERSION = 12;
 
   // Exactly one Core per page. Two installed Core scripts is a user
   // misconfiguration, not a state to negotiate — first one wins and the second
@@ -102,13 +105,17 @@
       // reload doesn't clutter the screen with everything that was open
       // last time.
       autoShowOnReload: false,
-      // OFF by default: the chrome renders from a fixed snapshot of this
-      // game's own theme (liveAdaptTheme:false) rather than live var()
-      // lookups, so it looks right even before the game's CSS has painted
-      // and never shifts if the game's own theme changes underneath it.
-      // Flip this on to go back to inheriting var(--awoo-card) etc. live, the
-      // behaviour this Core always had before v6.1.
-      liveAdaptTheme: false,
+      // The named theme (DESIGN.md §7, ARTIFACT_STYLE_GUIDE.md Part II-b).
+      // AWOO Turquoise stays the default: it is the look every installed
+      // user already has, and a theme change is the player's to make, not an
+      // update's. 'matchGame' is what the old `liveAdaptTheme: true` meant —
+      // inheriting the game's own variables live — and a stored true is
+      // migrated to it below, so nobody's choice is lost.
+      theme: 'awooTurquoise',
+      // Settings > Fonts. Two surfaces, set separately, because the overlay
+      // and the tools are read in different places at different sizes.
+      // Applied only through the Fonts tab's "Save & apply" — see there.
+      fonts: { awoo: { text: 'public', num: 'public' }, tools: { text: 'public', num: 'public' } },
       // ON by default. OFF removes the resize handle from every window
       // (Settings is never resizable regardless of this setting — see
       // openSettingsWindow) for anyone who would rather every window just
@@ -149,13 +156,22 @@
     let settings = Object.assign({}, SETTINGS_DEFAULTS);
     try {
       const rawSettings = localStorage.getItem(SETTINGS_KEY);
-      if (rawSettings) Object.assign(settings, JSON.parse(rawSettings));
+      if (rawSettings) {
+        const stored = JSON.parse(rawSettings);
+        Object.assign(settings, stored);
+        // v6.1-v11 stored the theme as a boolean. true meant "follow the game
+        // live", which is exactly Match game; false meant the Turquoise
+        // snapshot, which is the default anyway.
+        if (stored && stored.theme == null && stored.liveAdaptTheme === true) settings.theme = 'matchGame';
+        delete settings.liveAdaptTheme;
+      }
     } catch (e) { /* ignore, defaults stand */ }
     function getSetting(key) { return settings[key]; }
     function setSetting(key, value) {
       settings[key] = value;
       try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignore */ }
-      if (key === 'liveAdaptTheme') applyThemeMode();
+      if (key === 'theme') applyThemeMode();
+      if (key === 'fonts') applyOverlayFonts();
       if (key === 'showDevTooltips') syncDevIcons();
       // Every already-open window picks up an on/off flip immediately, not
       // only the next time it happens to be opened fresh.
@@ -170,12 +186,25 @@
       }
     }
 
-    // ---- theming: named presets, static snapshot by default, live var() adaptation opt-in ----
+    // ---- theming: one token contract, nine choices (DESIGN.md §7) ----
     //
-    // "AWOO Turquoise" is the user's own real `.dark{}` theme block (given
-    // 2026-09-07), replacing the earlier placeholder guesses — oklch() and
-    // hex are mixed here exactly as supplied; every browser this runs in
-    // already renders oklch() natively (the game's own CSS uses it too).
+    // The seven named themes are the SAME seven the tools wear, from the same
+    // source: src/tools/theme-tokens.css. build.mjs parses that file and
+    // generates the array below in place of the empty one, so a palette
+    // correction reaches the overlay and every tool on one rebuild and there
+    // is no second copy of any hex in this file. (The raw src/ file therefore
+    // carries an empty list; only the built script has themes, and
+    // applyThemeMode falls back to Turquoise if the list is somehow empty.)
+    //
+    // Each entry: { id, label, mode: 'light'|'dark', t: { <contract token>: value } }.
+    const THEME_CONTRACT = [{"id":"beach","label":"Beach (light)","mode":"light","t":{"ground":"#EFE7D7","surface":"#FAF5EC","surface-2":"#F1E8D8","surface-3":"#E7DCC7","border":"#D8CBB2","border-strong":"#C3B193","border-control":"#8C7D64","ink":"#33291D","ink-soft":"#6B5C48","ink-mute":"#94836C","accent":"#8A4322","accent-fill":"#A8552C","accent-edge":"#D4AB93","bg-accent":"#F3E2D8","on-accent":"#FBF0E6","success":"#3F5C33","success-fill":"#4A6741","bg-success":"#E4EBDC","danger":"#8C2F2A","danger-fill":"#A83A33","bg-danger":"#F5E0DD","info":"#41528A","bg-info":"#E2E5F2","neutral":"#6E5F49","bg-neutral":"#EDE4D3","dev":"#2E6B5C","bg-dev":"#DCEBE6","shadow":"0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06)"}},{"id":"beach-dim","label":"Beach (dimmed)","mode":"dark","t":{"ground":"#17181A","surface":"#1E2022","surface-2":"#25282A","surface-3":"#2E3134","border":"#33373A","border-strong":"#4A4F53","border-control":"#6D7378","ink":"#E6E4E0","ink-soft":"#A8A49D","ink-mute":"#7C7872","accent":"#F2B189","accent-fill":"#CC7A50","accent-edge":"#5C412C","bg-accent":"#31241A","on-accent":"#1B0D05","success":"#7CC49A","success-fill":"#3F8A61","bg-success":"#17301F","danger":"#EB8272","danger-fill":"#C0453A","bg-danger":"#341D1B","info":"#A3AEDD","bg-info":"#1F2130","neutral":"#A09B92","bg-neutral":"#26282A","dev":"#7FC9B8","bg-dev":"#16302A","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)"}},{"id":"slate","label":"Slate","mode":"dark","t":{"ground":"#14181D","surface":"#1B2027","surface-2":"#20262D","surface-3":"#272F37","border":"#2B323A","border-strong":"#3A434C","border-control":"#6A7684","ink":"#E8EAEB","ink-soft":"#A9B0B6","ink-mute":"#78828B","accent":"#E3B36B","accent-fill":"#C4923F","accent-edge":"#5A4522","bg-accent":"#2E2412","on-accent":"#241300","success":"#84C4AA","success-fill":"#4F8C74","bg-success":"#172E25","danger":"#E28270","danger-fill":"#C1503C","bg-danger":"#351F1A","info":"#B4A4E0","bg-info":"#241F36","neutral":"#9AA6B2","bg-neutral":"#222A32","dev":"#78C8BC","bg-dev":"#14302C","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)"}},{"id":"claude","label":"Claude (light)","mode":"light","t":{"ground":"#F0EEE6","surface":"#FFFFFF","surface-2":"#F7F6F1","surface-3":"#EBE9E0","border":"#DEDACE","border-strong":"#C5C0B2","border-control":"#8A8474","ink":"#191917","ink-soft":"#57544C","ink-mute":"#84806F","accent":"#A8461F","accent-fill":"#B4552F","accent-edge":"#DEB49F","bg-accent":"#F7E6DD","on-accent":"#FFF4EE","success":"#276048","success-fill":"#317055","bg-success":"#D3E8DC","danger":"#9E2B22","danger-fill":"#BE4034","bg-danger":"#F8E2DF","info":"#474C93","bg-info":"#E5E6F4","neutral":"#6B6759","bg-neutral":"#EDEBE2","dev":"#256657","bg-dev":"#D8EBE5","shadow":"0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06)"}},{"id":"claude-med","label":"Claude (medium)","mode":"dark","t":{"ground":"#26241F","surface":"#2F2D27","surface-2":"#37352E","surface-3":"#403D35","border":"#454239","border-strong":"#5C5849","border-control":"#807A68","ink":"#EDEAE0","ink-soft":"#B3AE9E","ink-mute":"#8A8676","accent":"#EFA189","accent-fill":"#C26A4F","accent-edge":"#66452F","bg-accent":"#3B2A1E","on-accent":"#1C0C03","success":"#84C6A2","success-fill":"#3C8A63","bg-success":"#22342A","danger":"#EE8B79","danger-fill":"#BC4739","bg-danger":"#3B2622","info":"#AFA8E2","bg-info":"#2B2839","neutral":"#A8A292","bg-neutral":"#343128","dev":"#82C9B9","bg-dev":"#1F3330","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)"}},{"id":"claude-dark","label":"Claude (dark)","mode":"dark","t":{"ground":"#141312","surface":"#1C1B19","surface-2":"#232220","surface-3":"#2C2A27","border":"#31302C","border-strong":"#47443E","border-control":"#6E6A61","ink":"#EFECE3","ink-soft":"#ACA79A","ink-mute":"#7E7A6E","accent":"#F0A791","accent-fill":"#C36E52","accent-edge":"#523A26","bg-accent":"#2B1D14","on-accent":"#1A0A02","success":"#82C9A3","success-fill":"#3E8F66","bg-success":"#14291D","danger":"#F0907E","danger-fill":"#C24A3B","bg-danger":"#2E1B18","info":"#B3ABE6","bg-info":"#211E2E","neutral":"#A5A092","bg-neutral":"#26241F","dev":"#7FCBBA","bg-dev":"#132A26","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)"}},{"id":"claude-code","label":"Claude Code","mode":"dark","t":{"ground":"#1F1E1D","surface":"#262625","surface-2":"#2E2E2C","surface-3":"#383836","border":"#3A3A38","border-strong":"#54544F","border-control":"#787870","ink":"#F5F4EF","ink-soft":"#B4B2A7","ink-mute":"#88867C","accent":"#E39070","accent-fill":"#C2613F","accent-edge":"#4A3227","bg-accent":"#33221B","on-accent":"#1A0A04","success":"#7FC49E","success-fill":"#3C8961","bg-success":"#1C2E23","danger":"#EE8B78","danger-fill":"#BF4A39","bg-danger":"#33211D","info":"#ADA6E0","bg-info":"#28253A","neutral":"#A3A198","bg-neutral":"#2C2C2A","dev":"#7DC6B6","bg-dev":"#1B2E2A","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)"}}] /* GENERATED from src/tools/theme-tokens.css */;
+
+    // GAME-SHAPED presets: eight values in the GAME's own vocabulary (--card,
+    // --primary, ...), rather than our contract. "AWOO Turquoise" is the
+    // user's own real `.dark{}` theme block (given 2026-09-07) — oklch() and
+    // hex mixed exactly as supplied; every browser this runs in renders
+    // oklch() natively (the game's own CSS uses it too). Kept exactly,
+    // because it is what every installed user is looking at today.
     const THEME_PRESETS = {
       awooTurquoise: {
         card: 'oklch(0.19 0.012 215)', border: '#392e22', primary: '#3e959a',
@@ -184,25 +213,299 @@
         'popover-foreground': 'oklch(0.92 0.015 215)',
       },
     };
-    const THEME_SNAPSHOT = THEME_PRESETS.awooTurquoise;
-    const THEME_TOKENS = Object.keys(THEME_SNAPSHOT);
+    // The eight game variables every existing module and every line of Core's
+    // chrome reads as --awoo-<name>. They are published for EVERY theme, so a
+    // module written against them follows a named theme without being touched
+    // (DESIGN.md's migration rule: adopt the contract when you are already
+    // changing a module, not because a system arrived).
+    const THEME_TOKENS = Object.keys(THEME_PRESETS.awooTurquoise);
+
+    const THEME_CHOICES = () => [
+      { id: 'awooTurquoise', label: 'AWOO Turquoise' },
+      ...THEME_CONTRACT.map((t) => ({ id: t.id, label: t.label })),
+      { id: 'matchGame', label: 'Match game (experimental)' },
+    ];
+    const contractTheme = (id) => THEME_CONTRACT.find((t) => t.id === id) || null;
+    function themeId() {
+      const id = getSetting('theme');
+      if (id === 'awooTurquoise') return id;
+      // Match game derives its semantic hues from Slate; without the
+      // generated list there is no Slate, so it would paint half a theme.
+      if (id === 'matchGame') return contractTheme('slate') ? id : SETTINGS_DEFAULTS.theme;
+      if (contractTheme(id)) return id;
+      return SETTINGS_DEFAULTS.theme;
+    }
+
+    // A NAMED theme, contract -> legacy. The contract is published as-is
+    // (--awoo-surface, --awoo-ink, --awoo-danger, ...) and the eight legacy
+    // names are derived from it by what Core's chrome USES them for:
+    //   card <- surface (window ground), popover <- surface-2 (button hover),
+    //   input <- surface-3 (control fill and row hover — Core paints controls
+    //   WITH --input, it does not outline them), foreground and
+    //   popover-foreground <- ink (window text; ink-soft would dim all of it),
+    //   primary <- accent-fill, primary-foreground <- on-accent.
+    // warn has no contract token: it is the theme's accent text, which in
+    // every one of the seven is the amber or terracotta the old #e0a23e meant.
+    function namedThemeVars(t) {
+      const v = Object.assign({}, t.t);
+      Object.assign(v, {
+        card: v.surface, popover: v['surface-2'], input: v['surface-3'],
+        foreground: v.ink, 'popover-foreground': v.ink,
+        primary: v['accent-fill'], 'primary-foreground': v['on-accent'],
+        warn: v.accent,
+        // 1 on a light ground, 0 on a dark one. For IDENTITY colours a module
+        // keeps literal (a stat's own hue): color-mix(in oklab, <hex>
+        // calc(100% - var(--awoo-light, 0) * 60%), var(--awoo-ink)) darkens
+        // them toward ink on a light theme only, and leaves every dark theme
+        // — the default included — exactly as it was.
+        light: t.mode === 'light' ? '1' : '0',
+      });
+      // Every contract colour is opaque, so the solid twin is the same value.
+      for (const key of THEME_TOKENS) v[`solid-${key}`] = v[key];
+      return v;
+    }
+
+    // A GAME-SHAPED theme, legacy -> contract: the mapping in section 08 of
+    // the Design System artifact. Eight values are published by the game;
+    // the rest are derived from them with color-mix() — live, so Match game
+    // follows the game's own theme without a re-snapshot — and the semantic
+    // hues, which the game does not publish at all, come from Slate, which is
+    // hue-neutral enough to sit on any ground.
+    //
+    // THE SOLID TWIN IS DELIBERATE AND STAYS. The game's --card/--popover are
+    // likely translucent, meant to sit over a backdrop-blur the game provides;
+    // a floating tooltip or menu has no such ancestor and shows whatever is
+    // behind it (a REPORTED bug). So --awoo-solid-* is always opaque: the
+    // literal for Turquoise, and for Match game the game's own colour with its
+    // alpha forced to 1 by relative colour syntax — or, where the browser
+    // cannot do that, Slate's opaque value rather than a see-through panel.
+    function gameShapedVars(legacy, solid) {
+      const slate = contractTheme('slate');
+      const s = slate ? slate.t : {};
+      const v = {};
+      for (const key of THEME_TOKENS) { v[key] = legacy[key]; v[`solid-${key}`] = solid[key]; }
+      const mix = (a, pct, b) => `color-mix(in oklab, ${a} ${pct}%, ${b})`;
+      Object.assign(v, {
+        surface: 'var(--awoo-card)', 'surface-2': 'var(--awoo-popover)',
+        'border-control': 'var(--awoo-input)', ink: 'var(--awoo-foreground)',
+        'ink-soft': 'var(--awoo-popover-foreground)', 'accent-fill': 'var(--awoo-primary)',
+        'on-accent': 'var(--awoo-primary-foreground)',
+        ground: mix('var(--awoo-card)', 88, 'black'),
+        'surface-3': mix('var(--awoo-card)', 92, 'white'),
+        'border-strong': mix('var(--awoo-border)', 50, 'var(--awoo-input)'),
+        'ink-mute': mix('var(--awoo-foreground)', 55, 'var(--awoo-card)'),
+        accent: mix('var(--awoo-primary)', 70, 'var(--awoo-foreground)'),
+        'accent-edge': mix('var(--awoo-primary)', 30, 'var(--awoo-card)'),
+        'bg-accent': mix('var(--awoo-primary)', 12, 'var(--awoo-card)'),
+      });
+      for (const key of ['success', 'success-fill', 'bg-success', 'danger', 'danger-fill', 'bg-danger',
+        'info', 'bg-info', 'neutral', 'bg-neutral', 'dev', 'bg-dev', 'shadow']) {
+        if (s[key] != null) v[key] = s[key];
+      }
+      if (s.accent != null) v.warn = s.accent;
+      // Treated as dark. Turquoise is; Match game takes its semantic hues from
+      // Slate, which already assumes a dark ground. A light game palette, if
+      // one exists, has not been captured and would need its own check.
+      v.light = '0';
+      return v;
+    }
+
+    function themeVars(id) {
+      const named = contractTheme(id);
+      if (named) return namedThemeVars(named);
+      const slate = contractTheme('slate');
+      if (id === 'matchGame' && slate) {
+        const fb = namedThemeVars(slate);
+        const live = {}, solid = {};
+        let relative = false;
+        try { relative = !!(window.CSS && CSS.supports('color', 'rgb(from red r g b / 1)')); } catch (e) { /* no */ }
+        for (const key of THEME_TOKENS) {
+          live[key] = `var(--${key}, ${fb[key]})`;
+          solid[key] = relative ? `rgb(from var(--${key}, ${fb[key]}) r g b / 1)` : fb[key];
+        }
+        return gameShapedVars(live, solid);
+      }
+      const tq = THEME_PRESETS.awooTurquoise;
+      return gameShapedVars(tq, tq);
+    }
+
+    let appliedThemeKeys = [];
     function applyThemeMode() {
       const root = document.documentElement;
       if (!root || !root.style || typeof root.style.setProperty !== 'function') return;
-      for (const key of THEME_TOKENS) {
-        if (getSetting('liveAdaptTheme')) root.style.setProperty(`--awoo-${key}`, `var(--${key}, ${THEME_SNAPSHOT[key]})`);
-        else root.style.setProperty(`--awoo-${key}`, THEME_SNAPSHOT[key]);
-        // REPORTED BUG: floating tooltips rendered see-through while live-adapt
-        // is on. Root cause: the game's own --card/--popover are likely rgba()
-        // with alpha < 1, meant to sit over a backdrop-blur the game itself
-        // provides — a tooltip has no such ancestor, so it shows whatever is
-        // behind it instead of a solid panel. A floating overlay can never
-        // safely inherit a translucent theme color, live-adapted or not, so it
-        // always gets the guaranteed-opaque snapshot value here regardless of
-        // the liveAdaptTheme setting.
-        root.style.setProperty(`--awoo-solid-${key}`, THEME_SNAPSHOT[key]);
-      }
+      const vars = themeVars(themeId());
+      for (const key of appliedThemeKeys) if (!(key in vars)) root.style.removeProperty(`--awoo-${key}`);
+      for (const key of Object.keys(vars)) root.style.setProperty(`--awoo-${key}`, vars[key]);
+      appliedThemeKeys = Object.keys(vars);
+      applyOverlayFonts();
       injectTokenStyleOnce();
+    }
+
+    // What a tool needs to dress itself like the overlay. Handed over at
+    // open time as window.AWOO_APPEARANCE (see toolHtml below): a tool opens
+    // in its own tab and cannot read this page. Plain data, no functions.
+    function appearance() {
+      // The player's number convention travels too (2026-09-21). A tool opened
+      // in its own tab cannot read the game, so Cost Tables' "Match game"
+      // number setting fell back to the browser's separators and to letters —
+      // the same browser-over-game bug the overlay had. A locale is only
+      // handed over when it is the GAME's (or the player's override), never a
+      // browser guess; formatting only when the game's own setting was read.
+      const c = getConvention();
+      let formatting = null;
+      try { formatting = probeNumberFormattingFromFiber(); } catch (e) { formatting = null; }
+      return {
+        theme: themeId(),
+        dev: !!getSetting('showDevTooltips'),
+        fonts: { tools: fontsFor('tools') },
+        number: {
+          locale: ['setting', 'remembered', 'override'].includes(c.source) ? c.numberLocale : null,
+          formatting,
+        },
+      };
+    }
+
+    // ---- fonts (Settings > Fonts) ----
+    //
+    // The same two lists the tools read (src/tools/tool-settings.js);
+    // userscripts/tests/tool-theme-contract.mjs fails if they drift. Public Sans is the
+    // settled face for text AND numbers — tabular figures give the fixed digit
+    // width a column needs, and its zero measures clear. Roboto Mono is
+    // offered because it was asked for, and labelled: its zero is marked.
+    //
+    // The overlay's stack keeps the old Lato chain behind the chosen face, so
+    // a page that blocks the font request degrades to exactly the old look.
+    const FONT_CHOICES = {
+      text: [
+        { id: 'public', label: 'Public Sans', family: 'Public+Sans:wght@400;500;600;700', stack: "'Public Sans'" },
+        { id: 'open', label: 'Open Sans', family: 'Open+Sans:wght@400;500;600;700', stack: "'Open Sans'" },
+        { id: 'figtree', label: 'Figtree', family: 'Figtree:wght@400;500;600;700', stack: "'Figtree'" },
+      ],
+      num: [
+        { id: 'public', label: 'Public Sans', family: 'Public+Sans:wght@400;500;600;700', stack: "'Public Sans'" },
+        { id: 'roboto', label: 'Roboto Mono (marked 0)', family: 'Roboto+Mono:wght@400;500;600', stack: "'Roboto Mono'" },
+      ],
+    };
+    const fontChoice = (kind, id) => FONT_CHOICES[kind].find((f) => f.id === id) || FONT_CHOICES[kind][0];
+    function fontsFor(surface) {
+      const all = getSetting('fonts') || {};
+      const s = (all && all[surface]) || {};
+      return { text: fontChoice('text', s.text).id, num: fontChoice('num', s.num).id };
+    }
+    // One <link> per family, added only when that face is actually chosen or
+    // previewed — nothing is fetched for a face nobody picked.
+    function loadFontFamily(family) {
+      if (!family || !document.head) return;
+      if (document.head.querySelector(`link[data-awoo-font="${family}"]`)) return;
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = `https://fonts.googleapis.com/css2?family=${family}&display=swap`;
+      link.setAttribute('data-awoo-font', family);
+      document.head.appendChild(link);
+    }
+    function applyOverlayFonts() {
+      const root = document.documentElement;
+      if (!root || !root.style || typeof root.style.setProperty !== 'function') return;
+      const f = fontsFor('awoo');
+      const text = fontChoice('text', f.text), num = fontChoice('num', f.num);
+      loadFontFamily(text.family);
+      loadFontFamily(num.family);
+      root.style.setProperty('--awoo-font', `${text.stack}, ${CORE_FONT}`);
+      root.style.setProperty('--awoo-font-num', `${num.stack}, ${CORE_FONT}`);
+    }
+
+    // A tool payload with the page's handover prepended — AFTER the doctype
+    // and charset build.mjs puts first, because a <script> ahead of the
+    // doctype drops the page into quirks mode, where <table> stops
+    // inheriting colour. `extra` is { NAME: value } for any further
+    // window.NAME a tool expects (AWOO_LIVE, AWOO_INITIAL_PROFILE). JSON is
+    // escaped so no value can close the script element early.
+    function toolHtml(html, extra) {
+      const assign = Object.assign({ AWOO_APPEARANCE: appearance() }, extra || {});
+      const body = Object.keys(assign)
+        .map((k) => `window.${k}=${JSON.stringify(assign[k]).replace(/</g, '\\u003c')};`).join('');
+      const script = `<script>${body}</script>\n`;
+      const m = /^\s*<!doctype html>\s*(<meta charset="utf-8">\s*)?/i.exec(html);
+      if (!m) return script + html;
+      return html.slice(0, m[0].length) + script + html.slice(m[0].length);
+    }
+
+    // ---- settings backup: export and import everything (2026-09-21) ----
+    //
+    // Reinstalling a script, or moving to another browser, used to mean
+    // setting every module, tool, window and theme up again by hand. A backup
+    // is one JSON file holding every AWOO+ key on this origin: Core's settings,
+    // every module's state, every window's position and size, and every tool's
+    // settings (a tool opens as a blob URL, which shares this page's origin,
+    // so its localStorage IS this page's).
+    //
+    // What stays out, and why each is a deliberate answer:
+    //   awoo:profile:*     your character's data, not a setting; it re-syncs.
+    //   awoo:core:updates  a cache of the last update check; stale on arrival.
+    //   the Companion token  a credential, regenerated every time the host
+    //                      starts. The address is kept, the token never leaves.
+    // Import MERGES: a key in the file replaces yours, a key it does not name
+    // is left alone, and a token you already have is never overwritten.
+    const BACKUP_FORMAT = 'awoo-settings';
+    const BACKUP_VERSION = 1;
+    const BACKUP_HOST_KEY = 'awoo:core:host';
+    function backupWanted(key) {
+      if (typeof key !== 'string') return false;
+      if (key.startsWith('awoo:profile:') || key === 'awoo:core:updates') return false;
+      return key.startsWith('awoo') || key.startsWith('petSlotROI.')
+        || key.startsWith('explCeiling.') || key === 'AWOO_SCULPTURE_OPT_STATE';
+    }
+    function collectBackup(storage) {
+      storage = storage || localStorage;
+      const keys = {};
+      for (let i = 0; i < storage.length; i++) {
+        const key = storage.key(i);
+        if (!backupWanted(key)) continue;
+        let value = storage.getItem(key);
+        if (value == null) continue;
+        if (key === BACKUP_HOST_KEY) {
+          try { const cfg = JSON.parse(value); delete cfg.token; value = JSON.stringify(cfg); } catch (e) { continue; }
+        }
+        keys[key] = value;
+      }
+      return {
+        format: BACKUP_FORMAT, version: BACKUP_VERSION, core: AWOO_CORE_VERSION,
+        exportedAt: new Date().toISOString(), keys,
+      };
+    }
+    // Returns { ok, count } or { ok: false, reason } — a refusal names why
+    // (DESIGN.md §5: a refusal is a result, and it is shown).
+    function checkBackup(data) {
+      if (!data || typeof data !== 'object') return { ok: false, reason: 'not a settings file' };
+      if (data.format !== BACKUP_FORMAT) return { ok: false, reason: 'not an AWOO+ settings file' };
+      if (typeof data.version !== 'number' || data.version > BACKUP_VERSION) {
+        return { ok: false, reason: 'made by a newer AWOO+ — update first' };
+      }
+      if (!data.keys || typeof data.keys !== 'object') return { ok: false, reason: 'the file holds no settings' };
+      const count = Object.keys(data.keys).filter((k) => backupWanted(k) && typeof data.keys[k] === 'string').length;
+      if (!count) return { ok: false, reason: 'the file holds no settings' };
+      return { ok: true, count };
+    }
+    function applyBackup(data, storage) {
+      storage = storage || localStorage;
+      const check = checkBackup(data);
+      if (!check.ok) return check;
+      let count = 0;
+      for (const key of Object.keys(data.keys)) {
+        const value = data.keys[key];
+        if (!backupWanted(key) || typeof value !== 'string') continue;
+        if (key === BACKUP_HOST_KEY) {
+          let incoming, mine = {};
+          try { incoming = JSON.parse(value); } catch (e) { continue; }
+          try { mine = JSON.parse(storage.getItem(key) || '{}') || {}; } catch (e) { mine = {}; }
+          delete incoming.token;
+          storage.setItem(key, JSON.stringify(Object.assign({}, mine, incoming, mine.token ? { token: mine.token } : {})));
+        } else {
+          storage.setItem(key, value);
+        }
+        count++;
+      }
+      return { ok: true, count };
     }
 
     // ---- the scale layer (DESIGN.md §2, values picked 2026-09-08) ----
@@ -254,7 +557,13 @@
              (color-mix against the token), never hand-picked: two ambers one
              digit apart shipped for months because there was no token to
              point at. */
-          --awoo-danger: var(--awoo-danger); --awoo-warn: var(--awoo-warn); --awoo-success: var(--awoo-success);
+          /* --awoo-danger / --awoo-warn / --awoo-success are set per THEME by
+             applyThemeMode, never here. This line used to define
+             each of the three as a var() of ITSELF — a find-and-replace of the old
+             #e0483e / #e0a23e / #3ecf6a literals (Core v11, f9b0781) that also
+             rewrote their own definitions. A custom property that refers to
+             itself is invalid, so every danger, warn and success colour in the
+             overlay silently rendered as plain inherited text from then on. */
           /* the label column every label/value grid shares, so sibling groups
              align with each OTHER and not merely within themselves (§4) */
           --awoo-label-col: 92px;
@@ -279,7 +588,11 @@
           width: 100%; box-sizing: border-box; font-variant-numeric: tabular-nums; }
         /* Any digits that sit in a column line up. Without this a countdown
            reflows on every tick, because digit glyphs are not equal width. */
-        .awoo-num { font-variant-numeric: tabular-nums; }
+        .awoo-num { font-variant-numeric: tabular-nums;
+          /* The overlay's number face (Settings > Fonts). Only readouts marked
+             .awoo-num take it: a table cell holding a name must not turn into
+             Roboto Mono because someone chose it for figures. */
+          font-family: var(--awoo-font-num); }
       `;
       document.head.appendChild(style);
     }
@@ -845,6 +1158,18 @@
       return out;
     }
 
+    // numberFormatting (standard | exponential | letters), the game's OTHER
+    // number setting, read the same way. Refuses (null) rather than guessing.
+    function probeNumberFormattingFromFiber() {
+      let out = null;
+      walkFiber((cand) => {
+        const s = cand.characterSettingsGeneral;
+        if (s && typeof s.numberFormatting === 'string') { out = s.numberFormatting; return true; }
+        return false;
+      });
+      return ['standard', 'exponential', 'letters'].includes(out) ? out : null;
+    }
+
     // The character's MERGED MULTIPLIERS — the ~80-key object the game itself
     // computes and the REST API exposes as /api/character/merged-multipliers.
     //
@@ -941,27 +1266,73 @@
     }
 
     let convention = null;
+    let conventionProbedAt = 0;
 
+    // THE GAME'S SETTING OUTRANKS THE BROWSER, and now it actually does
+    // (reported 2026-09-21: auto-detect showed the browser's 1,000.00 while the
+    // game was set to 1.000,00, until a manual/auto flip re-read it). The order
+    // below was always right; the bug was WHEN it ran. The first call happens
+    // at document-start, before the game has rendered its settings, so it fell
+    // through to the browser — and that answer was cached, with one re-probe
+    // at first anchor that could itself come too early. Now:
+    //   - the last game setting seen is remembered, so a reload starts from the
+    //     player's own convention instead of the browser's;
+    //   - while the answer rests on a weaker source (remembered, a page sample,
+    //     or the browser), getConvention() re-probes, throttled, until the live
+    //     setting is read, and tells every module when that changes the result;
+    //   - both detections ride along, so Settings can show them side by side.
+    const SEEN_KEY = 'awoo:core:number-locale-seen';
     function resolveConvention() {
+      const browser = separatorsFor(navigator.language || 'en-US');
+      const detected = { game: null, browser: { decimal: browser.decimal, group: browser.group } };
       let stored = null;
       try { stored = localStorage.getItem(OVERRIDE_KEY); } catch (e) { /* ignore */ }
+      const fromFiber = probeNumberLocaleFromFiber();
+      let seen = null;
+      if (fromFiber && NUMBER_LOCALE_MAP[fromFiber]) {
+        try { localStorage.setItem(SEEN_KEY, fromFiber); } catch (e) { /* ignore */ }
+        detected.game = fromFiber;
+      } else {
+        try { seen = localStorage.getItem(SEEN_KEY); } catch (e) { /* ignore */ }
+        if (seen && NUMBER_LOCALE_MAP[seen]) detected.game = seen; else seen = null;
+      }
       if (stored && NUMBER_LOCALE_MAP[stored]) {
         return Object.assign(separatorsFor(NUMBER_LOCALE_MAP[stored]),
-          { source: 'override', numberLocale: stored });
+          { source: 'override', numberLocale: stored, detected });
       }
-      const fromFiber = probeNumberLocaleFromFiber();
       if (fromFiber && NUMBER_LOCALE_MAP[fromFiber]) {
         return Object.assign(separatorsFor(NUMBER_LOCALE_MAP[fromFiber]),
-          { source: 'setting', numberLocale: fromFiber });
+          { source: 'setting', numberLocale: fromFiber, detected });
+      }
+      if (seen) {
+        return Object.assign(separatorsFor(NUMBER_LOCALE_MAP[seen]),
+          { source: 'remembered', numberLocale: seen, detected });
       }
       const fromSample = probeFromPageSample();
-      if (fromSample) return Object.assign(fromSample, { source: 'sample', numberLocale: null });
-      return Object.assign(separatorsFor(navigator.language || 'en-US'),
-        { source: 'browser', numberLocale: 'Local' });
+      if (fromSample) return Object.assign(fromSample, { source: 'sample', numberLocale: null, detected });
+      return Object.assign(browser, { source: 'browser', numberLocale: 'Local', detected });
     }
 
     function getConvention() {
-      if (!convention) convention = resolveConvention();
+      const now = Date.now();
+      if (!convention) {
+        convention = resolveConvention();
+        conventionProbedAt = now;
+      } else if (convention.source !== 'setting' && convention.source !== 'override'
+        && now - conventionProbedAt > 2000) {
+        // Throttled re-probe while the answer is not the live game setting.
+        conventionProbedAt = now;
+        const prev = convention;
+        const next = resolveConvention();
+        convention = next;
+        if (next.decimal !== prev.decimal || next.group !== prev.group || next.source !== prev.source) {
+          // Deferred, so a module's own getConvention() call cannot re-enter.
+          setTimeout(() => {
+            renderNumberFormatRow();
+            for (const id of Object.keys(modules)) safely(id, 'onConventionChange');
+          }, 0);
+        }
+      }
       return convention;
     }
     // re-probe: the setting can only be read once React has rendered
@@ -1244,7 +1615,7 @@
           background: var(--awoo-card); color: var(--awoo-popover-foreground); border: 1px solid var(--awoo-border);
           border-radius: 8px;
           box-shadow: 0 12px 32px rgba(0,0,0,.45), 0 0 0 1px color-mix(in srgb, var(--awoo-primary) 22%, transparent);
-          font: 12px ${CORE_FONT}; overflow: hidden; }
+          font: 12px var(--awoo-font, ${CORE_FONT}); overflow: hidden; }
         .awoo-window[hidden] { display: none; }
         .awoo-window[data-resizable="true"] { resize: both; min-width: 260px; min-height: 160px; }
         .awoo-window-header { display: flex; align-items: center; gap: 6px; padding: 7px 9px;
@@ -1277,6 +1648,13 @@
         .awoo-ui-table td { padding: 5px 6px; vertical-align: middle;
           border-bottom: 1px solid color-mix(in srgb, var(--awoo-border) 60%, transparent); }
         .awoo-ui-table tr:hover td { background: var(--awoo-input); }
+        /* "The one in use": treatment BC (style guide Part II) — the accent at
+           low chroma plus a SOFT edge, never a full-strength ring, and weight on
+           the row's identifier only (its first cell), not on every figure. */
+        .awoo-ui-table tr.awoo-ui-row-current td { background: var(--awoo-bg-accent, var(--awoo-input));
+          box-shadow: inset 0 1px 0 var(--awoo-accent-edge, var(--awoo-border)),
+            inset 0 -1px 0 var(--awoo-accent-edge, var(--awoo-border)); }
+        .awoo-ui-table tr.awoo-ui-row-current td:first-child { font-weight: 600; }
         .awoo-ui-actions { display: flex; gap: 4px; white-space: nowrap; }
         .awoo-ui-btn { background: var(--awoo-input); border: 1px solid var(--awoo-border); border-radius: 4px;
           color: var(--awoo-foreground); font: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; }
@@ -1301,12 +1679,12 @@
         .awoo-ui-menu { position: fixed; z-index: 1000500; background: var(--awoo-solid-card);
           color: var(--awoo-solid-popover-foreground); border: 1px solid var(--awoo-solid-border);
           border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.45); padding: 4px; min-width: 170px;
-          font: 12px ${CORE_FONT}; }
+          font: 12px var(--awoo-font, ${CORE_FONT}); }
         .awoo-ui-menu-item { display: block; width: 100%; text-align: left; background: none; border: none;
           color: inherit; font: inherit; font-size: 11.5px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
         .awoo-ui-menu-item:hover { background: var(--awoo-input); }
         .awoo-ui-modal-overlay { position: fixed; inset: 0; z-index: 1001000; background: rgba(0,0,0,.45);
-          display: flex; align-items: center; justify-content: center; font: 12px ${CORE_FONT}; }
+          display: flex; align-items: center; justify-content: center; font: 12px var(--awoo-font, ${CORE_FONT}); }
         .awoo-ui-modal { background: var(--awoo-card); color: var(--awoo-popover-foreground);
           border: 1px solid var(--awoo-border); border-radius: 8px; box-shadow: 0 16px 48px rgba(0,0,0,.5);
           padding: 16px; max-width: 360px; }
@@ -1359,6 +1737,26 @@
           opacity: 0; transition: opacity .15s ease; }
         .awoo-settings-applied.on { opacity: 1; }
         @media (prefers-reduced-motion: reduce) { .awoo-settings-applied { transition: none; } }
+        /* The Appearance summary: top-right of General, faint until pointed at. */
+        .awoo-settings-summary { align-self: flex-end; background: none; border: none; padding: 0;
+          color: inherit; font: inherit; font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-faint);
+          cursor: pointer; margin-bottom: calc(var(--awoo-s4) * -1); }
+        .awoo-settings-summary:hover, .awoo-settings-summary:focus-visible { opacity: 1; color: var(--awoo-primary); }
+        /* Settings > Appearance > Fonts: label, select, and the preview BESIDE the select —
+           the only thing on screen that moves before Save & apply. */
+        .awoo-fonts-row { display: grid; align-items: center; gap: var(--awoo-s3) var(--awoo-s4);
+          grid-template-columns: var(--awoo-label-col) minmax(0, 1fr) minmax(0, 1fr);
+          font-size: var(--awoo-fs-control); margin-top: var(--awoo-s3); }
+        .awoo-fonts-row > label { opacity: var(--awoo-em-muted); }
+        .awoo-fonts-row select { font: inherit; background: var(--awoo-input); color: var(--awoo-foreground);
+          border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm);
+          padding: var(--awoo-s1) var(--awoo-s2); min-width: 0; }
+        .awoo-fonts-preview { font-size: var(--awoo-fs-body); padding: var(--awoo-s1) var(--awoo-s3);
+          border: 1px dashed var(--awoo-border); border-radius: var(--awoo-r-sm);
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+        .awoo-fonts-hint { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted); }
+        .awoo-fonts-chip { margin-left: auto; letter-spacing: .05em; color: var(--awoo-success); opacity: 1; }
+        .awoo-fonts-chip.dirty { color: var(--awoo-warn); }
         .awoo-ui-group { border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md);
           padding: var(--awoo-s4) 10px; }
         .awoo-ui-group-label { font-size: var(--awoo-fs-micro); text-transform: uppercase;
@@ -1373,10 +1771,43 @@
            At most, not exactly — a window whose subject is a table (the plans
            list) legitimately has none, and forcing one on it invents a
            headline out of whatever number was nearest. */
-        .awoo-ui-answer { text-align: center; padding: var(--awoo-s2) 0 var(--awoo-s1); }
-        .awoo-ui-answer-value { font-size: var(--awoo-fs-display); font-weight: 800;
-          line-height: 1.1; font-variant-numeric: tabular-nums; }
-        .awoo-ui-answer-sub { font-size: var(--awoo-fs-control); opacity: var(--awoo-em-muted); }
+        /* REBUILT 2026-09-21 (the module rebuild, DESIGN.md §3): one row —
+           the value at display size, what it measures beside it, and a state
+           chip at the right — then ONE context line under it. The old band was
+           centred, 800-weight and stacked, which let a module grow four lines of
+           competing headline in it. Weight 600: "strong" is the SIZE here;
+           heavy weight on top of display size was the "too bold" report. */
+        .awoo-ui-answer { display: flex; align-items: baseline; gap: var(--awoo-s4); min-width: 0; }
+        .awoo-ui-answer-value { font-size: var(--awoo-fs-display); font-weight: 600; line-height: 1.1;
+          letter-spacing: -.01em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+        .awoo-ui-answer-unit, .awoo-ui-answer-sub { font-size: var(--awoo-fs-control); opacity: var(--awoo-em-muted);
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+        .awoo-ui-answer-value.awoo-ui-answer-good { color: var(--awoo-success); }
+        .awoo-ui-context { font-size: var(--awoo-fs-control); opacity: var(--awoo-em-muted);
+          margin-top: calc(var(--awoo-s3) * -1); font-variant-numeric: tabular-nums; }
+        .awoo-ui-context b { font-weight: 600; opacity: 1; }
+        /* A context line that is a REFUSAL (an input is missing) is not quiet. */
+        .awoo-ui-context.warn { color: var(--awoo-warn); opacity: 1; }
+        /* The state chip: what the module is doing, as a word. */
+        .awoo-ui-chip { margin-left: auto; flex: none; font-size: var(--awoo-fs-caption); font-weight: 600;
+          letter-spacing: .04em; padding: 1px 7px; border-radius: var(--awoo-r-lg);
+          background: var(--awoo-surface-3, var(--awoo-input)); opacity: var(--awoo-em-normal); }
+        .awoo-ui-chip.awoo-ui-chip-run { background: var(--awoo-bg-success, transparent); color: var(--awoo-success); opacity: 1; }
+        .awoo-ui-chip.awoo-ui-chip-busy { background: var(--awoo-bg-accent, transparent); color: var(--awoo-warn); opacity: 1; }
+        .awoo-ui-chip.awoo-ui-chip-alert { background: var(--awoo-bg-danger, transparent); color: var(--awoo-danger); opacity: 1; }
+        /* The Action band: one row, primary first, a rare or destructive verb
+           pushed right as a ghost. */
+        .awoo-ui-actionrow { display: flex; gap: var(--awoo-s3); align-items: center; }
+        .awoo-ui-actionrow .awoo-ui-grow { flex: 1; }
+        .awoo-ui-btn.awoo-ui-btn-ghost { background: transparent; border-color: transparent;
+          opacity: var(--awoo-em-muted); }
+        .awoo-ui-btn.awoo-ui-btn-ghost:hover { opacity: 1; background: var(--awoo-input); }
+        .awoo-ui-btn:disabled { opacity: var(--awoo-em-faint); cursor: default; }
+        .awoo-ui-note { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted); line-height: 1.35; }
+        /* A module's content root. The window body spaces ITS children, but a
+           module hands over one wrapper element, so without this the bands inside
+           it touched (measured on the Pet Slot Alarm rebuild). */
+        .awoo-ui-stack { display: flex; flex-direction: column; gap: var(--awoo-s5); min-width: 0; }
 
         /* ---- delegation status: WHERE a feature is running ----
            Every delegated feature carries one of these. It is not decoration:
@@ -1396,6 +1827,22 @@
           color: var(--awoo-primary); font: inherit; font-size: var(--awoo-fs-caption);
           cursor: pointer; padding: 0; }
         .awoo-ui-delegation-open:hover { text-decoration: underline; }
+        /* The Companion group: set apart from the module's own controls by a
+           dashed edge and the Info hue, dimmed while the Companion is not the
+           one doing the work. Built by feature.group(). */
+        .awoo-ui-companion { border: 1px dashed var(--awoo-border-strong, var(--awoo-border));
+          border-radius: var(--awoo-r-md); padding: var(--awoo-s4) 10px;
+          background: color-mix(in srgb, var(--awoo-info, var(--awoo-primary)) 5%, transparent); }
+        .awoo-ui-companion-h { display: flex; align-items: center; gap: var(--awoo-s2);
+          font-size: var(--awoo-fs-micro); text-transform: uppercase; letter-spacing: .05em;
+          color: var(--awoo-info, var(--awoo-primary)); margin-bottom: var(--awoo-s3); cursor: default; }
+        .awoo-ui-companion-h .awoo-ui-delegation-dot { margin-left: var(--awoo-s2); }
+        .awoo-ui-companion-word { font-size: var(--awoo-fs-caption); text-transform: none;
+          letter-spacing: 0; color: var(--awoo-foreground); opacity: var(--awoo-em-muted); }
+        .awoo-ui-companion-open { margin-left: auto; text-transform: none; letter-spacing: 0; }
+        .awoo-ui-companion-note { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted);
+          margin-top: var(--awoo-s2); }
+        .awoo-ui-companion-dim .awoo-ui-companion-body { opacity: var(--awoo-em-muted); }
 
         /* ---- activity strip ---- */
         .awoo-ui-activity { margin: auto -11px -10px; border-top: 1px solid var(--awoo-border);
@@ -1612,8 +2059,13 @@
       function computeDefaultRect() {
         if (spec.defaultRect && spec.defaultRect !== 'auto') return spec.defaultRect;
         const vp = viewportRect();
-        const w = Math.min(minW, vp.w - 32);
-        const h = Math.min(minH, vp.h - 32);
+        // spec.defaultSize (v12) is the size a window OPENS at, on first open
+        // and after "Reset window sizes"; minSize is only the floor a drag may
+        // not go under. They used to be one number, which forced a choice
+        // between a good first size and letting people make it smaller.
+        const want = spec.defaultSize || {};
+        const w = Math.min(Math.max(want.w || minW, minW), vp.w - 32);
+        const h = Math.min(Math.max(want.h || minH, minH), vp.h - 32);
         return { x: Math.round((vp.w - w) / 2), y: Math.round((vp.h - h) / 3), w, h };
       }
       function applyRect(rect) {
@@ -1932,6 +2384,10 @@
         const tbody = document.createElement('tbody');
         for (const row of spec.rows) {
           const tr = document.createElement('tr');
+          // spec.rowClass(row) (v12): one class for a row with a state, such as
+          // awoo-ui-row-current for "the one in use". Optional and additive.
+          const rowCls = typeof spec.rowClass === 'function' ? spec.rowClass(row) : '';
+          if (rowCls) tr.className = rowCls;
           for (const col of spec.columns) {
             const td = document.createElement('td');
             const v = typeof col.render === 'function' ? col.render(row) : row[col.key];
@@ -2304,7 +2760,7 @@
            style — and shorter (20px) to sit comfortably in the nav's own
            row height instead of setting it. */
         #awoo-core-group { display: inline-flex; align-items: stretch; vertical-align: middle;
-          border-radius: 5px; overflow: hidden; font-family: ${CORE_FONT}; line-height: 1;
+          border-radius: 5px; overflow: hidden; font-family: var(--awoo-font, ${CORE_FONT}); line-height: 1;
           height: 20px; align-self: center; margin: 0 4px;
           border: 1px solid var(--awoo-border); background: var(--awoo-card); }
         #awoo-core-group:hover { border-color: var(--awoo-primary); }
@@ -2362,7 +2818,7 @@
         #awoo-core-dropdown { position: fixed; z-index: 999501; background: var(--awoo-card);
           color: var(--awoo-popover-foreground); border: 2px solid var(--awoo-border); border-radius: 6px;
           min-width: 220px; box-shadow: 0 8px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.04);
-          padding: 4px; font: 12px ${CORE_FONT}; }
+          padding: 4px; font: 12px var(--awoo-font, ${CORE_FONT}); }
         /* Tighter than before (was taking too much visual space for what it
            says) with more separation FROM its neighbours instead, via the
            section's own top margin rather than internal padding. */
@@ -2496,7 +2952,7 @@
         .awoo-core-update-warn { color: var(--awoo-warn); opacity: 1; }
         #awoo-core-toasts { position: fixed; right: 14px; bottom: 14px; z-index: 1002000;
           display: flex; flex-direction: column; gap: 8px; align-items: flex-end;
-          pointer-events: none; font: 12px ${CORE_FONT}; }
+          pointer-events: none; font: 12px var(--awoo-font, ${CORE_FONT}); }
         .awoo-core-toast { pointer-events: auto; display: flex; align-items: center; gap: 8px;
           max-width: 320px; background: var(--awoo-card); color: var(--awoo-popover-foreground);
           border: 1px solid var(--awoo-border); border-left-width: 3px; border-radius: 6px;
@@ -2874,7 +3330,10 @@
     // opening — now touch one button's class and nothing else.
     let quickRowIds = [];
     function renderQuickRow() {
-      const shown = enabledOrder.filter((id) => modules[id]).slice(0, maxQuickButtons);
+      // quickButton: false (v12) keeps a module out of the top bar entirely. For
+      // a module with no window of its own (the grid overlay lives on the game's
+      // page), a top-bar button has nothing to open, and the bar is filling up.
+      const shown = enabledOrder.filter((id) => modules[id] && modules[id].quickButton !== false).slice(0, maxQuickButtons);
       const sameOrder = shown.length >= quickRowIds.length
         && quickRowIds.every((id, i) => shown[i] === id);
 
@@ -3356,6 +3815,9 @@
       }
 
       const paneGeneral = addTab('general', 'General', 'Core');
+      // Appearance holds everything about how things LOOK and READ: theme, then
+      // number format, then fonts. General keeps a one-line summary of it.
+      const paneAppearance = addTab('appearance', 'Appearance', 'Core');
       const paneJobs = addTab('jobs', 'Companion', 'Core');
 
       // A category heading inside a pane. Distinct from a group box on
@@ -3369,13 +3831,25 @@
         return c;
       }
 
+      // ---- the Appearance summary on General ----
+      // A quiet one-liner in the corner of General — theme, number sample, text
+      // face — so what is set is visible without opening the tab, and a click
+      // goes there. Deliberately faint: it is a signpost, not a control.
+      const appearanceSummary = document.createElement('button');
+      appearanceSummary.type = 'button';
+      appearanceSummary.className = 'awoo-settings-summary';
+      appearanceSummary.title = 'Open Appearance';
+      appearanceSummary.addEventListener('click', () => selectTabByIdLazily('appearance'));
+      paneGeneral.appendChild(appearanceSummary);
+      function renderAppearanceSummary() {
+        const theme = (THEME_CHOICES().find((c) => c.id === themeId()) || {}).label || themeId();
+        const face = fontChoice('text', fontsFor('awoo').text).label;
+        appearanceSummary.textContent = `${theme} · ${formatNumber(1234.5)} · ${face}`;
+      }
+
       // ---- number format ----
       const numGroup = document.createElement('div');
       numGroup.className = 'awoo-ui-group';
-      const numLabel = document.createElement('div');
-      numLabel.style.cssText = 'font-weight:bold; opacity:.7; text-transform:uppercase; font-size:10px; letter-spacing:.04em;';
-      numLabel.textContent = 'Number format';
-      numGroup.appendChild(numLabel);
       const numStatus = document.createElement('div');
       numStatus.style.cssText = 'font-size:11px; opacity:.85; margin:4px 0;';
       numGroup.appendChild(numStatus);
@@ -3396,61 +3870,39 @@
         return { key: opt.key, btn };
       });
       numGroup.appendChild(numBtnRow);
-      category(paneGeneral, 'Numbers');
-      paneGeneral.appendChild(numGroup);
 
       // ---- appearance ----
-      // A dropdown, not a checkbox — "liveAdaptTheme" is still the only
-      // setting underneath it (2 real states today), but this is the shape a
-      // future third state (another named preset, then a custom saved
-      // theme — explicitly asked for, explicitly deferred) slots into
-      // without another rebuild of this section.
+      // The named-theme picker that was "explicitly asked for, explicitly
+      // deferred": AWOO Turquoise, the seven themes every tool also wears, and
+      // Match game. Previewable, so it applies live (the save model above) —
+      // picking a theme IS the preview, and a Save button in front of it would
+      // ask you to confirm what you are already looking at.
       const themeGroup = document.createElement('div');
       themeGroup.className = 'awoo-ui-group';
-      themeGroup.style.cssText = 'margin-top:10px;';
-      const themeLabel = document.createElement('div');
-      themeLabel.style.cssText = 'font-weight:bold; opacity:.7; text-transform:uppercase; font-size:10px; letter-spacing:.04em; margin-bottom:4px;';
-      themeLabel.textContent = 'Appearance';
-      themeGroup.appendChild(themeLabel);
-
-      const themeSelectRow = document.createElement('div');
-      themeSelectRow.style.cssText = 'display:flex; align-items:center; gap:8px; font-size:11.5px;';
-      const themeSelectLabel = document.createElement('span');
-      themeSelectLabel.textContent = 'Theme';
-      themeSelectLabel.style.opacity = '.85';
-      const themeSelect = document.createElement('select');
-      themeSelect.style.cssText = 'font: inherit; font-size:11px; background: var(--awoo-input); '
-        + 'color: var(--awoo-foreground); border: 1px solid var(--awoo-border); border-radius:4px; '
-        + 'padding:3px 6px; margin-left:auto;';
-      const optAwoo = document.createElement('option');
-      optAwoo.value = 'awooTurquoise';
-      optAwoo.textContent = 'AWOO Turquoise';
-      const optAuto = document.createElement('option');
-      optAuto.value = 'auto';
-      optAuto.textContent = 'Auto-adapt to live game CSS';
-      themeSelect.appendChild(optAwoo);
-      themeSelect.appendChild(optAuto);
-      themeSelect.value = getSetting('liveAdaptTheme') ? 'auto' : 'awooTurquoise';
-      themeSelect.addEventListener('change', () => setSetting('liveAdaptTheme', themeSelect.value === 'auto'));
-      themeSelectRow.appendChild(themeSelectLabel);
-      themeSelectRow.appendChild(themeSelect);
-      themeSelectRow.appendChild(ui.infoIcon(
-        '"AWOO Turquoise" (default): a fixed snapshot, so it looks right immediately and never shifts. '
-        + '"Auto-adapt": colors are read live from the game\'s own CSS variables instead.',
-      ));
-      themeGroup.appendChild(themeSelectRow);
-      category(paneGeneral, 'Appearance');
-      onReset(() => { themeSelect.value = getSetting('liveAdaptTheme') ? 'auto' : 'awooTurquoise'; });
-      paneGeneral.appendChild(themeGroup);
+      const themeRow = ui.inputRow({
+        label: 'Theme',
+        type: 'select',
+        value: themeId(),
+        options: THEME_CHOICES().map((c) => ({ value: c.id, label: c.label })),
+        info: 'Tools you open from the AWOO+ menu use this theme too.',
+        devInfo: 'Named themes come from src/tools/theme-tokens.css, generated into Core at build time, so '
+          + 'the overlay and the tools cannot drift. AWOO Turquoise and Match game are game-shaped: eight '
+          + 'game variables with the rest derived by color-mix and the semantic hues taken from Slate. A tool '
+          + 'cannot read the game page, so under either of those it shows Slate and says so.',
+        onChange: (v) => { setSetting('theme', v); renderAppearanceSummary(); },
+      });
+      themeGroup.appendChild(themeRow);
+      // Theme first: it is the one appearance setting people change for fun.
+      category(paneAppearance, 'Theme');
+      onReset(() => { if (themeRow._input) themeRow._input.value = themeId(); });
+      paneAppearance.appendChild(themeGroup);
+      category(paneAppearance, 'Numbers');
+      paneAppearance.appendChild(numGroup);
 
       // ---- windows ----
       const windowsGroup = document.createElement('div');
       windowsGroup.className = 'awoo-ui-group';
       windowsGroup.style.cssText = 'margin-top:10px;';
-      const windowsLabel = document.createElement('div');
-      windowsLabel.style.cssText = 'font-weight:bold; opacity:.7; text-transform:uppercase; font-size:10px; letter-spacing:.04em; margin-bottom:4px;';
-      windowsLabel.textContent = 'Windows';
-      windowsGroup.appendChild(windowsLabel);
 
       const resizeRow = document.createElement('div');
       resizeRow.style.cssText = 'display:flex; align-items:center; gap:8px; margin:4px 0;';
@@ -3531,7 +3983,7 @@
       const devGroup = document.createElement('div');
       devGroup.className = 'awoo-ui-group';
       devGroup.appendChild(Core_ui_toggleRow({
-        label: 'Show developer notes in hover text',
+        label: 'Show developer info',
         info: 'Adds a tinted second half to hover text, explaining why things work the way they do.',
         checked: getSetting('showDevTooltips'),
         onChange: (v) => setSetting('showDevTooltips', v),
@@ -3726,7 +4178,7 @@
         // A COMMAND YOU CAN PASTE, because pressing run is the one step that
         // stays yours. A userscript cannot start a process — no GM_* API
         // exposes that, and this project mandates @grant none anyway, so even
-        // the weaker grants are off the table (HANDOFF rule 1). What it CAN do
+        // the weaker grants are off the table (DISTRIBUTION.md §1.3). What it CAN do
         // is remove every other bit of friction: navigator.clipboard needs no
         // grant and is already in production use for plan sharing.
         if (s.state === HOST_STATES.NO_HOST || s.state === HOST_STATES.MISMATCH) {
@@ -3802,6 +4254,196 @@
 
       paneJobs.appendChild(hostGroup);
 
+      // ---- fonts (ARTIFACT_STYLE_GUIDE.md Part II, "Fonts are a user
+      // setting"; mockup: section 07 of the Design System artifact) ----
+      //
+      // TRANSACTIONAL, and the one previewable setting that is. The save
+      // model above says a change that previews itself applies live — but a
+      // font flip reflows every line under the reader's eyes, so trying three
+      // faces would mean three reflows of whatever they were reading. The
+      // preview beside each select carries the choice; nothing on the page
+      // moves until "Save & apply".
+      //
+      // Two surfaces, set separately: the overlay and the tools are read in
+      // different places at different sizes.
+      const FONT_SURFACES = [
+        { id: 'awoo', label: 'AWOO+ overlay', hint: 'These windows, the menu and the nav buttons.' },
+        { id: 'tools', label: 'Tools', hint: 'Pages opened from the menu. Applies the next time one opens.' },
+      ];
+      const FONT_PREVIEW = { text: 'Sanctum skill tree', num: '8.00t · 1,049,000' };
+      const savedFonts = () => ({ awoo: fontsFor('awoo'), tools: fontsFor('tools') });
+      let fontDraft = savedFonts();
+      const fontRefs = {};
+      const fontsGroupHost = document.createElement('div');
+      fontsGroupHost.className = 'awoo-settings-pane';
+      for (const sf of FONT_SURFACES) {
+        const group = document.createElement('div');
+        group.className = 'awoo-ui-group';
+        const head = document.createElement('div');
+        head.className = 'awoo-ui-group-label';
+        head.textContent = sf.label;
+        const chip = document.createElement('span');
+        chip.className = 'awoo-fonts-chip';
+        head.appendChild(chip);
+        group.appendChild(head);
+        const hint = document.createElement('div');
+        hint.className = 'awoo-fonts-hint';
+        hint.textContent = sf.hint;
+        group.appendChild(hint);
+        fontRefs[sf.id] = { chip, selects: {}, previews: {} };
+        for (const kind of ['text', 'num']) {
+          const row = document.createElement('div');
+          row.className = 'awoo-fonts-row';
+          const label = document.createElement('label');
+          label.textContent = kind === 'text' ? 'Text' : 'Numbers';
+          const sel = document.createElement('select');
+          sel.setAttribute('aria-label', `${sf.label} ${label.textContent.toLowerCase()} font`);
+          for (const f of FONT_CHOICES[kind]) {
+            const o = document.createElement('option');
+            o.value = f.id;
+            o.textContent = f.label + (f === FONT_CHOICES[kind][0] ? ' (default)' : '');
+            sel.appendChild(o);
+          }
+          sel.addEventListener('change', () => {
+            fontDraft[sf.id] = Object.assign({}, fontDraft[sf.id], { [kind]: sel.value });
+            renderFonts();
+          });
+          const preview = document.createElement('div');
+          preview.className = 'awoo-fonts-preview' + (kind === 'num' ? ' awoo-num' : '');
+          preview.textContent = FONT_PREVIEW[kind];
+          row.appendChild(label);
+          row.appendChild(sel);
+          row.appendChild(preview);
+          group.appendChild(row);
+          fontRefs[sf.id].selects[kind] = sel;
+          fontRefs[sf.id].previews[kind] = preview;
+        }
+        fontsGroupHost.appendChild(group);
+      }
+      const fontBar = document.createElement('div');
+      fontBar.className = 'awoo-settings-savebar';
+      const fontBarLabel = document.createElement('span');
+      fontBarLabel.className = 'awoo-settings-savebar-label';
+      const fontBarSpacer = document.createElement('span');
+      fontBarSpacer.style.flex = '1';
+      const fontDiscard = document.createElement('button');
+      fontDiscard.type = 'button';
+      fontDiscard.className = 'awoo-ui-btn';
+      fontDiscard.textContent = 'Discard';
+      const fontSave = document.createElement('button');
+      fontSave.type = 'button';
+      fontSave.className = 'awoo-ui-btn awoo-ui-btn-primary';
+      fontSave.textContent = 'Save & apply';
+      for (const el of [fontBarLabel, fontBarSpacer, fontDiscard, fontSave]) fontBar.appendChild(el);
+      fontsGroupHost.appendChild(fontBar);
+
+      const fontDirty = (id) => {
+        const s = savedFonts()[id];
+        return s.text !== fontDraft[id].text || s.num !== fontDraft[id].num;
+      };
+      function renderFonts() {
+        const dirtyLabels = [];
+        for (const sf of FONT_SURFACES) {
+          const refs = fontRefs[sf.id];
+          const dirty = fontDirty(sf.id);
+          if (dirty) dirtyLabels.push(sf.label);
+          refs.chip.textContent = dirty ? 'unsaved' : 'saved';
+          refs.chip.classList.toggle('dirty', dirty);
+          for (const kind of ['text', 'num']) {
+            const f = fontChoice(kind, fontDraft[sf.id][kind]);
+            refs.selects[kind].value = f.id;
+            // The preview has to be in the face it names. A preview that
+            // silently falls back is a lie about what Save will do.
+            loadFontFamily(f.family);
+            refs.previews[kind].style.fontFamily = `${f.stack}, ${CORE_FONT}`;
+          }
+        }
+        fontBar.hidden = dirtyLabels.length === 0;
+        fontBarLabel.textContent = `Fonts · unsaved: ${dirtyLabels.join(', ')}`;
+      }
+      fontDiscard.addEventListener('click', () => { fontDraft = savedFonts(); renderFonts(); });
+      fontSave.addEventListener('click', () => {
+        setSetting('fonts', { awoo: Object.assign({}, fontDraft.awoo), tools: Object.assign({}, fontDraft.tools) });
+        fontDraft = savedFonts();
+        renderFonts();
+        renderAppearanceSummary();
+        toast('Fonts applied. Tools use them from the next one you open.', { type: 'success', duration: 3000 });
+      });
+      onReset(() => { fontDraft = savedFonts(); renderFonts(); renderAppearanceSummary(); });
+      renderFonts();
+      category(paneAppearance, 'Fonts');
+      paneAppearance.appendChild(fontsGroupHost);
+
+      // ---- backup ----
+      // Export writes a file; import reads one, says what it holds, and asks
+      // before touching anything. After an import the page reloads, because
+      // every module read its state at start and would otherwise keep showing
+      // the old one until the next reload anyway.
+      category(paneGeneral, 'Backup');
+      const backupGroup = document.createElement('div');
+      backupGroup.className = 'awoo-ui-group';
+      const backupHint = document.createElement('div');
+      backupHint.className = 'awoo-fonts-hint';
+      backupHint.textContent = 'Every AWOO+ setting, module, window and tool, in one file. '
+        + 'Your character profile and Companion token are left out.';
+      const backupRow = document.createElement('div');
+      backupRow.className = 'awoo-ui-actions';
+      backupRow.style.marginTop = 'var(--awoo-s3)';
+      const exportBtn = document.createElement('button');
+      exportBtn.type = 'button';
+      exportBtn.className = 'awoo-ui-btn';
+      exportBtn.textContent = 'Export settings';
+      const importBtn = document.createElement('button');
+      importBtn.type = 'button';
+      importBtn.className = 'awoo-ui-btn';
+      importBtn.textContent = 'Import settings…';
+      const importFile = document.createElement('input');
+      importFile.type = 'file';
+      importFile.accept = '.json,application/json';
+      importFile.hidden = true;
+      exportBtn.addEventListener('click', () => {
+        const data = collectBackup();
+        const n = Object.keys(data.keys).length;
+        try {
+          const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `awoo-settings-${data.exportedAt.slice(0, 10)}.json`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          toast(`Exported ${n} setting${n === 1 ? '' : 's'}.`, { type: 'success', duration: 3000 });
+        } catch (err) {
+          toast(`Export failed: ${err.message}`, { type: 'error' });
+        }
+      });
+      importBtn.addEventListener('click', () => { importFile.value = ''; importFile.click(); });
+      importFile.addEventListener('change', async () => {
+        const file = importFile.files && importFile.files[0];
+        if (!file) return;
+        let data = null;
+        try { data = JSON.parse(await file.text()); } catch (e) { data = null; }
+        const check = checkBackup(data);
+        if (!check.ok) { toast(`Not imported: ${check.reason}.`, { type: 'warn' }); return; }
+        const when = typeof data.exportedAt === 'string' ? data.exportedAt.slice(0, 10) : 'an unknown date';
+        const go = await ui.confirmDialog({
+          title: 'Import settings',
+          message: `${check.count} settings from ${when}. They replace the ones they name; `
+            + 'everything else stays as it is. The page reloads to apply them.',
+          confirmLabel: 'Import & reload',
+        });
+        if (!go) { toast('Import cancelled. Nothing changed.', { duration: 2500 }); return; }
+        const res = applyBackup(data);
+        if (!res.ok) { toast(`Not imported: ${res.reason}.`, { type: 'warn' }); return; }
+        toast(`Imported ${res.count} settings. Reloading…`, { type: 'success', duration: 2000 });
+        setTimeout(() => location.reload(), 900);
+      });
+      for (const el of [exportBtn, importBtn, importFile]) backupRow.appendChild(el);
+      backupGroup.appendChild(backupHint);
+      backupGroup.appendChild(backupRow);
+      paneGeneral.appendChild(backupGroup);
+
       // ---- reset (settings, separate from "Reset window sizes" above —
       // one resets WHERE/HOW BIG things are, this resets the settings
       // THEMSELVES: number format override, theme, reload behaviour,
@@ -3828,7 +4470,7 @@
       // to sit here is gone. It was true and it was addressed to whoever
       // maintains this, not to anyone using it -- a user cannot act on a
       // roadmap, and pointing them at a repo file they do not have is worse
-      // than silence. The running list still lives in HANDOFF.md.
+      // than silence. The running list lives in REGISTER.md.
 
       // ---- module tabs ----
       //
@@ -3868,17 +4510,32 @@
         renderNumberFormat() {
           const c = getConvention();
           const auto = c.source !== 'override';
-          const sourceLabel = c.source === 'setting' ? "the game's own numberLocale setting"
+          const sourceLabel = c.source === 'setting' ? "the game's setting"
+            : c.source === 'remembered' ? "the game's setting, as last read"
             : c.source === 'sample' ? 'a number rendered on this page'
             : c.source === 'browser' ? 'your browser locale' : 'a manual override';
+          // Both detections, side by side, with the one in use named. The game
+          // outranks the browser; a manual choice outranks both.
+          const det = c.detected || {};
+          const browserFmt = det.browser ? `1${det.browser.group}000${det.browser.decimal}00` : '—';
+          const detectLine = `Game: ${det.game || 'not read yet'} · Browser: ${browserFmt}`
+            + (!auto ? ' · both overridden'
+              : (c.source === 'setting' || c.source === 'remembered') ? ' · game wins'
+              : c.source === 'sample' ? ' · read from a number on the page'
+              : ' · using browser until the game is read');
+          renderAppearanceSummary();
           numStatus.innerHTML = '';
           const line1 = document.createElement('div');
           line1.textContent = `Sample: ${formatNumber(1234567.8)}  (decimal "${c.decimal}", thousands "${c.group}")`;
           const line2 = document.createElement('div');
           line2.style.cssText = auto ? 'color:var(--awoo-success);' : 'color:var(--awoo-warn);';
           line2.textContent = auto ? `✓ Auto-detected from ${sourceLabel}.` : `Forced by you (not auto-detected).`;
+          const line3 = document.createElement('div');
+          line3.className = 'awoo-ui-note';
+          line3.textContent = detectLine;
           numStatus.appendChild(line1);
           numStatus.appendChild(line2);
+          numStatus.appendChild(line3);
           for (const { key, btn } of numBtns) {
             let stored = null;
             try { stored = localStorage.getItem(OVERRIDE_KEY); } catch (e) { /* ignore */ }
@@ -4761,6 +5418,46 @@
             return false;
           }
         },
+        // THE COMPANION GROUP (2026-09-21, the module rebuild). One call gives a
+        // module the whole standard group: dashed edge, the Info hue on its
+        // label, a 6px dot and ONE status word, an Open link, and a body the
+        // module fills with its own controls. The body dims to "muted" while
+        // the Companion is not the one doing the work, still readable and
+        // clickable, because turning it on is done from in there. The full
+        // sentence goes on hover over the label, never inline.
+        // `bodyNodes`: the module's controls. Returns the group element.
+        group(bodyNodes) {
+          if (handle._group) return handle._group.el;
+          const g = document.createElement('div');
+          g.className = 'awoo-ui-companion';
+          const head = document.createElement('div');
+          head.className = 'awoo-ui-companion-h';
+          const name = document.createElement('span');
+          name.textContent = 'Companion';
+          const gdot = document.createElement('span');
+          gdot.className = 'awoo-ui-delegation-dot';
+          const word = document.createElement('span');
+          word.className = 'awoo-ui-companion-word';
+          const open = document.createElement('button');
+          open.type = 'button';
+          open.className = 'awoo-ui-delegation-open awoo-ui-companion-open';
+          open.textContent = 'Open ↗';
+          open.title = 'Open the Companion window';
+          open.addEventListener('click', (e) => { e.stopPropagation(); openJobsWindow(); });
+          for (const n of [name, gdot, word, open]) head.appendChild(n);
+          const body = document.createElement('div');
+          body.className = 'awoo-ui-companion-body';
+          for (const n of (bodyNodes || [])) if (n) body.appendChild(n);
+          const note = document.createElement('div');
+          note.className = 'awoo-ui-companion-note';
+          body.appendChild(note);
+          g.appendChild(head);
+          g.appendChild(body);
+          handle._group = { el: g, head, dot: gdot, word, note };
+          handle._sync();
+          return g;
+        },
+        _group: null,
         _error: null,
         // The same sentence the status line shows. Exposed because a module may
         // want to log it (the activity strip is the obvious consumer) and
@@ -4794,6 +5491,22 @@
           }
           if (handle._error) msg += ' Last attempt failed: ' + handle._error;
           handle._status = msg;
+          if (handle._group) {
+            const gr = handle._group;
+            // One word for the state, one short line for what that means.
+            const wordText = mode === 'companion' ? 'running'
+              : !enabled ? 'off here'
+              : (hostState.state === HOST_STATES.READY && !ready ? 'too old' : 'not running');
+            const noteText = handle._error ? 'Last attempt failed.'
+              : mode === 'companion' ? 'Handed over. Works even if this tab sleeps.'
+              : spec.fallback === false ? 'Needs the Companion.'
+              : 'Works in this browser until it runs.';
+            domWrite.attr(gr.dot, 'class', cls);
+            domWrite.text(gr.word, wordText);
+            domWrite.text(gr.note, noteText);
+            domWrite.attr(gr.head, 'title', msg);
+            gr.el.classList.toggle('awoo-ui-companion-dim', mode !== 'companion');
+          }
           domWrite.attr(dot, 'class', cls);
           domWrite.text(text, msg);
           openBtn.hidden = ready && mode === 'companion';
@@ -5206,6 +5919,14 @@
       // shared settings (v6.1) — a module reads these rather than keeping
       // its own opinion of e.g. whether to reopen its window on reload.
       getSetting, setSetting,
+      // v12: the named themes, and what a tool is handed when it opens.
+      // toolHtml(html, extra) returns a tool payload with window.AWOO_APPEARANCE
+      // (theme, developer info, tool fonts) and any `extra` window globals
+      // inserted AFTER the doctype, so the page stays in standards mode.
+      appearance, toolHtml,
+      // Settings backup, as pure functions over a Storage — the test seam.
+      __settingsBackupForTest: { collect: collectBackup, check: checkBackup, apply: applyBackup },
+      get themes() { return THEME_CHOICES(); },
       // module intake — called by every module's shim, and once by Core itself
       claim,
       // transient, non-blocking feedback. Modules should prefer their own

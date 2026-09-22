@@ -1,4 +1,5 @@
-<!DOCTYPE html>
+<!doctype html>
+<meta charset="utf-8">
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -6,92 +7,815 @@
 <title>Sculpture Stat Optimizer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Azeret+Mono:wght@400;500;600&display=swap">
+<meta name="awoo-tool" content="sculpture-stat-optimizer">
+<style>
+/* ===========================================================================
+   AWOO+ THEME TOKENS — GENERATED, DO NOT EDIT BY HAND.
+
+   Source: the AWOO+ Design System (projects/ARTIFACT_STYLE_GUIDE.md Part II,
+   live at https://claude.ai/artifact/3Xv8kdGSd6Lth8MhQEtBrS). Injected into
+   every tool page by userscripts/build.mjs at the <!-- @AWOO_THEME_TOKENS@ -->
+   marker, so one palette correction reaches every tool on the next build.
+
+   SEVEN THEMES, FOUR FAMILIES. A family name carries no mode; the variant
+   does, and only where more than one exists — which is why Slate and Claude
+   Code have no suffix.
+
+     Beach        light · dimmed
+     Slate        (was "war room" before the merge)
+     Claude       light · medium · dark
+     Claude Code  (RECONSTRUCTED from the brand register, not sampled)
+
+   ONE CONTRACT. Every theme defines the same 25 tokens and no component ever
+   names a colour, which is what makes an eighth theme a block of properties
+   rather than a rewrite. Two of those tokens exist for specific reasons:
+     --accent-edge     the soft edge of a tinted row. A full-strength accent
+                       ring reads as a frame around a table row, not emphasis
+                       on it.
+     --border-control  inputs, selects and buttons only, clearing WCAG
+                       1.4.11's 3:1 against surface. Table hairlines stay soft
+                       on --border.
+
+   Every text pair in every theme clears WCAG AA; tertiary "muted" text is
+   AA-large by design across the whole family.
+   =========================================================================== */
+:root{
+  /* Beach (light) is the base layer, so an un-stamped page is always legible. */
+  --ground:#EFE7D7;
+  --surface:#FAF5EC;
+  --surface-2:#F1E8D8;
+  --surface-3:#E7DCC7;
+  --border:#D8CBB2;
+  --border-strong:#C3B193;
+  --border-control:#8C7D64;
+  --ink:#33291D;
+  --ink-soft:#6B5C48;
+  --ink-mute:#94836C;
+  --accent:#8A4322;
+  --accent-fill:#A8552C;
+  --accent-edge:#D4AB93;
+  --bg-accent:#F3E2D8;
+  --on-accent:#FBF0E6;
+  --success:#3F5C33;
+  --success-fill:#4A6741;
+  --bg-success:#E4EBDC;
+  --danger:#8C2F2A;
+  --danger-fill:#A83A33;
+  --bg-danger:#F5E0DD;
+  --info:#41528A;
+  --bg-info:#E2E5F2;
+  --neutral:#6E5F49;
+  --bg-neutral:#EDE4D3;
+  --dev:#2E6B5C;
+  --bg-dev:#DCEBE6;
+  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);
+
+  /* TYPE, corrected 2026-09-21 after MEASURING the glyphs rather than
+     recalling them.
+
+     NUMBERS ARE PUBLIC SANS, NOT A MONO FACE. The requirement was a clear,
+     unmarked zero. Measured by rendering each zero at 200px and sampling the
+     centre of its counter (capital O as the control, which reads 0% ink in
+     every face, proving the method): Noto Sans Mono 83%, DM Mono 80%, Roboto
+     Mono 69%, IBM Plex Mono 93%, JetBrains Mono 95%, Space Mono 95%, Cousine
+     100%. Every one of them marks the zero. So does the earlier "fix":
+     font-feature-settings "zero" 0 changes NOTHING in any of them, because
+     the mark is the default glyph, not an optional feature.
+
+     Public Sans's own zero measures 0% — genuinely open — and
+     font-variant-numeric: tabular-nums makes every digit exactly the same
+     width (measured: all ten at 70px against 40.7-64.75 proportional). Fixed
+     width is what a column needs; a monospaced FACE was never the
+     requirement. So the number face is the text face, with tabular figures.
+
+     --font-mono stays a real mono for identifiers and formula text, where
+     letter alignment matters: Azeret Mono, the only mono of the eight tested
+     whose zero measured 0%. */
+  --font-display:'Public Sans',system-ui,-apple-system,sans-serif;
+  --font-body:'Public Sans',system-ui,-apple-system,sans-serif;
+  --font-num:'Public Sans',system-ui,-apple-system,sans-serif;
+  --font-mono:'Azeret Mono',ui-monospace,'Cascadia Mono',monospace;
+  --display-tracking:-.005em; --display-caps:none;
+  --radius:6px;
+
+  /* DENSITY, 2026-09-21. These are read as data, not prose: a table row and a
+     nav row both want to be tighter than a paragraph. Tokens rather than
+     literals so "slightly more condensed" is one edit, everywhere. */
+  --row-y:2px;        /* table cell vertical padding */
+  --row-x:12px;       /* table cell horizontal padding */
+  --nav-y:3px;        /* sidebar nav row */
+  --ctl-y:2px;        /* input and select vertical padding */
+  --ctl-x:6px;
+  --ctl-w:78px;       /* a number input's default width - subtle, not a field */
+  --pad-panel:11px;
+}
+
+/* No explicit choice and a dark OS: Slate. */
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme]){
+    --ground:#14181D;
+    --surface:#1B2027;
+    --surface-2:#20262D;
+    --surface-3:#272F37;
+    --border:#2B323A;
+    --border-strong:#3A434C;
+    --border-control:#6A7684;
+    --ink:#E8EAEB;
+    --ink-soft:#A9B0B6;
+    --ink-mute:#78828B;
+    --accent:#E3B36B;
+    --accent-fill:#C4923F;
+    --accent-edge:#5A4522;
+    --bg-accent:#2E2412;
+    --on-accent:#241300;
+    --success:#84C4AA;
+    --success-fill:#4F8C74;
+    --bg-success:#172E25;
+    --danger:#E28270;
+    --danger-fill:#C1503C;
+    --bg-danger:#351F1A;
+    --info:#B4A4E0;
+    --bg-info:#241F36;
+    --neutral:#9AA6B2;
+    --bg-neutral:#222A32;
+    --dev:#78C8BC;
+    --bg-dev:#14302C;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
+  }
+}
+
+/* Beach (light) */
+:root[data-theme="beach"]{
+  --ground:#EFE7D7;
+  --surface:#FAF5EC;
+  --surface-2:#F1E8D8;
+  --surface-3:#E7DCC7;
+  --border:#D8CBB2;
+  --border-strong:#C3B193;
+  --border-control:#8C7D64;
+  --ink:#33291D;
+  --ink-soft:#6B5C48;
+  --ink-mute:#94836C;
+  --accent:#8A4322;
+  --accent-fill:#A8552C;
+  --accent-edge:#D4AB93;
+  --bg-accent:#F3E2D8;
+  --on-accent:#FBF0E6;
+  --success:#3F5C33;
+  --success-fill:#4A6741;
+  --bg-success:#E4EBDC;
+  --danger:#8C2F2A;
+  --danger-fill:#A83A33;
+  --bg-danger:#F5E0DD;
+  --info:#41528A;
+  --bg-info:#E2E5F2;
+  --neutral:#6E5F49;
+  --bg-neutral:#EDE4D3;
+  --dev:#2E6B5C;
+  --bg-dev:#DCEBE6;
+  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);
+}
+
+/* Beach (dimmed) */
+:root[data-theme="beach-dim"]{
+  --ground:#17181A;
+  --surface:#1E2022;
+  --surface-2:#25282A;
+  --surface-3:#2E3134;
+  --border:#33373A;
+  --border-strong:#4A4F53;
+  --border-control:#6D7378;
+  --ink:#E6E4E0;
+  --ink-soft:#A8A49D;
+  --ink-mute:#7C7872;
+  --accent:#F2B189;
+  --accent-fill:#CC7A50;
+  --accent-edge:#5C412C;
+  --bg-accent:#31241A;
+  --on-accent:#1B0D05;
+  --success:#7CC49A;
+  --success-fill:#3F8A61;
+  --bg-success:#17301F;
+  --danger:#EB8272;
+  --danger-fill:#C0453A;
+  --bg-danger:#341D1B;
+  --info:#A3AEDD;
+  --bg-info:#1F2130;
+  --neutral:#A09B92;
+  --bg-neutral:#26282A;
+  --dev:#7FC9B8;
+  --bg-dev:#16302A;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
+}
+
+/* Slate */
+:root[data-theme="slate"]{
+  --ground:#14181D;
+  --surface:#1B2027;
+  --surface-2:#20262D;
+  --surface-3:#272F37;
+  --border:#2B323A;
+  --border-strong:#3A434C;
+  --border-control:#6A7684;
+  --ink:#E8EAEB;
+  --ink-soft:#A9B0B6;
+  --ink-mute:#78828B;
+  --accent:#E3B36B;
+  --accent-fill:#C4923F;
+  --accent-edge:#5A4522;
+  --bg-accent:#2E2412;
+  --on-accent:#241300;
+  --success:#84C4AA;
+  --success-fill:#4F8C74;
+  --bg-success:#172E25;
+  --danger:#E28270;
+  --danger-fill:#C1503C;
+  --bg-danger:#351F1A;
+  --info:#B4A4E0;
+  --bg-info:#241F36;
+  --neutral:#9AA6B2;
+  --bg-neutral:#222A32;
+  --dev:#78C8BC;
+  --bg-dev:#14302C;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
+}
+
+/* Claude (light) */
+:root[data-theme="claude"]{
+  --ground:#F0EEE6;
+  --surface:#FFFFFF;
+  --surface-2:#F7F6F1;
+  --surface-3:#EBE9E0;
+  --border:#DEDACE;
+  --border-strong:#C5C0B2;
+  --border-control:#8A8474;
+  --ink:#191917;
+  --ink-soft:#57544C;
+  --ink-mute:#84806F;
+  --accent:#A8461F;
+  --accent-fill:#B4552F;
+  --accent-edge:#DEB49F;
+  --bg-accent:#F7E6DD;
+  --on-accent:#FFF4EE;
+  --success:#276048;
+  --success-fill:#317055;
+  --bg-success:#D3E8DC;
+  --danger:#9E2B22;
+  --danger-fill:#BE4034;
+  --bg-danger:#F8E2DF;
+  --info:#474C93;
+  --bg-info:#E5E6F4;
+  --neutral:#6B6759;
+  --bg-neutral:#EDEBE2;
+  --dev:#256657;
+  --bg-dev:#D8EBE5;
+  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);
+}
+
+/* Claude (medium) */
+:root[data-theme="claude-med"]{
+  --ground:#26241F;
+  --surface:#2F2D27;
+  --surface-2:#37352E;
+  --surface-3:#403D35;
+  --border:#454239;
+  --border-strong:#5C5849;
+  --border-control:#807A68;
+  --ink:#EDEAE0;
+  --ink-soft:#B3AE9E;
+  --ink-mute:#8A8676;
+  --accent:#EFA189;
+  --accent-fill:#C26A4F;
+  --accent-edge:#66452F;
+  --bg-accent:#3B2A1E;
+  --on-accent:#1C0C03;
+  --success:#84C6A2;
+  --success-fill:#3C8A63;
+  --bg-success:#22342A;
+  --danger:#EE8B79;
+  --danger-fill:#BC4739;
+  --bg-danger:#3B2622;
+  --info:#AFA8E2;
+  --bg-info:#2B2839;
+  --neutral:#A8A292;
+  --bg-neutral:#343128;
+  --dev:#82C9B9;
+  --bg-dev:#1F3330;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
+}
+
+/* Claude (dark) */
+:root[data-theme="claude-dark"]{
+  --ground:#141312;
+  --surface:#1C1B19;
+  --surface-2:#232220;
+  --surface-3:#2C2A27;
+  --border:#31302C;
+  --border-strong:#47443E;
+  --border-control:#6E6A61;
+  --ink:#EFECE3;
+  --ink-soft:#ACA79A;
+  --ink-mute:#7E7A6E;
+  --accent:#F0A791;
+  --accent-fill:#C36E52;
+  --accent-edge:#523A26;
+  --bg-accent:#2B1D14;
+  --on-accent:#1A0A02;
+  --success:#82C9A3;
+  --success-fill:#3E8F66;
+  --bg-success:#14291D;
+  --danger:#F0907E;
+  --danger-fill:#C24A3B;
+  --bg-danger:#2E1B18;
+  --info:#B3ABE6;
+  --bg-info:#211E2E;
+  --neutral:#A5A092;
+  --bg-neutral:#26241F;
+  --dev:#7FCBBA;
+  --bg-dev:#132A26;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
+}
+
+/* Claude Code */
+:root[data-theme="claude-code"]{
+  --ground:#1F1E1D;
+  --surface:#262625;
+  --surface-2:#2E2E2C;
+  --surface-3:#383836;
+  --border:#3A3A38;
+  --border-strong:#54544F;
+  --border-control:#787870;
+  --ink:#F5F4EF;
+  --ink-soft:#B4B2A7;
+  --ink-mute:#88867C;
+  --accent:#E39070;
+  --accent-fill:#C2613F;
+  --accent-edge:#4A3227;
+  --bg-accent:#33221B;
+  --on-accent:#1A0A04;
+  --success:#7FC49E;
+  --success-fill:#3C8961;
+  --bg-success:#1C2E23;
+  --danger:#EE8B78;
+  --danger-fill:#BF4A39;
+  --bg-danger:#33211D;
+  --info:#ADA6E0;
+  --bg-info:#28253A;
+  --neutral:#A3A198;
+  --bg-neutral:#2C2C2A;
+  --dev:#7DC6B6;
+  --bg-dev:#1B2E2A;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
+}
+
+/* LEGACY ALIASES. The tool CSS written against the war-room names keeps
+   working; a new theme only has to fill the role names above. Do not use
+   these in new code. */
+:root,:root[data-theme]{
+  --brass:var(--accent); --brass-fill:var(--accent-fill);
+  --brass-text:var(--accent); --on-brass:var(--on-accent); --bg-brass:var(--bg-accent);
+  --ember:var(--danger); --ember-fill:var(--danger-fill); --bg-ember:var(--bg-danger);
+  --moss:var(--success); --moss-fill:var(--success-fill); --bg-moss:var(--bg-success);
+  --violet:var(--info); --bg-violet:var(--bg-info);
+  --steel:var(--neutral); --bg-steel:var(--bg-neutral);
+  --font-head:var(--font-display);
+}
+
+/* NUMBERS. Tabular figures give fixed-width digits, which is what makes a
+   column line up; the face itself is proportional and its zero is open.
+   `font-feature-settings: "zero" 0` is deliberately NOT used - it was tried,
+   and it does nothing, because in every mono face tested the slash or dot is
+   the default glyph rather than an optional feature. The fix is face choice,
+   not a feature flag. */
+.num,[data-num],table td,.stat .v,.mini .mr{
+  font-variant-numeric:tabular-nums;
+}
+
+/* DEVELOPER INFO (DESIGN.md §7, register R67). Hidden unless the reader has
+   turned it on, and tinted with its own hue so it is never mistaken for
+   something written for a player. */
+:root:not([data-dev="on"]) [data-dev-only]{display:none!important}
+[data-dev-only]{color:var(--dev)}
+.devpill{
+  font-family:var(--font-mono);font-size:.6rem;font-weight:700;
+  padding:1px 6px;border-radius:3px;background:var(--bg-dev);color:var(--dev);
+}
+
+</style>
+<style>
+/* ===========================================================================
+   AWOO+ TOOL SETTINGS — the gear menu every tool shares.
+
+   Hand-written, unlike theme-tokens.css beside it. Injected by
+   userscripts/build.mjs at the <!-- @AWOO_TOOL_SETTINGS@ --> marker together
+   with tool-settings.js, for the same reason the tokens are injected rather
+   than copied: the menu, the theme inheritance and the "Match game" fallback
+   were about to exist four times, and the fallback is the part that has to
+   change in one place when Core's theme snapshot reaches tool payloads.
+
+   Every selector is prefixed `awoo-gear` because it lands inside pages whose
+   own `.btn` / `.panel` / `.note` rules differ from tool to tool.
+   ARTIFACT_STYLE_GUIDE.md Part II, "Settings menu".
+   =========================================================================== */
+.awoo-gear{position:relative;flex:none}
+.awoo-gear-btn{
+  background:transparent; border:1px solid var(--border-control); color:var(--ink-soft);
+  border-radius:4px; padding:3px 8px; cursor:pointer;
+  font:inherit; font-size:.95rem; line-height:1;
+}
+.awoo-gear-btn:hover,.awoo-gear-btn[aria-expanded="true"]{
+  color:var(--ink); border-color:var(--accent-fill); background:var(--surface-2);
+}
+.awoo-gear-menu{
+  position:absolute; right:0; top:calc(100% + 6px); z-index:60; width:250px;
+  background:var(--surface); color:var(--ink); border:1px solid var(--border-strong);
+  border-radius:6px; box-shadow:var(--shadow); padding:8px;
+  display:flex; flex-direction:column; gap:7px;
+  font-family:var(--font-body); font-size:14px; line-height:1.4; text-align:left;
+}
+/* Opening upward, for a gear that sits at the foot of the viewport. */
+.awoo-gear-menu.up{top:auto; bottom:calc(100% + 6px)}
+.awoo-gear-row{display:flex;flex-direction:column;gap:3px}
+.awoo-gear-row label{
+  font-size:.62rem;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ink-mute);
+}
+.awoo-gear-row select{
+  background:var(--surface-2); color:var(--ink); border:1px solid var(--border-control);
+  border-radius:4px; padding:var(--ctl-y) var(--ctl-x); font:inherit; font-size:.76rem; width:100%;
+}
+.awoo-gear-check{flex-direction:row;align-items:center;gap:7px}
+.awoo-gear-check label{flex:1}
+.awoo-gear-check input{accent-color:var(--accent-fill);margin:0}
+.awoo-gear-note{font-size:.66rem;color:var(--ink-mute);line-height:1.4}
+.awoo-gear-note:empty{display:none}
+/* A fallback is information the reader needs, not a footnote: the page is
+   deliberately not in the theme they asked for, and it says so. */
+.awoo-gear-note.fallback{color:var(--info);background:var(--bg-info);border-radius:4px;padding:4px 6px}
+
+/* SIDEBAR PINNING (2026-09-21). The default is that a tool's sidebar scrolls
+   WITH the page, and is pinned only while the whole of it fits on screen — a
+   pinned sidebar taller than the window hides its own bottom until the page
+   ends, and an independently scrolling one is a second scrollbar to manage.
+   "Sidebar scrolls on its own" in the gear menu restores the older behaviour.
+   tool-settings.js measures and sets data-side-mode; nothing else should. */
+[data-awoo-sidebar][data-side-mode="sticky"]{position:sticky;top:var(--side-top,20px)}
+[data-awoo-sidebar][data-side-mode="scroll"]{
+  position:sticky; top:var(--side-top,20px);
+  max-height:calc(100vh - var(--side-top,20px) - 16px);
+  overflow-y:auto; overflow-x:hidden; scrollbar-width:thin;
+}
+
+</style>
 <script>
-  // Restore theme immediately to prevent any flicker
-  (function(){
-    try {
-      var saved = localStorage.getItem('AWOO_THEME') || 'dark-beach';
-      if (saved === 'beach') {
-        document.documentElement.setAttribute('data-theme', 'light');
-      } else {
-        document.documentElement.setAttribute('data-theme', 'dark');
-        document.documentElement.setAttribute('data-dark', saved);
-      }
-    } catch(e) {}
-  })();
+/* ===========================================================================
+   AWOO+ TOOL SETTINGS — theme, developer info and fonts, shared by every tool.
+
+   Hand-written. Injected by userscripts/build.mjs at <!-- @AWOO_TOOL_SETTINGS@ -->
+   (with tool-settings.css), so the inheritance rules below exist once rather
+   than once per tool. A page opts in by carrying the marker, naming itself in
+   <meta name="awoo-tool" content="..."> BEFORE the marker, and calling
+   AWOO_TOOL_SETTINGS.mount(el) from its own init.
+
+   INHERIT, THEN OVERRIDE (ARTIFACT_STYLE_GUIDE.md Part II and Part IV).
+   The theme, "Show developer info" and the tool fonts are the PLAYER's
+   settings, held by AWOO+ Core. Core hands them over when it opens a tool, as
+   window.AWOO_APPEARANCE, prepended to the payload the same way AWOO_LIVE is.
+   A choice made in this page's gear menu overrides the inherited one and is
+   remembered per tool; "Match game" hands the decision back to Core.
+
+   THE FALLBACKS, stated because each one is a deliberate answer rather than
+   whatever happened to render:
+     - Opened outside the game (nothing inherited): the OS preference decides,
+       Beach (light) or Slate — theme-tokens.css does that with no stamp.
+     - Core's theme is game-shaped ("Match game", or the AWOO Turquoise preset):
+       a tool opened in its own tab cannot read the game page's variables, and
+       Core's snapshot of them does not reach tool payloads yet. So the page
+       shows SLATE AND SAYS SO in the menu — never an unstyled page, never a
+       silent substitute. When the snapshot does reach the payload, this
+       branch is the one place that changes.
+   =========================================================================== */
+(function(){
+'use strict';
+
+var THEMES = [
+  ['beach','Beach (light)'], ['beach-dim','Beach (dimmed)'], ['slate','Slate'],
+  ['claude','Claude (light)'], ['claude-med','Claude (medium)'], ['claude-dark','Claude (dark)'],
+  ['claude-code','Claude Code']
+];
+var THEME_IDS = THEMES.map(function(t){ return t[0]; });
+// Core's two themes that are defined by the GAME's variables rather than by
+// our contract. Neither can be rendered in a separate tab yet.
+var GAME_SHAPED = { matchGame:'Match game', awooTurquoise:'AWOO Turquoise' };
+var FALLBACK_THEME = 'slate';
+
+// The two font lists of Settings > Fonts. Core carries the same two lists for
+// the overlay; userscripts/tests/tool-theme-contract.mjs fails if they drift apart.
+//   text: Public Sans (default) · Open Sans · Figtree
+//   num:  Public Sans with tabular figures (default) · Roboto Mono
+// Roboto Mono marks its zero (69% ink in the counter, measured); it is offered
+// because it was asked for, and labelled for what it is in Core's picker.
+var FONT_TEXT = {
+  public:  { stack:"'Public Sans',system-ui,-apple-system,sans-serif", family:'Public+Sans:wght@400;500;600;700' },
+  open:    { stack:"'Open Sans',system-ui,-apple-system,sans-serif",   family:'Open+Sans:wght@400;500;600;700' },
+  figtree: { stack:"'Figtree',system-ui,-apple-system,sans-serif",     family:'Figtree:wght@400;500;600;700' }
+};
+var FONT_NUM = {
+  public: { stack:"'Public Sans',system-ui,-apple-system,sans-serif", family:'Public+Sans:wght@400;500;600;700' },
+  roboto: { stack:"'Roboto Mono',ui-monospace,monospace",             family:'Roboto+Mono:wght@400;500;600' }
+};
+
+var root = document.documentElement;
+var meta = document.querySelector('meta[name="awoo-tool"]');
+var TOOL = (meta && meta.getAttribute('content')) || 'tool';
+var LS = 'awoo:tool:' + TOOL + ':appearance';
+
+var local = { theme:null, dev:null, sideScroll:false };
+try {
+  var raw = localStorage.getItem(LS);
+  if (raw){ var p = JSON.parse(raw); if (p && typeof p === 'object'){ local.theme = p.theme || null; local.dev = (typeof p.dev === 'boolean') ? p.dev : null; local.sideScroll = p.sideScroll === true; } }
+} catch(e){ /* private window or blocked storage: inherit everything */ }
+function persist(){
+  try { localStorage.setItem(LS, JSON.stringify(local)); } catch(e){ /* not durable, still applied */ }
+}
+
+// What Core handed over. AWOO_APPEARANCE is the channel; the profile section
+// is the older one Cost Tables was written against, kept so a page embedded
+// beside Core (not in its own tab) still inherits.
+function inherited(){
+  var out = { theme:null, dev:null, fonts:null };
+  var a = window.AWOO_APPEARANCE;
+  if (a && typeof a === 'object'){
+    if (typeof a.theme === 'string') out.theme = a.theme;
+    if (typeof a.dev === 'boolean') out.dev = a.dev;
+    if (a.fonts && typeof a.fonts === 'object') out.fonts = a.fonts;
+  }
+  try {
+    var core = window.AWOO_CORE || window.Core;
+    if (core && core.profile && typeof core.profile.section === 'function'){
+      var t = core.profile.section('settings.theme');
+      if (out.theme == null && t && typeof t.value === 'string') out.theme = t.value;
+      var d = core.profile.section('settings.showDeveloperInfo');
+      if (out.dev == null && d && typeof d.value === 'boolean') out.dev = d.value;
+    }
+  } catch(e){ /* absent is absent */ }
+  return out;
+}
+
+// The theme actually painted, and why. `note` is shown in the menu whenever
+// the page is not showing exactly what was asked for.
+function resolveTheme(){
+  if (local.theme && THEME_IDS.indexOf(local.theme) >= 0){
+    return { id:local.theme, source:'picked', note:'' };
+  }
+  var inh = inherited().theme;
+  if (inh && THEME_IDS.indexOf(inh) >= 0){
+    return { id:inh, source:'game', note:'' };
+  }
+  if (inh && GAME_SHAPED[inh]){
+    return { id:FALLBACK_THEME, source:'fallback',
+      note:'Your AWOO+ theme is ' + GAME_SHAPED[inh] + ', which a tool cannot read yet. Showing Slate.' };
+  }
+  return { id:null, source:'os', note:'No AWOO+ theme to match, so this follows your system: Beach or Slate.' };
+}
+
+function labelOf(id){
+  for (var i = 0; i < THEMES.length; i++) if (THEMES[i][0] === id) return THEMES[i][1];
+  return null;
+}
+
+function applyTheme(){
+  var r = resolveTheme();
+  if (r.id) root.setAttribute('data-theme', r.id);
+  else root.removeAttribute('data-theme');
+  return r;
+}
+function devOn(){
+  if (local.dev != null) return local.dev;
+  return !!inherited().dev;
+}
+function applyDev(){ root.setAttribute('data-dev', devOn() ? 'on' : 'off'); }
+
+// Fonts are never chosen here: Settings > Fonts in Core is the only place,
+// and each surface is saved there explicitly. A tool just wears the result.
+// A face outside the page's own stylesheet link is fetched only when chosen.
+function loadFamily(family){
+  if (!family || document.querySelector('link[data-awoo-font="' + family + '"]')) return;
+  var l = document.createElement('link');
+  l.rel = 'stylesheet';
+  l.href = 'https://fonts.googleapis.com/css2?family=' + family + '&display=swap';
+  l.setAttribute('data-awoo-font', family);
+  (document.head || root).appendChild(l);
+}
+function applyFonts(){
+  var f = inherited().fonts;
+  var tools = f && (f.tools || f);
+  var text = tools && FONT_TEXT[tools.text];
+  var num = tools && FONT_NUM[tools.num];
+  if (text){
+    loadFamily(text.family);
+    root.style.setProperty('--font-body', text.stack);
+    root.style.setProperty('--font-display', text.stack);
+  }
+  if (num){
+    loadFamily(num.family);
+    root.style.setProperty('--font-num', num.stack);
+  }
+}
+
+// Sidebar pinning (see tool-settings.css). A page marks its sidebar with
+// data-awoo-sidebar, the viewport width from which it sits BESIDE the content
+// (data-side-min) and the pinned offset (data-side-top, e.g. below a sticky
+// top bar). Below that width the layout is one column and nothing is pinned.
+function sidebar(){ return document.querySelector('[data-awoo-sidebar]'); }
+function layoutSidebar(){
+  var el = sidebar();
+  if (!el) return;
+  var min = parseInt(el.getAttribute('data-side-min'), 10) || 0;
+  var top = parseInt(el.getAttribute('data-side-top'), 10) || 20;
+  el.style.setProperty('--side-top', top + 'px');
+  var mode;
+  if (window.innerWidth < min) mode = 'static';
+  else if (local.sideScroll) mode = 'scroll';
+  // scrollHeight is the content's own height whatever max-height says, so
+  // the measurement does not depend on the mode it is choosing between.
+  else mode = el.scrollHeight <= window.innerHeight - top - 16 ? 'sticky' : 'static';
+  if (el.getAttribute('data-side-mode') !== mode) el.setAttribute('data-side-mode', mode);
+}
+function watchSidebar(){
+  var el = sidebar();
+  if (!el) return;
+  layoutSidebar();
+  window.addEventListener('resize', layoutSidebar);
+  // Content grows and shrinks (a details panel opens, live data arrives), so
+  // the fit is re-measured on the element's own size changes too.
+  if (window.ResizeObserver) new ResizeObserver(layoutSidebar).observe(el);
+}
+
+var listeners = [];
+function changed(){ for (var i = 0; i < listeners.length; i++){ try { listeners[i](); } catch(e){ /* one page bug must not stop the others */ } } }
+
+// Painted immediately, at parse time, so the page never flashes the base
+// theme before the stored or inherited one.
+applyTheme(); applyDev(); applyFonts();
+
+function el(tag, attrs, text){
+  var n = document.createElement(tag);
+  for (var k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+/* The gear menu. `host` is an empty element in the page's top bar; `opts.extra`
+   is an optional node of page-specific rows (Cost Tables' number format),
+   placed between Theme and Show developer info. `opts.up` opens it upward. */
+function mount(host, opts){
+  opts = opts || {};
+  if (!host) return;
+  host.classList.add('awoo-gear');
+  host.textContent = '';
+
+  var btn = el('button', { type:'button', 'class':'awoo-gear-btn', 'aria-expanded':'false',
+    'aria-controls':'awooGearMenu', 'aria-label':'Settings', title:'Settings' }, '⚙');
+  var menu = el('div', { id:'awooGearMenu', 'class':'awoo-gear-menu' + (opts.up ? ' up' : '') });
+  menu.hidden = true;
+
+  var themeRow = el('div', { 'class':'awoo-gear-row' });
+  themeRow.appendChild(el('label', { 'for':'awooThemeSel' }, 'Theme'));
+  var sel = el('select', { id:'awooThemeSel' });
+  var matchOpt = el('option', { value:'' }, 'Match game');
+  sel.appendChild(matchOpt);
+  THEMES.forEach(function(t){ sel.appendChild(el('option', { value:t[0] }, t[1])); });
+  themeRow.appendChild(sel);
+  menu.appendChild(themeRow);
+  var themeNote = el('div', { 'class':'awoo-gear-note' });
+  menu.appendChild(themeNote);
+
+  if (opts.extra) menu.appendChild(opts.extra);
+
+  var devRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });
+  devRow.appendChild(el('label', { 'for':'awooDevToggle' }, 'Show developer info'));
+  var dev = el('input', { type:'checkbox', id:'awooDevToggle' });
+  devRow.appendChild(dev);
+  menu.appendChild(devRow);
+  menu.appendChild(el('div', { 'class':'awoo-gear-note' },
+    opts.devHint || 'Adds the evidence tier, source files and last-checked date.'));
+
+  var side = null;
+  if (sidebar()){
+    var sideRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });
+    sideRow.appendChild(el('label', { 'for':'awooSideScroll' }, 'Sidebar scrolls on its own'));
+    side = el('input', { type:'checkbox', id:'awooSideScroll' });
+    sideRow.appendChild(side);
+    menu.appendChild(sideRow);
+    side.addEventListener('change', function(){
+      local.sideScroll = side.checked;
+      persist(); layoutSidebar(); changed();
+    });
+  }
+
+  host.appendChild(btn);
+  host.appendChild(menu);
+  watchSidebar();
+
+  function render(){
+    var r = resolveTheme();
+    sel.value = local.theme || '';
+    // "Match game" says what it resolved to, so the reader never has to open
+    // the list to find out which theme they are looking at.
+    matchOpt.textContent = 'Match game' + (r.source === 'picked' ? '' :
+      ' · ' + (r.id ? labelOf(r.id) : 'system'));
+    themeNote.textContent = (r.source === 'picked') ? '' : r.note;
+    themeNote.classList.toggle('fallback', r.source === 'fallback');
+    dev.checked = devOn();
+    if (side) side.checked = !!local.sideScroll;
+  }
+  render();
+
+  sel.addEventListener('change', function(){
+    local.theme = sel.value || null;
+    persist(); applyTheme(); render(); changed();
+  });
+  dev.addEventListener('change', function(){
+    local.dev = dev.checked;
+    persist(); applyDev(); changed();
+  });
+
+  // Closes on outside click and on Escape, because a panel that only closes
+  // by clicking the same button again is a panel people leave open.
+  function setOpen(open){
+    menu.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+  }
+  btn.addEventListener('click', function(e){ e.stopPropagation(); setOpen(menu.hidden); });
+  menu.addEventListener('click', function(e){ e.stopPropagation(); });
+  document.addEventListener('click', function(){ setOpen(false); });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape' && !menu.hidden){ setOpen(false); btn.focus(); }
+  });
+  // The OS flipping light/dark only matters while nothing more specific is set.
+  if (window.matchMedia){
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var onOs = function(){ render(); changed(); };
+    if (mq.addEventListener) mq.addEventListener('change', onOs);
+    else if (mq.addListener) mq.addListener(onOs);
+  }
+}
+
+/* The developer tier of a Formula panel: one line per generated fact, with its
+   evidence tier, source file and last-checked date. Read from
+   window.AWOO_FACTS_META, which build.mjs writes from the same data/ entries
+   it generates the functions from — so this list cannot disagree with the
+   code the page actually runs. Returns <li> markup; the caller wraps it in a
+   list marked data-dev-only. */
+function esc(v){ return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function sources(names){
+  var meta = window.AWOO_FACTS_META || {};
+  var keys = names || Object.keys(meta);
+  if (!keys.length) return '<li>This copy was opened without the generated facts block.</li>';
+  return keys.filter(function(k){ return meta[k]; }).map(function(k){
+    var m = meta[k];
+    return '<li><span class="devpill">' + esc(m.confidence) + '</span> <code>' + esc(m.file) +
+      '</code> &middot; <code>' + esc(m.fact) + '</code>' +
+      (m.checked ? ' &middot; checked ' + esc(m.checked) : '') + '</li>';
+  }).join('');
+}
+
+window.AWOO_TOOL_SETTINGS = {
+  mount: mount,
+  sources: sources,
+  onChange: function(fn){ if (typeof fn === 'function') listeners.push(fn); },
+  theme: resolveTheme,
+  devOn: devOn,
+  themes: THEMES.slice(),
+  // Test seam: the resolution rules, callable without a DOM round-trip.
+  _resolve: function(localTheme, inheritedTheme){
+    var pl = local.theme, pa = window.AWOO_APPEARANCE;
+    local.theme = localTheme || null;
+    window.AWOO_APPEARANCE = inheritedTheme ? { theme:inheritedTheme } : undefined;
+    try { return resolveTheme(); } finally { local.theme = pl; window.AWOO_APPEARANCE = pa; }
+  },
+  _fonts: { text:FONT_TEXT, num:FONT_NUM }
+};
+})();
+
 </script>
 <style>
-/* ---------------------------------------------------------------------------
-   THEME TOKENS (v4/v5 Baseline)
-   beach (light warm sand), dark-beach (warm night sand), ink, slate, umber
---------------------------------------------------------------------------- */
-:root{
-  --bg:#efe7d7; --surface:#faf5ec; --surface-2:#f1e8d8; --surface-3:#e7dcc7;
-  --border:#d8cbb2; --border-strong:#c3b193;
-  --text:#33291d; --text-muted:#6b5c48; --text-faint:#94836c;
-  --accent:#4a6741; --accent-soft:#5f8352;
-  --warm:#a8552c; --warm-soft:#c26b3c;
-  --success:#4a6741; --band:#f4ead2; --current:#e2e8da;
-  --highlight:#6a48ea; --highlight-soft:#8d72f5;
-  --shadow:0 1px 2px rgba(80,60,35,.07), 0 4px 14px rgba(80,60,35,.06);
-  --mono:'IBM Plex Mono',ui-monospace,monospace;
-  --sans:'IBM Plex Sans',system-ui,sans-serif;
-  --display:'Big Shoulders Display','Arial Narrow',sans-serif;
-  --num:'Source Sans 3','Segoe UI','Open Sans',system-ui,sans-serif;
-}
-
-/* 1. Dark Beach (Warm Night Sand) - User favorite */
-:root[data-theme="dark"][data-dark="dark-beach"],
-:root:not([data-theme="light"])[data-dark="dark-beach"],
-:root:not([data-theme="light"]):not([data-dark]){
-  --bg:#1a1714; --surface:#24201c; --surface-2:#2e2924; --surface-3:#39332d;
-  --border:#4a423a; --border-strong:#5c5349;
-  --text:#eae4dc; --text-muted:#b3a89a; --text-faint:#8a8073;
-  --accent:#8fa87a; --accent-soft:#a7bd93;
-  --warm:#d79a6e; --warm-soft:#e6b391;
-  --success:#8fa87a; --band:#2a2520; --current:#262a22;
-  --highlight:#9d88ff; --highlight-soft:#b6a6ff;
-  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.32);
-}
-
-/* 2. Ink (Near black) */
-:root[data-theme="dark"][data-dark="ink"]{
-  --bg:#0e0e0f; --surface:#161617; --surface-2:#1c1c1e; --surface-3:#242427;
-  --border:#2a2a2d; --border-strong:#3c3c41;
-  --text:#eceae7; --text-muted:#9d9a95; --text-faint:#6a6763;
-  --accent:#9db38c; --accent-soft:#b6c9a7;
-  --warm:#d08a63; --warm-soft:#e0a483;
-  --success:#9db38c; --band:#211f1b; --current:#1c211c;
-  --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.4);
-}
-
-/* 3. Slate (Cool blue-gray) */
-:root[data-theme="dark"][data-dark="slate"]{
-  --bg:#0f1216; --surface:#171b21; --surface-2:#1e232a; --surface-3:#272d36;
-  --border:#2b323b; --border-strong:#3f4854;
-  --text:#f0f3f6; --text-muted:#9aa5b1; --text-faint:#69737f;
-  --accent:#7fb3a5; --accent-soft:#9ccabd;
-  --warm:#d79a6e; --warm-soft:#e6b391;
-  --success:#7fb3a5; --band:#221f1a; --current:#182420;
-  --shadow:0 1px 2px rgba(0,0,0,.45), 0 10px 28px rgba(0,0,0,.38);
-}
-
-/* 4. Umber (Sepia brown) */
-:root[data-theme="dark"][data-dark="umber"]{
-  --bg:#14100c; --surface:#1c1712; --surface-2:#231d16; --surface-3:#2d251c;
-  --border:#332a20; --border-strong:#4a3d2e;
-  --text:#efe6d8; --text-muted:#a89a86; --text-faint:#7a6d5c;
-  --accent:#a3ad72; --accent-soft:#bcc48f;
-  --warm:#cf8f5c; --warm-soft:#e0a97c;
-  --success:#a3ad72; --band:#241d12; --current:#20241a;
-  --shadow:0 1px 2px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.42);
-}
-
+/* THEME: none of its own. Rebuilt 2026-09-21 onto the shared token contract
+   (theme-tokens.css, injected above; ARTIFACT_STYLE_GUIDE.md Part II-b). The
+   five hand-built palettes this page cycled through (Beach, Dark Beach, Ink,
+   Slate, Umber) are gone; Ink and Umber were retired by DESIGN.md.
+   Roles: Stat Rate (was violet "highlight") is --info; the specific-stat
+   side and your current split (was terracotta "warm") are --accent.
+   ONE DELIBERATE EXCEPTION: the .stat-* / .tag-* colours below are the
+   GAME's own stat colours, sampled from its UI, so a stat here reads as the
+   same stat in game. They are identities, not theme roles, and stay literal.
+   Known cost: the yellow Dexterity text is low-contrast on the light themes. */
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html,body{margin:0;background:var(--bg)}
-body{color:var(--text);font-family:var(--sans);line-height:1.5;font-size:.9rem;overflow-x:hidden}
+html,body{margin:0;background:var(--ground)}
+body{color:var(--ink);font-family:var(--font-body);line-height:1.5;font-size:.9rem;overflow-x:hidden}
 a{color:inherit}
 
 /* ---- shell ---- */
@@ -99,69 +823,73 @@ a{color:inherit}
      max-width:1680px;margin:0 auto;padding:1.5rem 1.5rem 4rem}
 @media (max-width:1150px){.app{grid-template-columns:1fr;padding:1.25rem 1rem 4rem}}
 
-.eyebrow{font-family:var(--mono);font-size:.63rem;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin-bottom:.3rem;white-space:nowrap}
-h1{font-family:var(--display);font-weight:700;font-size:1.85rem;margin:0 0 .2rem;line-height:1;letter-spacing:.02em;white-space:nowrap}
-.sub{color:var(--text-muted);font-size:.78rem;margin:0 0 .9rem;line-height:1.4}
+.eyebrow{font-family:var(--font-mono);font-size:.63rem;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin-bottom:.3rem;white-space:nowrap}
+h1{font-family:var(--font-display);font-weight:700;font-size:1.85rem;margin:0 0 .2rem;line-height:1;letter-spacing:.02em;white-space:nowrap}
+.sub{color:var(--ink-soft);font-size:.78rem;margin:0 0 .9rem;line-height:1.4}
 
 /* ---- sidebar ---- */
 .sidebar-inner{display:flex;flex-direction:column;gap:.6rem}
-@media (min-width:1151px){
-  .sidebar-inner{position:sticky;top:1.25rem;max-height:calc(100vh - 2.5rem);
-    overflow-y:auto;overflow-x:hidden;padding-right:.45rem;scrollbar-width:thin}
-  .sidebar-inner::-webkit-scrollbar{width:7px}
-  .sidebar-inner::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
-}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.7rem .8rem;box-shadow:var(--shadow)}
+/* Pinned or not is the shared settings layer's call (tool-settings.js,
+   "Sidebar scrolls on its own"): by default the sidebar scrolls with the page
+   and is pinned only while it fits on screen. These rules only style the
+   scrollbar for readers who turn independent scrolling back on. */
+.sidebar-inner[data-side-mode="scroll"]{padding-right:.45rem}
+.sidebar-inner::-webkit-scrollbar{width:7px}
+.sidebar-inner::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--pad-panel);box-shadow:var(--shadow)}
 
-.sec-label{font-family:var(--sans);font-size:.7rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
-  color:var(--text-faint);display:flex;align-items:center;gap:.35rem;margin:0 0 .5rem;white-space:nowrap}
+.sec-label{font-family:var(--font-body);font-size:.7rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+  color:var(--ink-mute);display:flex;align-items:center;gap:.35rem;margin:0 0 .5rem;white-space:nowrap}
 .sec-label .rule{flex:1;height:1px;background:var(--border)}
 
 /* ---- unified compact aligned inputs ---- */
 .fields{display:grid;grid-template-columns:1fr auto;align-items:center;gap:.3rem .5rem}
-.fields label{font-size:.75rem;color:var(--text-muted);white-space:nowrap;display:flex;align-items:center;min-width:0}
+.fields label{font-size:.75rem;color:var(--ink-soft);white-space:nowrap;display:flex;align-items:center;min-width:0}
 .fields input[type=number],.fields input[type=text],.fields select{
-  font-family:var(--num);font-size:.82rem;font-weight:600;color:var(--text);
-  background:var(--surface-2);border:1px solid var(--border);border-radius:4px;
-  padding:.14rem .4rem;width:5.8rem;min-width:0;font-variant-numeric:tabular-nums;
+  font-family:var(--font-num);font-size:.82rem;font-weight:600;color:var(--ink);
+  background:var(--surface-2);border:1px solid var(--border-control);border-radius:4px;
+  padding:var(--ctl-y) var(--ctl-x);width:var(--ctl-w);min-width:0;font-variant-numeric:tabular-nums;
   text-align:right;line-height:1.4;height:1.55rem}
 .fields select{text-align:right;text-align-last:right;width:7.2rem}
 .fields input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .fields input[type=number]::-webkit-outer-spin-button,
 .fields input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.fields input:focus,.fields select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:1px}
+.fields input:focus,.fields select:focus,textarea:focus{outline:2px solid var(--accent-fill);outline-offset:1px}
 .fields input:disabled{opacity:.5;cursor:not-allowed;background:var(--surface-3)}
 
 /* attached unit input wrapper (% badge) */
-.unit-input{display:inline-flex;align-items:center;background:var(--surface-2);border:1px solid var(--border);border-radius:4px;padding:0 .25rem;height:1.55rem;width:fit-content}
-.unit-input:focus-within{outline:2px solid var(--accent);outline-offset:1px}
-.unit-input input{border:none!important;background:transparent!important;outline:none!important;box-shadow:none!important;padding:.1rem .2rem!important;height:100%!important;width:4.4rem;text-align:right;font-family:var(--num);font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+.unit-input{display:inline-flex;align-items:center;background:var(--surface-2);border:1px solid var(--border-control);border-radius:4px;padding:0 .25rem;height:1.55rem;width:fit-content}
+.unit-input:focus-within{outline:2px solid var(--accent-fill);outline-offset:1px}
+.unit-input input{border:none!important;background:transparent!important;outline:none!important;box-shadow:none!important;padding:.1rem .2rem!important;height:100%!important;width:4.4rem;text-align:right;font-family:var(--font-num);font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
 .unit-input input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .unit-input input[type=number]::-webkit-outer-spin-button,.unit-input input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
-.unit-input .unit{font-family:var(--num);font-size:.75rem;font-weight:600;color:var(--text-muted);margin-left:.15rem;user-select:none}
+.unit-input .unit{font-family:var(--font-num);font-size:.75rem;font-weight:600;color:var(--ink-soft);margin-left:.15rem;user-select:none}
 
-.checkrow{grid-column:1 / -1;display:flex;align-items:center;gap:.45rem;font-size:.75rem;color:var(--text-muted);cursor:pointer;user-select:none;white-space:nowrap}
-.checkrow input{width:.9rem;height:.9rem;accent-color:var(--accent);margin:0;cursor:pointer}
-.note{grid-column:1 / -1;font-size:.68rem;color:var(--text-faint);line-height:1.35;margin:.15rem 0 .2rem}
+.checkrow{grid-column:1 / -1;display:flex;align-items:center;gap:.45rem;font-size:.75rem;color:var(--ink-soft);cursor:pointer;user-select:none;white-space:nowrap}
+.checkrow input{width:.9rem;height:.9rem;accent-color:var(--accent-fill);margin:0;cursor:pointer}
+.note{grid-column:1 / -1;font-size:.68rem;color:var(--ink-mute);line-height:1.35;margin:.15rem 0 .2rem}
 
 /* ---- button bar ---- */
 .btn-bar{display:flex;flex-wrap:nowrap;gap:.4rem;margin-top:.4rem}
-.btn{font-family:var(--sans);font-size:.72rem;font-weight:500;color:var(--text-muted);
-  background:var(--surface-2);border:1px solid var(--border);border-radius:6px;
+.btn{font-family:var(--font-body);font-size:.72rem;font-weight:500;color:var(--ink-soft);
+  background:var(--surface-2);border:1px solid var(--border-control);border-radius:6px;
   padding:.28rem .55rem;cursor:pointer;white-space:nowrap;transition:background .12s,border-color .12s,color .12s;text-align:center}
-.btn:hover{border-color:var(--accent);color:var(--accent);background:var(--surface-3)}
-.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
-.btn-primary:hover{background:var(--accent-soft);color:#fff}
-.btn-theme{min-width:8.2rem;flex:none}
-.badge{font-family:var(--sans);font-size:.65rem;font-weight:600;padding:.15rem .4rem;border-radius:4px;background:var(--surface-3);color:var(--text-muted);white-space:nowrap}
-.badge-success{background:rgba(74,103,65,.15);color:var(--accent);border:1px solid rgba(74,103,65,.3)}
-.badge-highlight{background:rgba(106,72,234,.15);color:var(--highlight);border:1px solid rgba(106,72,234,.3)}
+.btn:hover{border-color:var(--accent-fill);color:var(--accent);background:var(--surface-3)}
+.btn-primary{background:var(--accent-fill);color:var(--on-accent);border-color:var(--accent-fill)}
+.btn-primary:hover{filter:brightness(1.07);background:var(--accent-fill);color:var(--on-accent)}
+/* The title block carries the shared gear menu (tool-settings.css). */
+.head{position:relative;padding-right:2.4rem}
+.head .awoo-gear{position:absolute;top:0;right:0}
+.badge{font-family:var(--font-body);font-size:.65rem;font-weight:600;padding:.15rem .4rem;border-radius:4px;background:var(--surface-3);color:var(--ink-soft);white-space:nowrap}
+.badge-success{background:var(--bg-success);color:var(--success)}
+.badge-highlight{background:var(--bg-info);color:var(--info)}
+.badge-accent{background:var(--bg-accent);color:var(--accent)}
 
 /* ---- textarea & paste import box ---- */
 textarea.paste-box{
-  width:100%;height:85px;resize:vertical;font-family:var(--mono);font-size:.7rem;
+  width:100%;height:85px;resize:vertical;font-family:var(--font-mono);font-size:.7rem;
   background:var(--surface-2);border:1px solid var(--border);border-radius:5px;
-  color:var(--text);padding:.35rem .45rem;line-height:1.3;margin-top:.25rem}
+  color:var(--ink);padding:.35rem .45rem;line-height:1.3;margin-top:.25rem}
 
 /* ---- main column ---- */
 .main-inner{display:flex;flex-direction:column;gap:1.1rem}
@@ -169,39 +897,39 @@ textarea.paste-box{
 /* ---- live game profile sync banner ---- */
 .sync-banner{background:var(--surface);border:1px solid var(--border-strong);border-radius:8px;padding:.6rem .8rem;display:flex;justify-content:space-between;align-items:center;font-size:.78rem;margin-bottom:.5rem;gap:.5rem;flex-wrap:wrap}
 .sync-status{display:flex;align-items:center;gap:.6rem}
-.sync-dot{width:9px;height:9px;border-radius:50%;background:var(--text-faint);flex:none;transition:background .2s,box-shadow .2s}
-.sync-dot.live{background:var(--success);box-shadow:0 0 8px var(--success)}
-.sync-dot.stale{background:var(--warm)}
+.sync-dot{width:9px;height:9px;border-radius:50%;background:var(--ink-mute);flex:none;transition:background .2s,box-shadow .2s}
+.sync-dot.live{background:var(--success-fill);box-shadow:0 0 8px var(--success-fill)}
+.sync-dot.stale{background:var(--accent)}
 .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(2px);z-index:10000;display:flex;align-items:center;justify-content:center;padding:1rem}
-.modal-card{background:var(--surface);border:1px solid var(--border-strong);border-radius:10px;max-width:560px;width:100%;box-shadow:var(--shadow);overflow:hidden}
+.modal-card{background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius);max-width:560px;width:100%;box-shadow:var(--shadow);overflow:hidden}
 .modal-head{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1rem;border-bottom:1px solid var(--border)}
 .modal-body{padding:1rem;font-size:.82rem;line-height:1.5;max-height:80vh;overflow-y:auto}
 
 /* ---- verdict card ---- */
 .verdict{
   background:linear-gradient(135deg,var(--surface) 0%,var(--surface-2) 100%);
-  border:1.5px solid var(--border-strong);border-radius:12px;
+  border:1.5px solid var(--border-strong);border-radius:var(--radius);
   padding:1.1rem 1.25rem;box-shadow:var(--shadow)}
-.verdict-eyebrow{font-family:var(--sans);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:.2rem;white-space:nowrap}
-.verdict-headline{font-family:var(--display);font-size:1.8rem;font-weight:700;line-height:1.1;margin:0 0 .5rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.verdict-headline span.rate{color:var(--highlight)}
-.verdict-headline span.spec{color:var(--warm)}
+.verdict-eyebrow{font-family:var(--font-body);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-bottom:.2rem;white-space:nowrap}
+.verdict-headline{font-family:var(--font-display);font-size:1.8rem;font-weight:700;line-height:1.1;margin:0 0 .5rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.verdict-headline span.rate{color:var(--info)}
+.verdict-headline span.spec{color:var(--accent)}
 .verdict-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:.75rem;margin-top:.85rem}
 .kpi-tile{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.55rem .75rem}
-.kpi-label{font-family:var(--sans);font-size:.68rem;letter-spacing:.03em;font-weight:600;text-transform:uppercase;color:var(--text-faint);margin-bottom:.15rem;white-space:nowrap}
-.kpi-val{font-family:var(--num);font-size:1.3rem;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;line-height:1.2;white-space:nowrap}
-.kpi-sub{font-size:.7rem;color:var(--text-muted);margin-top:.15rem;white-space:nowrap}
+.kpi-label{font-family:var(--font-body);font-size:.68rem;letter-spacing:.03em;font-weight:600;text-transform:uppercase;color:var(--ink-mute);margin-bottom:.15rem;white-space:nowrap}
+.kpi-val{font-family:var(--font-num);font-size:1.3rem;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.2;white-space:nowrap}
+.kpi-sub{font-size:.7rem;color:var(--ink-soft);margin-top:.15rem;white-space:nowrap}
 
 /* ---- table styles ---- */
-.table-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.85rem;box-shadow:var(--shadow);overflow-x:auto}
+.table-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.85rem;box-shadow:var(--shadow);overflow-x:auto}
 .table-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:.65rem;flex-wrap:nowrap;gap:.5rem}
-.table-title{font-family:var(--display);font-size:1.25rem;font-weight:700;margin:0;color:var(--text);white-space:nowrap}
+.table-title{font-family:var(--font-display);font-size:1.25rem;font-weight:700;margin:0;color:var(--ink);white-space:nowrap}
 
 table.matrix{width:100%;min-width:920px;border-collapse:collapse;font-size:.8rem}
-table.matrix th,table.matrix td{padding:.48rem .55rem;border-bottom:1px solid var(--border);white-space:nowrap}
-table.matrix th{font-family:var(--sans);font-size:.72rem;letter-spacing:.02em;color:var(--text-muted);background:var(--surface-2);font-weight:600}
+table.matrix th,table.matrix td{padding:var(--row-y) var(--row-x);line-height:1.4;border-bottom:1px solid var(--border);white-space:nowrap}
+table.matrix th{font-family:var(--font-body);font-size:.72rem;letter-spacing:.02em;color:var(--ink-soft);background:var(--surface-2);font-weight:600}
 table.matrix tbody tr:hover{background:var(--surface-2)}
-table.matrix td.num{font-family:var(--num);font-variant-numeric:tabular-nums;text-align:right}
+table.matrix td.num{font-family:var(--font-num);font-variant-numeric:tabular-nums;text-align:right}
 table.matrix th.num{text-align:right}
 table.matrix .stat-tag{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;margin-right:.35rem;vertical-align:middle}
 
@@ -224,39 +952,39 @@ table.matrix .stat-tag{display:inline-block;width:.55rem;height:.55rem;border-ra
 .sweep-wrap{display:flex;flex-direction:column;gap:.35rem;margin-top:.6rem}
 .sweep-bar-row{display:grid;grid-template-columns:6.5rem 1fr 5.5rem 5rem;align-items:center;gap:.65rem;font-size:.75rem;white-space:nowrap}
 .sweep-bar-bg{height:1.25rem;background:var(--surface-2);border-radius:4px;position:relative;overflow:hidden;border:1px solid var(--border)}
-.sweep-bar-fill{height:100%;background:linear-gradient(90deg,var(--surface-3),var(--accent-soft));border-radius:3px;transition:width .15s}
-.sweep-bar-fill.optimal{background:linear-gradient(90deg,var(--highlight-soft),var(--highlight))}
-.sweep-bar-fill.current{background:linear-gradient(90deg,var(--warm-soft),var(--warm))}
+.sweep-bar-fill{height:100%;background:linear-gradient(90deg,var(--bg-neutral),var(--neutral));border-radius:3px;transition:width .15s}
+.sweep-bar-fill.optimal{background:linear-gradient(90deg,var(--bg-info),var(--info))}
+.sweep-bar-fill.current{background:linear-gradient(90deg,var(--bg-accent),var(--accent-fill))}
 
 /* ---- collapsible details sections ---- */
-details.panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:.65rem .85rem;box-shadow:var(--shadow)}
-details.panel summary{font-family:var(--sans);font-weight:600;font-size:.82rem;color:var(--text);cursor:pointer;user-select:none;display:flex;align-items:center;gap:.4rem;white-space:nowrap}
-details.panel summary::marker{color:var(--text-faint)}
-.panel-body{margin-top:.75rem;padding-top:.6rem;border-top:1px solid var(--border);font-size:.76rem;line-height:1.55;color:var(--text-muted)}
+details.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.65rem .85rem;box-shadow:var(--shadow)}
+details.panel summary{font-family:var(--font-body);font-weight:600;font-size:.82rem;color:var(--ink);cursor:pointer;user-select:none;display:flex;align-items:center;gap:.4rem;white-space:nowrap}
+details.panel summary::marker{color:var(--ink-mute)}
+.panel-body{margin-top:.75rem;padding-top:.6rem;border-top:1px solid var(--border);font-size:.76rem;line-height:1.55;color:var(--ink-soft)}
 
 /* step by step rail */
 .step-rail{display:flex;flex-direction:column;gap:.45rem}
 .step-row{display:grid;grid-template-columns:1.6rem 1fr;gap:.55rem;align-items:baseline}
 .step-num{display:inline-flex;align-items:center;justify-content:center;width:1.35rem;height:1.35rem;border-radius:50%;
-  background:var(--surface-3);color:var(--text);font-family:var(--num);font-size:.72rem;font-weight:700}
-.step-title{font-weight:600;color:var(--text);font-size:.78rem}
-.step-code{font-family:var(--mono);font-size:.7rem;background:var(--surface-2);padding:.1rem .3rem;border-radius:3px;border:1px solid var(--border)}
+  background:var(--surface-3);color:var(--ink);font-family:var(--font-num);font-size:.72rem;font-weight:700}
+.step-title{font-weight:600;color:var(--ink);font-size:.78rem}
+.step-code{font-family:var(--font-mono);font-size:.7rem;background:var(--surface-2);padding:.1rem .3rem;border-radius:3px;border:1px solid var(--border)}
 
 /* ---- fixed tooltips ---- */
 .ico{display:inline-flex;align-items:center;justify-content:center;width:.85rem;height:.85rem;
-  border-radius:50%;border:1px solid var(--text-faint);color:var(--text-faint);
+  border-radius:50%;border:1px solid var(--ink-mute);color:var(--ink-mute);
   font-size:.55rem;font-weight:700;cursor:help;flex:none;font-style:normal;margin-left:.3rem;user-select:none;transition:border-color .12s,color .12s}
 .ico:hover,.ico:focus{border-color:var(--accent);color:var(--accent);outline:none}
 
-#tip{position:fixed;z-index:9999;max-width:22rem;background:#1a1918;color:#f4eedf;white-space:pre-line;
-  font-family:var(--sans);font-size:.73rem;font-weight:400;line-height:1.45;
+#tip{position:fixed;z-index:9999;max-width:22rem;background:var(--ink);color:var(--surface);white-space:pre-line;
+  font-family:var(--font-body);font-size:.73rem;font-weight:400;line-height:1.45;
   padding:.45rem .65rem;border-radius:6px;box-shadow:0 6px 20px rgba(0,0,0,.35);
   opacity:0;visibility:hidden;transition:opacity .12s;pointer-events:none;left:0;top:0}
 #tip.on{opacity:1;visibility:visible}
 
 /* back to top */
 .back-top{position:fixed;bottom:1.5rem;right:1.5rem;width:2.2rem;height:2.2rem;border-radius:50%;
-  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--text);
+  background:var(--surface-2);border:1px solid var(--border-strong);color:var(--ink);
   display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:var(--shadow);
   opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s;z-index:90}
 .back-top.visible{opacity:1;visibility:visible}
@@ -269,19 +997,17 @@ details.panel summary::marker{color:var(--text-faint)}
 <div class="app">
   <!-- ======================== LEFT SIDEBAR ======================== -->
   <aside class="sidebar">
-    <div class="sidebar-inner">
-      <div>
+    <div class="sidebar-inner" data-awoo-sidebar data-side-min="1151" data-side-top="20">
+      <div class="head">
+        <div id="gear"></div>
         <div class="eyebrow">Sculpture Grid &bull; Income Optimization</div>
         <h1>Stat Rate Optimizer</h1>
         <div class="sub">Closed-form break-even solver for Sculpture Grid budget: Stat Rate % vs Specific Stat Drop Rates.</div>
       </div>
 
-      <!-- Quick action buttons: fixed width theme button prevents line-wrapping -->
       <div class="btn-bar" style="margin-bottom:.2rem">
         <button class="btn" id="btnReset">Reset Defaults</button>
         <button class="btn" id="btnSaveDefault">Save as Default</button>
-        <!-- Standardized theme toggle cycling: Beach, Dark Beach, Ink, Slate, Umber -->
-        <button class="btn btn-theme" id="btnThemeToggle">Theme: Dark Beach</button>
       </div>
 
       <!-- 1. Live Game Sync Bar -->
@@ -316,7 +1042,7 @@ details.panel summary::marker{color:var(--text-faint)}
           <button class="btn" id="btnLoadSample">Load Sample</button>
           <button class="btn" id="btnClearPaste">Clear</button>
         </div>
-        <div id="parseSummary" class="note" style="margin-top:.35rem;color:var(--text)"></div>
+        <div id="parseSummary" class="note" style="margin-top:.35rem;color:var(--ink)"></div>
       </div>
 
       <!-- 3. Base Stat Boost Sources (Split into in-game sources) -->
@@ -453,7 +1179,7 @@ details.panel summary::marker{color:var(--text-faint)}
             Battle Actions / hr
             <span class="ico" tabindex="0" data-tip="Fixed at 360/hr in character combat (10.0s static action interval).">i</span>
           </label>
-          <div style="font-family:var(--num);font-weight:700;text-align:right;padding-right:.4rem">360 / hr</div>
+          <div style="font-family:var(--font-num);font-weight:700;text-align:right;padding-right:.4rem">360 / hr</div>
 
           <label for="inpPartnerSpeedPoints">
             Partner Speed Points
@@ -462,7 +1188,7 @@ details.panel summary::marker{color:var(--text-faint)}
           <input type="number" id="inpPartnerSpeedPoints" value="5000" min="0" step="500">
 
           <label id="lblPartnerSeconds">Partner Interval</label>
-          <div id="outPartnerSeconds" style="font-family:var(--num);font-weight:600;text-align:right;padding-right:.4rem">24.2s</div>
+          <div id="outPartnerSeconds" style="font-family:var(--font-num);font-weight:600;text-align:right;padding-right:.4rem">24.2s</div>
 
           <div class="checkrow" style="margin-top:.3rem">
             <input type="checkbox" id="chkPartnerDrops" checked>
@@ -606,28 +1332,28 @@ details.panel summary::marker{color:var(--text-faint)}
     <!-- 5. Formulas & Provenance Notes Panel (Collapsible) -->
     <details class="panel" id="formulasPanel">
       <summary>
-        <span>Formulas, Constants &amp; Provenance Notes (Click to expand)</span>
-        <span class="badge badge-success">CODE + LIVE Validated</span>
+        <span>Formula<span data-dev-only> &amp; source</span></span>
+        <span class="badge badge-success" data-dev-only>CODE + LIVE</span>
       </summary>
       <div class="panel-body">
-        <p><b>Core Facts &amp; Provenance:</b></p>
+        <p>A Stat Rate roll is five times smaller than a specific-stat roll but lifts all four stats at once. Which one wins depends on how much of each you already have, and that break-even is what this page solves.</p>
         <ul>
           <li><b>Canonical Stat Order:</b> <span class="step-code">Strength &rarr; Health &rarr; Dexterity &rarr; Agility</span> is strictly preserved across all tables, formulas, and calculations.</li>
-          <li><b>Stat Drop Chance:</b> <code>statDrop.chance</code> from <span class="step-code">core/data/formulas/economy.json</span>:
+          <li><b>Stat Drop Chance:</b><span data-dev-only> <code>statDrop.chance</code> from <span class="step-code">core/data/formulas/economy.json</span></span>
             <br><code>N = pow(25*(statValue + 1), 0.4) * breakpoint(statValue > 1e6) / (1 + statBoost) / (1 + statSpecific)</code>
-            <br>Where <code>breakpoint = 1 + 2*(statValue - 1000000)/1000000</code> past 1 million stats. Confirmed independently via official patch notes PATCH 1.2.3.0.
+            <br>Where <code>breakpoint = 1 + 2*(statValue - 1000000)/1000000</code> past 1 million stats.<span data-dev-only> Confirmed independently via official patch notes PATCH 1.2.3.0.</span>
           </li>
-          <li><b>Sanctum Modifier Scaling:</b> <span class="step-code">core/data/tables/modifier-tiers.json</span> &amp; <span class="step-code">roll-coefficients.json</span>:
+          <li><b>Sanctum Modifier Scaling:</b><span data-dev-only> <span class="step-code">core/data/tables/modifier-tiers.json</span> &amp; <span class="step-code">roll-coefficients.json</span></span>
             <br>Roll formula: <code>pow(max(iLevel - 100, 1), 0.49) &times; levelMultiplier &times; tierMultiplier</code>.
             <br>Stat Rate multiplier = <b>0.001</b> (e.g. at iLevel 78189, T13 &rarr; 91.57%).
             <br>Specific Stat Drop multiplier = <b>0.005</b> (exactly <b>5&times; higher</b>, e.g. 457.85%).
           </li>
-          <li><b>Sculpture Roll Coefficients:</b> <span class="step-code">core/data/tables/roll-coefficients.json</span>:
+          <li><b>Sculpture Roll Coefficients:</b><span data-dev-only> <span class="step-code">core/data/tables/roll-coefficients.json</span></span>
             <br><code>statStrength/statHealth/statDexterity/statAgility</code> levelMultiplier = <b>0.005</b>.
             <br><code>stat</code> (global stat rate) levelMultiplier = <b>0.001</b> (exactly <b>5× lower</b>).
             <br><code>partnerExperience</code> levelMultiplier = <b>0.0005</b> (exactly <b>10× lower</b>).
           </li>
-          <li><b>Partner Speed Curve:</b> <span class="step-code">core/data/formulas/partners.json</span>:
+          <li><b>Partner Speed Curve:</b><span data-dev-only> <span class="step-code">core/data/formulas/partners.json</span></span>
             <br>Speed interval: <code>seconds = 18 / (0.1 + Speed / (Speed + 10000))</code>. Hard floor 16.36s.
           </li>
         </ul>
@@ -928,7 +1654,6 @@ var STAT_META = {
 };
 
 var DEFAULTS = {
-  theme: 'dark-beach',
   totalBudget: 6000,
   baseSources: {
     enchants: 525.7,
@@ -1031,38 +1756,6 @@ function initTips() {
   window.addEventListener('scroll', hideTip, true);
 }
 
-// Theme cycling
-var THEMES = ['dark-beach', 'beach', 'ink', 'slate', 'umber'];
-var THEME_LABELS = {
-  'dark-beach': 'Theme: Dark Beach',
-  'beach': 'Theme: Beach (Light)',
-  'ink': 'Theme: Ink (Dark)',
-  'slate': 'Theme: Slate (Dark)',
-  'umber': 'Theme: Umber (Dark)'
-};
-
-function applyTheme(name) {
-  state.theme = name;
-  var root = document.documentElement;
-  var btn = document.getElementById('btnThemeToggle');
-
-  if (name === 'beach') {
-    root.setAttribute('data-theme', 'light');
-    root.removeAttribute('data-dark');
-  } else {
-    root.setAttribute('data-theme', 'dark');
-    root.setAttribute('data-dark', name);
-  }
-  if (btn) btn.textContent = THEME_LABELS[name] || name;
-  try { localStorage.setItem('AWOO_THEME', name); } catch(e) {}
-}
-
-function toggleTheme() {
-  var idx = THEMES.indexOf(state.theme);
-  var nextIdx = (idx + 1) % THEMES.length;
-  applyTheme(THEMES[nextIdx]);
-}
-
 // Populate Tier dropdowns
 function initTierDropdowns() {
   var selRate = document.getElementById('selTierRate');
@@ -1150,7 +1843,7 @@ function renderMatrixTable() {
       '<td style="text-align:center"><input type="checkbox" id="chk_grid_' + k + '" ' + (m.active ? 'checked' : '') + ' style="cursor:pointer"></td>' +
       '<td style="text-align:left"><span class="stat-tag ' + meta.tagClass + '"></span><span class="' + meta.class + '">' + meta.name + '</span></td>' +
       '<td class="num"><input type="number" id="inp_ratio_' + k + '" value="' + m.ratio + '" min="0" step="0.5" style="width:4.6rem;text-align:right"></td>' +
-      '<td class="num" id="out_grid_' + k + '" style="font-weight:700;color:var(--warm)">—</td>' +
+      '<td class="num" id="out_grid_' + k + '" style="font-weight:700;color:var(--accent)">—</td>' +
       '<td class="num" id="out_sanctum_pct_' + k + '" style="font-weight:600">+' + fmt(sanctumSpecPct, 1) + '%</td>' +
       '<td style="text-align:center"><input type="checkbox" id="chk_sanctum_' + k + '" ' + (m.allowed ? 'checked' : '') + ' style="cursor:pointer"></td>' +
       '<td class="num" id="out_drop_' + k + '">—</td>' +
@@ -1162,11 +1855,11 @@ function renderMatrixTable() {
   html += '<tr style="background:rgba(106,72,234,0.04)">' +
     '<td style="text-align:center"><span class="badge badge-highlight">Auto</span></td>' +
     '<td style="text-align:left"><span class="stat-tag tag-rate"></span><span class="stat-rate">Stat Rate %</span></td>' +
-    '<td class="num" style="color:var(--text-faint)"><i>Calculated</i></td>' +
-    '<td class="num" id="out_grid_rate" style="font-weight:700;color:var(--highlight)">—</td>' +
+    '<td class="num" style="color:var(--ink-mute)"><i>Calculated</i></td>' +
+    '<td class="num" id="out_grid_rate" style="font-weight:700;color:var(--info)">—</td>' +
     '<td class="num" id="out_sanctum_pct_rate" style="font-weight:600">+' + fmt(sanctumRatePct, 1) + '%</td>' +
     '<td style="text-align:center"><input type="checkbox" id="chk_sanctum_rate" ' + (state.matrix.statRate.allowed ? 'checked' : '') + ' style="cursor:pointer"></td>' +
-    '<td class="num" style="color:var(--text-faint)">Global Divisor</td>' +
+    '<td class="num" style="color:var(--ink-mute)">Global Divisor</td>' +
     '<td class="num" id="out_drops_hr_rate">—</td>' +
     '</tr>';
 
@@ -1176,10 +1869,10 @@ function renderMatrixTable() {
     '<td style="text-align:left"><span class="stat-tag tag-partner"></span><span class="stat-partner">Partner XP</span></td>' +
     '<td class="num"><input type="number" id="inp_ratio_partner_xp" value="' + state.matrix.partnerXp.ratio + '" min="0" step="0.5" style="width:4.6rem;text-align:right"></td>' +
     '<td class="num" id="out_grid_partner_xp" style="font-weight:600;color:var(--accent)">—</td>' +
-    '<td class="num" style="color:var(--text-faint)">None</td>' +
-    '<td style="text-align:center;color:var(--text-faint)">—</td>' +
-    '<td class="num" style="color:var(--text-faint)">10× Cost</td>' +
-    '<td class="num" style="color:var(--text-faint)">PXP Gain</td>' +
+    '<td class="num" style="color:var(--ink-mute)">None</td>' +
+    '<td style="text-align:center;color:var(--ink-mute)">—</td>' +
+    '<td class="num" style="color:var(--ink-mute)">10× Cost</td>' +
+    '<td class="num" style="color:var(--ink-mute)">PXP Gain</td>' +
     '</tr>';
 
   tbody.innerHTML = html;
@@ -1265,7 +1958,7 @@ function computeAndRender() {
 
   var kpiGain = document.getElementById('kpiGain');
   kpiGain.textContent = (opt.gainPct >= 0 ? '+' : '') + fmt(opt.gainPct, 1) + '%';
-  kpiGain.style.color = opt.gainPct > 0 ? 'var(--accent)' : 'var(--text)';
+  kpiGain.style.color = opt.gainPct > 0 ? 'var(--accent)' : 'var(--ink)';
 
   var Base_opt = (baseWithoutSculptures + opt.optimalStatRatePct) / 100;
   var M_ext = (1 + state.pvpTile / 100) * (1 + (state.vipPct + state.potionPct) / 100) * (1 + state.eventPct / 100);
@@ -1287,7 +1980,7 @@ function computeAndRender() {
 
     if (!state.matrix[k].active) {
       outGrid.textContent = 'Excluded';
-      outGrid.style.color = 'var(--text-faint)';
+      outGrid.style.color = 'var(--ink-mute)';
       outDrop.textContent = '—';
       outHr.textContent = '—';
       return;
@@ -1295,7 +1988,7 @@ function computeAndRender() {
 
     var allocPct = opt.statAllocationsPct[k] || 0;
     outGrid.textContent = '+' + fmt(allocPct, 1) + '%';
-    outGrid.style.color = 'var(--warm)';
+    outGrid.style.color = 'var(--accent)';
 
     var totalStatSpecific = ((state.externalDrops[k] || 0) + allocPct) / 100;
     var s_i = state.matrix[k].allowed ? (sanctumSpecPct / 100) : 0;
@@ -1436,8 +2129,8 @@ function renderSanctumRankings(sanctumRatePct, sanctumSpecPct, baseWithoutSculpt
     html += '<tr>' +
       '<td style="text-align:center;font-weight:700">' + (idx + 1) + '</td>' +
       '<td style="text-align:left">' + row.label + '</td>' +
-      '<td class="num" style="font-weight:600;color:var(--highlight)">+' + fmt(row.opt.optimalStatRatePct, 1) + '%</td>' +
-      '<td class="num" style="font-weight:600;color:var(--warm)">' + fmtInt(row.opt.optimalSpecificBudgetNormalized) + ' pts</td>' +
+      '<td class="num" style="color:var(--info)">+' + fmt(row.opt.optimalStatRatePct, 1) + '%</td>' +
+      '<td class="num" style="font-weight:600;color:var(--accent)">' + fmtInt(row.opt.optimalSpecificBudgetNormalized) + ' pts</td>' +
       '<td class="num" style="font-weight:700">' + fmtK(row.totalDropsHr) + '</td>' +
       '<td class="num"><span class="badge badge-success">' + fmt(rel, 2) + '×</span></td>' +
       '</tr>';
@@ -1472,7 +2165,7 @@ function renderSensitivitySweep(opt) {
 
   var maxUtil = opt.optimalUtility > 0 ? opt.optimalUtility : 1;
 
-  var html = '<div class="sweep-bar-row" style="font-weight:600;color:var(--text-faint)">' +
+  var html = '<div class="sweep-bar-row" style="font-weight:600;color:var(--ink-mute)">' +
     '<span>Stat Rate Pts</span><span>Relative Yield Curve</span><span style="text-align:right">Rate %</span><span style="text-align:right">Ratio</span></div>';
 
   dedup.forEach(function(x) {
@@ -1485,10 +2178,10 @@ function renderSensitivitySweep(opt) {
     var badge = isOpt ? ' <span class="badge badge-highlight">Optimal</span>' : (isCurr ? ' <span class="badge">Current</span>' : '');
 
     html += '<div class="sweep-bar-row">' +
-      '<span style="font-family:var(--num)">' + fmtInt(x) + badge + '</span>' +
+      '<span style="font-family:var(--font-num)">' + fmtInt(x) + badge + '</span>' +
       '<div class="sweep-bar-bg"><div class="' + fillClass + '" style="width:' + pct + '%"></div></div>' +
-      '<span style="font-family:var(--num);text-align:right">+' + fmt(x / 5, 1) + '%</span>' +
-      '<span style="font-family:var(--num);text-align:right">' + fmt((pct / 100), 2) + '×</span>' +
+      '<span style="font-family:var(--font-num);text-align:right">+' + fmt(x / 5, 1) + '%</span>' +
+      '<span style="font-family:var(--font-num);text-align:right">' + fmt((pct / 100), 2) + '×</span>' +
       '</div>';
   });
 
@@ -1589,9 +2282,9 @@ function init() {
   initTierDropdowns();
   loadSavedState();
 
-  // Apply restored theme
-  var savedTheme = localStorage.getItem('AWOO_THEME') || state.theme || 'dark-beach';
-  applyTheme(savedTheme);
+  // Theme and developer info: the shared tool-settings layer, inherited from
+  // AWOO+ Core and overridable in the gear menu.
+  AWOO_TOOL_SETTINGS.mount(document.getElementById('gear'));
 
   // Populate UI from state
   document.getElementById('inpTotalBudget').value = state.totalBudget;
@@ -1827,7 +2520,6 @@ function init() {
   });
 
   // Buttons
-  document.getElementById('btnThemeToggle').addEventListener('click', toggleTheme);
 
   document.getElementById('btnReset').addEventListener('click', function() {
     state = JSON.parse(JSON.stringify(DEFAULTS));
@@ -1969,13 +2661,13 @@ if (document.readyState === 'loading') {
     <div class="modal-body">
       <div style="margin-bottom:1rem">
         <div style="font-weight:600;margin-bottom:.2rem">Option 1: 1-Click Live Sync (Automatic)</div>
-        <div class="note" style="color:var(--text)">
+        <div class="note" style="color:var(--ink)">
           Have Queslar open in another tab with the <b>AWOO+</b> userscript active. Click <b>"Sync from Game"</b> in this tool, or click <b>AWOO+ ▾ &gt; Force Resync</b> in the game. All stats and modifiers update in &lt;50ms across tabs.
         </div>
       </div>
       <div style="margin-bottom:1rem">
         <div style="font-weight:600;margin-bottom:.2rem">Option 2: Smart Paste (JSON or In-Game Text)</div>
-        <div class="note" style="color:var(--text);margin-bottom:.4rem">
+        <div class="note" style="color:var(--ink);margin-bottom:.4rem">
           In Queslar, click <b>AWOO+ ▾ &gt; Copy Snapshot</b>, OR hover over your in-game <b>Stat Boost</b> breakdown and copy the text. Paste it below:
         </div>
         <textarea class="paste-box" id="assistantPasteInput" rows="5" placeholder="Paste full JSON snapshot or hover-card text here..."></textarea>

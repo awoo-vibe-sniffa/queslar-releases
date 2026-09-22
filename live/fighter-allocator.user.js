@@ -2,7 +2,7 @@
 // @name         AWOO+: Fighter Allocator
 // @namespace    awoo-core
 // @author       Apoz
-// @version      1.12.0
+// @version      1.12.1
 // @description  AWOO+ module (requires "AWOO+"). Allocates gold-purchased fighter stats (Health/Damage/Hit/Dodge/Defense/Crit Damage) across your 6 fighters. Class-keyed profiles with a full table (category, classes, date, source), World Boss-aware math (Hit target from boss level, exact Damage/Crit Damage split), and two-way import/export with the community "Fighter Optimizer" gold-plan format. Fills the game's own stat inputs; never auto-clicks Save Preset.
 // @match        https://v2.queslar.com/*
 // @match        https://*.queslar.com/*
@@ -57,7 +57,7 @@
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("fighter-allocator", "1.12.0", function (Core) {
+  })("fighter-allocator", "1.12.1", function (Core) {
 
 
   const MODULE_ID = 'fighter-allocator';
@@ -371,6 +371,78 @@
       }),
       gearHitBonus: gearHitBonus || 0, gearDamageBonus: gearDamageBonus || 0, gearCritDamageBonus: gearCritDamageBonus || 0,
     };
+  }
+
+  // ==== R22: no plan from inputs that were not read ====
+  //
+  // THE BUG THIS CLOSES, found in the 2026-09-19 register review: the plan
+  // step turned an unread Crit Chance into the 0.1 base and unread gear into
+  // zero, planned anyway, and said so only in a log line — and the opt-in
+  // auto-save could then commit that plan. Absent is not zero (AGENTS.md
+  // rule 3): a geared fighter planned as ungeared buys Hit it does not need,
+  // because gear Hit is exactly what the plan would otherwise have bought.
+  //
+  // So both inputs are now REQUIRED per fighter, and a fighter missing either
+  // one is named, with what is missing. One gap refuses the whole plan rather
+  // than planning five fighters: a World Boss plan replaces the preset, and a
+  // preset with one fighter left unplanned is not a plan anyone asked for.
+  function worldBossReadGaps(classes, critByClass, gearByClass) {
+    const gaps = [];
+    for (const cls of classes) {
+      const missing = [];
+      if (!(critByClass && Number.isFinite(critByClass[cls]))) missing.push('Crit Chance');
+      if (!(gearByClass && gearByClass[cls])) missing.push('gear');
+      if (missing.length) gaps.push({ class: cls, missing });
+    }
+    return gaps;
+  }
+
+  function describeReadGaps(gaps) {
+    return gaps.map((g) => `${g.class} (${g.missing.join(' and ')})`).join(', ');
+  }
+
+  // The plan step, pure: every read already taken, nothing touched. Returns
+  // `{ refused }` naming each fighter whose reads failed, or the per-fighter
+  // allocations. Split out of runWorldBossOptimization so the refusal is
+  // testable without a Fighters page to scan.
+  function planWorldBoss({ layout, level, perFighterGold, critByClass, gearByClass }) {
+    const refused = worldBossReadGaps(layout, critByClass, gearByClass);
+    if (refused.length) return { refused };
+    const allocs = {};
+    for (const cls of layout) {
+      const gear = gearByClass[cls];
+      // A World Boss plan REPLACES an allocation rather than adding to it, so
+      // the starting point is zero bought points — the preset is reset before
+      // it is filled. Gear is different: it is not spendable and is always
+      // there, so it belongs in the objective as a fixed offset.
+      allocs[cls] = allocateFighterForWorldBoss({
+        goldBudget: perFighterGold, bossLevel: level,
+        currentHitRaw: 0, currentDamageRaw: 0, currentCritDamageRaw: 0,
+        critChance: critByClass[cls],
+        gearHitBonus: gear.hit || 0,
+        gearDamageBonus: gear.damage || 0,
+        gearCritDamageBonus: gear.critDamage || 0,
+      });
+    }
+    return { allocs };
+  }
+
+  // The auto-save half of R22. A plan saved before this fix, or imported from
+  // someone else's copy, can still carry the gap in its own meta — the
+  // optimiser has always recorded critByClass and gearByClass there, with
+  // null or a missing key for a failed read. Only optimiser plans are judged
+  // (meta.bossLevel is set nowhere else): a hand-made plan's numbers are the
+  // player's own, and there is no read to have failed. A plan from before
+  // gear was read at all has no gearByClass, and is refused for the same
+  // reason — it was planned gear-blind.
+  function autoSaveReadRefusal(profile) {
+    const meta = (profile && profile.meta) || {};
+    if (meta.bossLevel == null) return null;
+    const gaps = worldBossReadGaps(Object.keys(profile.stats || {}), meta.critByClass, meta.gearByClass);
+    return gaps.length
+      ? `Auto-save is on, but this plan was made without reading ${describeReadGaps(gaps)} — `
+        + 'check it, then press Save Preset yourself, or re-run the optimiser.'
+      : null;
   }
 
   // ==== legacy sqrt-budget scaling — for friend-format compatibility, and for ====
@@ -846,15 +918,54 @@
   // "PRESET ALLOCATED 0 / 236.49b" — Core.parseNumber handles the k/m/b/t/…
   // ladder AND the account's own decimal/thousands convention, so this reads
   // the number after the slash without any hand-rolled suffix parsing.
+  // THE USABLE PRESET GOLD — "Preset Allocated · <spent> / <total>" on the
+  // Fighters page (bundle 2026-09-07: a <p> label, then a <p> holding
+  // "<span>spent</span> / <total>"). REPORTED BROKEN 2026-09-21. The likeliest
+  // cause is not the page: the total is parsed in the player's number
+  // convention, and the convention was being taken from the BROWSER before the
+  // game's own setting had rendered (fixed in Core the same day). A browser on
+  // 1,000.00 reading a game on 1.000,00 sees "12,34b" as malformed grouping,
+  // and parseNumber refuses it, which is correct. So this probe now:
+  //   - finds the label structurally, by its own text, and reads the value from
+  //     the element after it, falling back to the old page-text scan;
+  //   - records WHY it failed in liveBudgetDiag (label not found, no "/ total",
+  //     or a total it could not read in the current convention), which the
+  //     detection chips show on hover instead of a bare "not read".
+  // It still refuses rather than guesses: an unreadable total is null.
+  let liveBudgetDiag = { reason: 'not read yet', raw: null };
   function getTotalBudget() {
-    const pageText = document.body.innerText || '';
-    const idx = pageText.toUpperCase().indexOf('PRESET ALLOCATED');
-    if (idx === -1) return null;
-    const section = pageText.slice(idx, idx + 300);
-    const m = section.match(/\/\s*([\d.,]+\s*[a-z]{0,2})/i);
-    if (!m) return null;
-    const v = Core.parseNumber(m[1].replace(/\s+/g, ''));
-    return (v && v > 0) ? v : null;
+    const labelEl = [...document.querySelectorAll('p,span,div')]
+      .find((el) => el.children.length === 0 && /^preset allocated$/i.test((el.textContent || '').trim()));
+    let raw = null;
+    if (labelEl) {
+      const holder = labelEl.nextElementSibling || (labelEl.parentElement && labelEl.parentElement.nextElementSibling);
+      const t = holder ? (holder.textContent || '') : (labelEl.parentElement ? labelEl.parentElement.textContent : '');
+      const m = t.match(/\/\s*([\d.,]+\s*[a-z]{0,2})/i);
+      if (m) raw = m[1];
+    }
+    if (raw === null) {
+      const pageText = document.body.innerText || '';
+      const idx = pageText.toUpperCase().indexOf('PRESET ALLOCATED');
+      if (idx === -1) {
+        liveBudgetDiag = { reason: 'the "Preset Allocated" line is not on this page', raw: null };
+        return null;
+      }
+      const m = pageText.slice(idx, idx + 300).match(/\/\s*([\d.,]+\s*[a-z]{0,2})/i);
+      if (!m) {
+        liveBudgetDiag = { reason: 'found "Preset Allocated" but no "/ total" after it', raw: null };
+        return null;
+      }
+      raw = m[1];
+    }
+    const v = Core.parseNumber(raw.replace(/\s+/g, ''));
+    if (!(v && v > 0)) {
+      let conv = null;
+      try { conv = Core.getNumberConvention ? Core.getNumberConvention() : null; } catch (e) { conv = null; }
+      liveBudgetDiag = { raw, reason: `read "${raw}" but it is not a number in your ${conv ? '1' + conv.group + '000' + conv.decimal + '00' : 'current'} format` };
+      return null;
+    }
+    liveBudgetDiag = { raw, reason: '' };
+    return v;
   }
 
   function findStatCard(statName) {
@@ -1008,7 +1119,8 @@
   function categoryBadge(category) {
     const span = document.createElement('span');
     span.textContent = category;
-    span.style.cssText = 'font-size:10px; opacity:.7; border:1px solid var(--awoo-border, var(--border)); border-radius:3px; padding:1px 5px;';
+    // A pill in the Neutral role: a category, not a judgement.
+    span.className = 'awoo-fighter-allocator-type';
     return span;
   }
 
@@ -1021,9 +1133,9 @@
     return `${d.getDate()} ${d.toLocaleDateString(undefined, { month: 'short' })}`;
   }
 
-  const INLINE_EDIT_INPUT_CSS = 'width:100%; font: inherit; font-size:11px; box-sizing:border-box; '
+  const INLINE_EDIT_INPUT_CSS = 'width:100%; font: inherit; font-size:var(--awoo-fs-control); box-sizing:border-box; '
     + 'background: var(--awoo-input, var(--input)); color: var(--awoo-foreground, var(--foreground)); '
-    + 'border: 1px solid var(--awoo-border, var(--border)); border-radius:4px; padding:3px 5px;';
+    + 'border: 1px solid var(--awoo-border, var(--border)); border-radius:var(--awoo-r-sm); padding:3px 5px;';
 
   // A square icon action button for the table's actions column — Allocate/
   // Share stay as their own labelled/icon buttons (feedback: "Allocate is
@@ -1158,7 +1270,10 @@
         }
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'awoo-ui-btn awoo-ui-btn-primary';
+        // A plain button, not primary: one per ROW made the table a column of
+        // accent fills, which is why nothing in this window stood out. The
+        // window's one primary is Optimize, in the header.
+        btn.className = 'awoo-ui-btn';
         btn.textContent = 'Allocate';
         btn.addEventListener('click', () => loadProfileFlow(p));
         return btn;
@@ -1211,12 +1326,13 @@
     const archived = profiles.filter((p) => p.archived);
     const columns = buildTableColumns();
     const rowActions = buildRowActions();
-    const table = Core.ui.table({ columns, rows: active, rowActions });
+    const rowClass = (p) => (p.id === currentPlanId ? 'awoo-ui-row-current' : '');
+    const table = Core.ui.table({ columns, rows: active, rowActions, rowClass });
     padWithGhostRows(table, columns.length + 1, active.length);
     wrap.appendChild(table);
     if (ui.showArchived && archived.length) {
       wrap.appendChild(buildArchivedDivider(archived.length));
-      wrap.appendChild(Core.ui.table({ columns, rows: archived, rowActions }));
+      wrap.appendChild(Core.ui.table({ columns, rows: archived, rowActions, rowClass }));
     }
     return wrap;
   }
@@ -1256,6 +1372,27 @@
     }
   }
 
+  // THE PLAN IN USE (2026-09-21, the "less bland" pass). The last plan whose
+  // allocation verified on target is marked as the table's current row, so the
+  // window says at a glance which build your fighters are wearing — state in
+  // the table itself, not an extra headline above it (this window's subject is
+  // the table, so it still has no answer band; DESIGN.md §3).
+  const CURRENT_KEY = `awoo:${MODULE_ID}:current`;
+  let currentPlanId = null;
+  let currentPlanAt = null;
+  try {
+    const raw = localStorage.getItem(CURRENT_KEY);
+    if (raw && raw.charAt(0) === '{') { const o = JSON.parse(raw); currentPlanId = o.id || null; currentPlanAt = o.at || null; }
+    else currentPlanId = raw;
+  } catch (e) { /* none */ }
+  function markCurrentPlan(id) {
+    currentPlanId = id;
+    currentPlanAt = Date.now();
+    try { localStorage.setItem(CURRENT_KEY, JSON.stringify({ id, at: currentPlanAt })); } catch (e) { /* not durable, still shown */ }
+    rerenderProfiles();
+    renderInUse();
+  }
+
   function rerenderProfiles() {
     if (!ui.profileTableContainer) return;
     ui.profileTableContainer.innerHTML = '';
@@ -1265,6 +1402,7 @@
       // before, at all. With some, it stays as the answer to "how do I add
       // another", which is the question the blank space raises.
       const n = profiles.filter((p) => !p.archived).length;
+      if (ui.planCount) ui.planCount.textContent = n ? String(n) : '';
       ui.tableHint.textContent = n === 0
         ? 'No plans yet. Optimize for World Boss, or Import one.'
         : 'Optimize for World Boss, or Import, to add another.';
@@ -1373,12 +1511,13 @@
         return;
       }
       setStatus('All sliders confirmed on target.', 'success');
+      markCurrentPlan(profile.id);
 
       // OPT-IN, off by default (moduleSettings.autoSavePreset — Settings tab,
       // item 5/6). See attemptAutoSave()'s own header for every gate and why
       // each exists; this only ever gets HERE, past a clean verification,
       // which is itself the first of those gates.
-      const autoSaved = moduleSettings.autoSavePreset ? await attemptAutoSave() : false;
+      const autoSaved = moduleSettings.autoSavePreset ? await attemptAutoSave(profile) : false;
       if (!autoSaved) {
         setStatus('Press Save Preset in-game to commit — watching for confirmation…', 'info');
         const sawSaveToast = await watchForSaveConfirmation(SAVE_CONFIRMATION_WATCH_MS);
@@ -1480,7 +1619,7 @@
   // the status line for 15s on the common case where the game's own toast
   // either shows within a second or two or never shows at all (different
   // wording, or none — both are equally likely given the toast text is
-  // unconfirmed, per HANDOFF.md). 5s stays generous next to how fast the
+  // unconfirmed, per archive/HANDOFF.md). 5s stays generous next to how fast the
   // community script's own toast reportedly appears.
   const SAVE_CONFIRMATION_WATCH_MS = 5000;
 
@@ -1506,7 +1645,7 @@
   // Locates the game's own "Save Preset" button by its rendered text — same
   // approach as getClassFromButton, because nothing here has a stable
   // selector to key off. UNVERIFIED against a live page, same as the rest of
-  // this file's DOM layer (HANDOFF.md) — flagged, not hidden, and exactly
+  // this file's DOM layer (archive/HANDOFF.md) — flagged, not hidden, and exactly
   // why attemptAutoSave() below refuses cleanly rather than clicking blind
   // when this comes back null.
   function findSavePresetButton() {
@@ -1551,12 +1690,20 @@
   //     away, a route change mid-flow) would otherwise mean "click whatever
   //     is now at these coordinates" — the same class of risk the geometry
   //     heuristic in getClassButtons already has to guard against.
+  //  5. (Checked first, R22.) An optimiser plan must have been made from
+  //     read inputs — autoSaveReadRefusal(). The sliders can be exactly on
+  //     target and the target still wrong, and no page check sees that.
   //
   // Any refusal is SAID (DESIGN.md §5 — a refusal is a result, and it is
   // shown), then falls through to the manual watch, so turning this setting
   // on can never make the outcome WORSE than leaving it off.
   const AUTO_SAVE_OVERSPEND_EPSILON = 1.0005;
-  async function attemptAutoSave() {
+  async function attemptAutoSave(profile) {
+    const readRefusal = autoSaveReadRefusal(profile);
+    if (readRefusal) {
+      say('refused', readRefusal);
+      return false;
+    }
     const budgetInfo = getAllocatedAndBudget();
     if (!budgetInfo) {
       say('refused', 'Auto-save is on, but the preset budget line could not be re-read just now — press Save Preset yourself.');
@@ -1743,7 +1890,7 @@
 
   // REPLACES a broken page-text scan (confirmed live 2026-09-07: every
   // fighter came back "could not read" — clicking a formation slot shows
-  // the stat-allocation panel, not gear text, exactly as HANDOFF.md's own
+  // the stat-allocation panel, not gear text, exactly as archive/HANDOFF.md's own
   // unverified-DOM-layer note predicted). Traced the REAL data shape from
   // the client bundle instead of guessing again (capture/raw bundle chunks
   // FighterEquipmentHoverCard-DCxqO59W.js / EquipmentCard-BTjWQlQe.js /
@@ -2143,9 +2290,9 @@
     resultRow.style.cssText += 'flex-direction:row; align-items:center; gap:8px;';
     const resultNameInput = document.createElement('input');
     resultNameInput.type = 'text';
-    resultNameInput.style.cssText = 'flex:1; font: inherit; font-size:11.5px; background: var(--awoo-input, var(--input)); '
+    resultNameInput.style.cssText = 'flex:1; font: inherit; font-size:var(--awoo-fs-body); background: var(--awoo-input, var(--input)); '
       + 'color: var(--awoo-foreground, var(--foreground)); border: 1px solid var(--awoo-border, var(--border)); '
-      + 'border-radius:4px; padding:4px 7px;';
+      + 'border-radius:var(--awoo-r-sm); padding:4px 7px;';
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
     addBtn.className = 'awoo-ui-btn awoo-ui-btn-primary';
@@ -2338,9 +2485,15 @@
       if (viaFiber) gearByClass[cls] = { ...viaFiber, source: `${viaFiber.items} item(s) via fiber` };
       else if (cardsOk) gearByClass[cls] = { ...fromCards, source: 'page totals (fiber found nothing)' };
 
-      const found = viaFiber && viaFiber.fighterCritChance
-        ? 0.1 + viaFiber.fighterCritChance    // fighters.critChance.base + gear
-        : scanEquippedCritChance();
+      // When the item scan read this fighter's gear, its Crit Chance sum IS a
+      // read, zero included: the items were seen and none carries any. Before
+      // R22 a zero here fell through to scanEquippedCritChance(), which finds
+      // nothing on such a fighter, and the unread-becomes-0.1 default hid it.
+      // Now that an unread Crit Chance refuses the plan, falling through would
+      // refuse every fighter with no crit gear. The same >5 guard as
+      // scanEquippedCritChanceViaFiber applies, for the same unit doubt.
+      const fiberCrit = viaFiber ? 0.1 + viaFiber.fighterCritChance : null; // fighters.critChance.base + gear
+      const found = fiberCrit != null && fiberCrit <= 5 ? fiberCrit : scanEquippedCritChance();
       critByClass[cls] = found;
 
       const g = gearByClass[cls];
@@ -2351,7 +2504,7 @@
             : ', gear NOT read')
           + (bought.Hit || bought.Damage || bought['Crit Damage']
             ? `, already bought H${Core.formatNumber(bought.Hit)}/D${Core.formatNumber(bought.Damage)}/C${Core.formatNumber(bought['Crit Damage'])}` : '')
-        : `  ${cls}: could not read Crit Chance — assuming the 0.1 base only.`);
+        : `  ${cls}: could not read Crit Chance${g ? '' : ' or gear'}.`);
     }
 
     if (stopped) {
@@ -2362,22 +2515,27 @@
       return;
     }
 
+    const plan = planWorldBoss({ layout: liveLayout, level, perFighterGold, critByClass, gearByClass });
+    if (plan.refused) {
+      // R22: said in three places on purpose — the log is where the run is
+      // read, the toast is what is seen, and the activity record is what is
+      // looked back at. A refusal is a result (DESIGN.md §5).
+      const reason = `No plan: could not read ${describeReadGaps(plan.refused)}. `
+        + 'Open each named fighter so their gear is on screen, then run it again.';
+      optLog(reason);
+      Core.toast(reason, { type: 'error' });
+      say('refused', reason);
+      optimizerRunning = false;
+      ui.optStartBtn.disabled = false;
+      ui.optStopBtn.disabled = true;
+      return;
+    }
+
     optLog('Computing optimal allocation…');
     const stats = {};
     for (const cls of liveLayout) {
-      const critChance = critByClass[cls] != null ? critByClass[cls] : 0.1;
-      const gear = gearByClass[cls] || { hit: 0, damage: 0, critDamage: 0 };
-      // A World Boss plan REPLACES an allocation rather than adding to it, so
-      // the starting point is zero bought points — the preset is reset before
-      // it is filled. Gear is different: it is not spendable and is always
-      // there, so it belongs in the objective as a fixed offset.
-      const alloc = allocateFighterForWorldBoss({
-        goldBudget: perFighterGold, bossLevel: level,
-        currentHitRaw: 0, currentDamageRaw: 0, currentCritDamageRaw: 0, critChance,
-        gearHitBonus: gear.hit || 0,
-        gearDamageBonus: gear.damage || 0,
-        gearCritDamageBonus: gear.critDamage || 0,
-      });
+      const critChance = critByClass[cls];
+      const alloc = plan.allocs[cls];
       stats[cls] = Object.assign(emptyStatBlock(), {
         Hit: alloc.hitRaw, Damage: alloc.damageRaw, 'Crit Damage': alloc.critDamageRaw,
       });
@@ -2395,8 +2553,7 @@
         + (alloc.stoppedBelowCap
           ? ` (deliberately below the ${(0.95 * 100).toFixed(0)}% cap — a Hit point there is worth zero, damage still pays)`
           : ' (at the cap)')
-        + `. Crit Chance ${(critChance * 100).toFixed(2)}%${critByClass[cls] == null ? ' (assumed, not scanned)' : ''}`
-        + `, gear ${gearByClass[cls] ? 'included' : 'NOT read — plan assumes none'}.`);
+        + `. Crit Chance ${(critChance * 100).toFixed(2)}%, gear included.`);
     }
     // Pending, not pushed yet — the calculation is done, but "add to profile
     // list" is now its own explicit step rather than happening automatically.
@@ -2511,7 +2668,7 @@
       head.className = 'awoo-fighter-allocator-group-label';
       head.textContent = label;
       const badge = document.createElement('span');
-      badge.style.cssText = 'margin-left:6px; opacity:.6; font-weight:normal; text-transform:none;';
+      badge.style.cssText = 'margin-left:6px; opacity:var(--awoo-em-muted); font-weight:normal; text-transform:none;';
       badge.textContent = formatBadge;
       head.appendChild(badge);
       box.appendChild(head);
@@ -2559,7 +2716,7 @@
 
     if (profile) {
       const label = document.createElement('div');
-      label.style.cssText = 'font-size:11px; opacity:.7;';
+      label.style.cssText = 'font-size:var(--awoo-fs-control); opacity:var(--awoo-em-muted);';
       label.textContent = `Scoped to: ${profile.name}`;
       body.insertBefore(label, body.firstChild);
     }
@@ -2592,6 +2749,11 @@
 
   function buildPanelContent() {
     const content = document.createElement('div');
+    // The shared content root: bands spaced by Core, and a flex column so the
+    // plans table (flex:1) takes the window's spare height.
+    content.className = 'awoo-ui-stack';
+    content.style.flex = '1';
+    content.style.minHeight = '0';
 
     const style = document.createElement('style');
     style.textContent = `
@@ -2607,12 +2769,56 @@
       .awoo-fighter-allocator-group { border: 1px solid var(--awoo-border, var(--border));
         border-radius: var(--awoo-r-md); padding: var(--awoo-s4) 10px;
         display: flex; flex-direction: column; gap: var(--awoo-s3); }
-      .awoo-fighter-allocator-group-label { font-weight: bold; opacity: var(--awoo-em-normal);
+      .awoo-fighter-allocator-group-label { font-weight: 600; opacity: var(--awoo-em-normal);
         text-transform: uppercase; font-size: var(--awoo-fs-caption); letter-spacing: .04em; }
+      .awoo-fighter-allocator-count { margin-left: var(--awoo-s3); opacity: var(--awoo-em-muted);
+        font-weight: 400; letter-spacing: 0; }
       /* State at rest, not an alert box: which page you are on and what gold
          was read. Events go to the activity strip instead. */
-      #awoo-fighter-allocator-context { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted);
-        padding: var(--awoo-s1) 0; }
+      /* THE DETECTION ROW (2026-09-21): two chips, each with an icon, then the
+         plan in use. The chips carry the state, so they are not muted. */
+      .awoo-fighter-allocator-detrow { display: flex; align-items: center; gap: var(--awoo-s4); }
+      #awoo-fighter-allocator-context { flex: 1; display: flex; align-items: center; gap: var(--awoo-s3);
+        min-width: 0; font-size: var(--awoo-fs-control); }
+      .awoo-fighter-allocator-det { display: inline-flex; align-items: center; gap: var(--awoo-s2);
+        padding: var(--awoo-s1) var(--awoo-s3); border-radius: var(--awoo-r-lg); cursor: help;
+        border: 1px solid var(--awoo-border, var(--border)); white-space: nowrap; }
+      .awoo-fighter-allocator-det b { font-weight: 600; }
+      .awoo-fighter-allocator-det-icon { display: inline-grid; place-items: center; width: 14px; height: 14px;
+        border-radius: 50%; font-size: var(--awoo-fs-micro); font-weight: 700; }
+      .awoo-fighter-allocator-det-ok { background: var(--awoo-bg-success, transparent);
+        border-color: color-mix(in srgb, var(--awoo-success) 35%, transparent); }
+      .awoo-fighter-allocator-det-ok .awoo-fighter-allocator-det-icon { background: var(--awoo-success); color: var(--awoo-surface, var(--awoo-card)); }
+      .awoo-fighter-allocator-det-miss { background: var(--awoo-bg-danger, transparent);
+        border-color: color-mix(in srgb, var(--awoo-danger) 35%, transparent); }
+      .awoo-fighter-allocator-det-miss .awoo-fighter-allocator-det-icon { background: var(--awoo-danger); color: var(--awoo-surface, var(--awoo-card)); }
+      .awoo-fighter-allocator-inuse { margin-left: auto; opacity: var(--awoo-em-muted); white-space: nowrap;
+        overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+      /* THE TABLE, made distinct (2026-09-21, "looks too bland"): framed, a
+         header band, a faint zebra, and one fixed row height that the resting
+         ghost rows share — so the table is the size it will be before the
+         first plan lands. Buttons one step lower so a row does not grow to fit
+         them. Plan names carry the weight; everything else does not. */
+      .awoo-fighter-allocator-table-scroll { border: 1px solid var(--awoo-border, var(--border));
+        border-radius: var(--awoo-r-md); }
+      .awoo-fighter-allocator-table-scroll .awoo-ui-table th { position: sticky; top: 0; z-index: 1;
+        background: var(--awoo-surface-3, var(--awoo-input)); opacity: 1; padding: var(--awoo-s3) var(--awoo-s4); }
+      .awoo-fighter-allocator-table-scroll .awoo-ui-table td { height: 32px; padding: 0 var(--awoo-s4); }
+      .awoo-fighter-allocator-table-scroll .awoo-ui-table tbody tr:nth-child(even) td {
+        background: color-mix(in srgb, var(--awoo-input) 35%, transparent); }
+      .awoo-fighter-allocator-table-scroll .awoo-ui-table tbody tr:hover td { background: var(--awoo-input); }
+      .awoo-fighter-allocator-table-scroll .awoo-ui-table td:first-child { font-weight: 600; }
+      .awoo-fighter-allocator-table-scroll .awoo-ui-btn { padding: 1px var(--awoo-s4); }
+      /* The actions cell is a flex row (Core), and flex STRETCHES its children by
+         default: the Allocate button grew to the row height and pushed every
+         real row 2px taller than the resting rows. Centred, it keeps its own. */
+      .awoo-fighter-allocator-table-scroll .awoo-ui-actions { align-items: center; box-sizing: border-box; }
+      .awoo-fighter-allocator-table-scroll .awoo-ui-icon-btn { width: 22px; height: 22px; }
+      .awoo-fighter-allocator-group-label .awoo-ui-btn { padding: 2px var(--awoo-s4); }
+      .awoo-fighter-allocator-type { font-size: var(--awoo-fs-caption); padding: 1px var(--awoo-s3);
+        border-radius: var(--awoo-r-lg); background: var(--awoo-bg-neutral, var(--awoo-input));
+        color: var(--awoo-neutral, inherit); white-space: nowrap; }
 
       /* THE TABLE GROWS, THEN SCROLLS.
          Nothing set a height before, so extra window height became blank space
@@ -2627,7 +2833,9 @@
          an empty table should read as deliberately spacious, not stubby. The
          SCROLL CEILING (max-height) is untouched on purpose — this only
          changes the floor. */
-      .awoo-fighter-allocator-table-scroll { overflow: auto; min-height: 220px; max-height: 420px; flex: 1; }
+      .awoo-fighter-allocator-table-scroll { overflow: auto; min-height: 288px; max-height: 420px; flex: 1; }
+      /* 288 = the header band plus RESTING_ROWS (8) at the 32px row height, so an
+         empty or short table is exactly the size a full screen of plans will be. */
       /* EMPTY, NOT FILLED. These drew a bar per cell tinted from --awoo-border,
          which is a warm brown, so an empty table read as a stack of smudges --
          reported as distracting, and fairly: a placeholder that draws
@@ -2635,7 +2843,7 @@
          room. The row keeps its height and its separator line, and nothing
          else. The resting count (RESTING_ROWS) is what actually does the work
          here; the bars were never the point. */
-      .awoo-fighter-allocator-ghost td { height: 22px; color: transparent; }
+      .awoo-fighter-allocator-ghost td { color: transparent; }
       /* Small-caps and tracking so an abbreviation reads as a deliberate
          short form rather than a truncated word. */
       .awoo-fighter-allocator-classes { font-variant: small-caps; letter-spacing: .04em; white-space: nowrap; }
@@ -2673,10 +2881,16 @@
     tableHeading.style.cssText += 'display:flex; justify-content:space-between; align-items:center;';
     const tableHeadingLeft = document.createElement('span');
     tableHeadingLeft.textContent = 'Fighter Plans';
+    // The count sits in the heading, quietly — how many plans you have is
+    // useful at a glance and does not deserve a line of its own.
+    const planCount = document.createElement('span');
+    planCount.className = 'awoo-fighter-allocator-count awoo-num';
+    tableHeadingLeft.appendChild(planCount);
+    ui.planCount = planCount;
     tableHeading.appendChild(tableHeadingLeft);
 
     const tableHeadingRight = document.createElement('span');
-    tableHeadingRight.style.cssText = 'display:flex; align-items:center; gap:8px;';
+    tableHeadingRight.className = 'awoo-ui-actionrow';
 
     // A button, not a checkbox — subtler color than Import (this is a view
     // filter, not a primary action), text swaps with state instead of a
@@ -2684,7 +2898,6 @@
     const archivedToggleBtn = document.createElement('button');
     archivedToggleBtn.type = 'button';
     archivedToggleBtn.className = 'awoo-ui-btn';
-    archivedToggleBtn.style.cssText = 'opacity:.7; font-weight:normal;';
     function renderArchivedToggleBtn() {
       archivedToggleBtn.textContent = ui.showArchived ? 'Hide archived' : 'Show archived';
     }
@@ -2715,7 +2928,7 @@
     // people not to look there. It comes back when it does something.
     const wbBtn = document.createElement('button');
     wbBtn.type = 'button';
-    wbBtn.className = 'awoo-ui-btn';
+    wbBtn.className = 'awoo-ui-btn awoo-ui-btn-primary';
     wbBtn.textContent = 'Optimize for World Boss';
     wbBtn.title = 'Scans every fighter\'s equipped Crit Chance, then computes the exact Hit target and '
       + 'Damage/Crit Damage split for the current World Boss level — no manual fields to fill in.';
@@ -2734,16 +2947,24 @@
     tableWrap.appendChild(hint);
     ui.tableHint = hint;
 
-    content.appendChild(tableWrap);
     rerenderProfiles();
 
     const statusRow = document.createElement('div');
-    statusRow.style.cssText = 'display:flex; align-items:center; gap:8px;';
+    statusRow.className = 'awoo-fighter-allocator-detrow';
     const contextLine = document.createElement('div');
     contextLine.id = 'awoo-fighter-allocator-context';
-    contextLine.style.flex = '1';
+    const detFormation = document.createElement('span');
+    const detGold = document.createElement('span');
+    const inUse = document.createElement('span');
+    inUse.className = 'awoo-fighter-allocator-inuse';
+    contextLine.appendChild(detFormation);
+    contextLine.appendChild(detGold);
+    contextLine.appendChild(inUse);
     statusRow.appendChild(contextLine);
     ui.contextLine = contextLine;
+    ui.detFormation = detFormation;
+    ui.detGold = detGold;
+    ui.inUse = inUse;
 
     const stopAllocateBtn = document.createElement('button');
     stopAllocateBtn.type = 'button';
@@ -2755,7 +2976,13 @@
     statusRow.appendChild(stopAllocateBtn);
     ui.stopAllocateBtn = stopAllocateBtn;
 
+    // The context line (which page, what gold was read) opens the window
+    // rather than trailing the table: it is the state everything below depends
+    // on, and at the bottom it sat under a table that can scroll away from it.
+    // (appended here rather than inserted before, so it works everywhere a
+    // plain appendChild does, the test DOM included)
     content.appendChild(statusRow);
+    content.appendChild(tableWrap);
 
     // Guarded, like every optional Core API: without it the module simply has
     // no strip, rather than failing to start.
@@ -2771,21 +2998,50 @@
   // The status bar's IDLE content — page/gold detection, not an action
   // result. setStatus() (used by loadProfileFlow) overwrites this during an
   // actual allocation and callers restore it afterward via this function.
+  // THE TWO DETECTIONS, as chips with an icon each (2026-09-21, asked for:
+  // "both detections should show with an icon if detected or not"). This used
+  // to be one sentence that could only say one thing at a time; allocating
+  // needs BOTH, so both are always visible, each with its value or, on hover,
+  // exactly why it is missing.
+  function detectionChip(el, okNow, label, value, why) {
+    if (!el) return;
+    el.className = 'awoo-fighter-allocator-det ' + (okNow ? 'awoo-fighter-allocator-det-ok' : 'awoo-fighter-allocator-det-miss');
+    el.textContent = '';
+    const icon = document.createElement('span');
+    icon.className = 'awoo-fighter-allocator-det-icon';
+    icon.textContent = okNow ? '\u2713' : '\u2715';
+    const name = document.createElement('span');
+    name.textContent = label;
+    const val = document.createElement('b');
+    val.className = 'awoo-num';
+    val.textContent = value;
+    el.appendChild(icon); el.appendChild(name); el.appendChild(val);
+    el.setAttribute('data-tooltip', why);
+  }
   function updateAmbientStatus() {
-    // ui.contextLine, not ui.statusBar. The status bar became the activity
-    // strip plus this quieter line, and this guard was left pointing at the
-    // removed element -- so every call returned immediately and the page/gold
-    // readout never rendered at all, including the "not detected" prompt that
-    // tells you why nothing is working. Shipped that way in 1.10.0.
     if (!ui.contextLine) return;
-    const onFightersPage = liveLayout.length === 6 && !liveLayout.some((c) => !c);
-    if (!onFightersPage) {
-      setStatus('Fighters page not detected — open it to allocate a plan.', 'ambient');
-      return;
-    }
-    setStatus(liveBudgetB
-      ? `Fighters page detected · ${Core.formatNumber(liveBudgetB)} usable gold.`
-      : 'Fighters page detected, but usable gold could not be read.', 'ambient');
+    const found = liveLayout.filter((c) => c).length;
+    const onFightersPage = liveLayout.length === 6 && found === 6;
+    detectionChip(ui.detFormation, onFightersPage, 'Formation', `${found}/6`,
+      onFightersPage ? 'All six fighter slots found on this page.'
+        : 'Open the Fighters page: allocating needs all six fighter slots on screen.');
+    detectionChip(ui.detGold, !!liveBudgetB, 'Preset gold',
+      liveBudgetB ? Core.formatNumber(liveBudgetB) : '—',
+      liveBudgetB ? 'Read from "Preset Allocated" on the Fighters page.'
+        : `Not read: ${liveBudgetDiag.reason}.`);
+    renderInUse();
+  }
+  function renderInUse() {
+    if (!ui.inUse) return;
+    const p = profiles.find((x) => x.id === currentPlanId);
+    ui.inUse.textContent = p ? `In use: ${p.name}${currentPlanAt ? ' \u00b7 ' + agoShort(currentPlanAt) : ''}` : '';
+  }
+  function agoShort(ms) {
+    const m = Math.max(0, Math.round((Date.now() - ms) / 60000));
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm ago';
+    const h = Math.round(m / 60);
+    return h < 48 ? h + 'h ago' : Math.round(h / 24) + 'd ago';
   }
 
   function togglePanel(force) {
@@ -2843,7 +3099,13 @@
       // spare. 850 rather than landing exactly on the measured 822 for the
       // same reason `minSize.h` above got real headroom, not just the
       // measured number.
-      minSize: { w: 850, h: 680 },
+      // HEIGHT RE-MEASURED 2026-09-21 on the redesign, and lowered from 680
+      // (reported as too tall): the detection row, the plans table at its
+      // resting eight 32px rows, the hint and the activity strip fit in 520
+      // with the table at its floor — extra height only ever grew the table.
+      // The drag floor is lower still, so a small screen can shrink it.
+      defaultSize: { w: 850, h: 520 },
+      minSize: { w: 560, h: 420 },
       settingsTab: MODULE_ID, // gear button in the header -> this module's Settings pane, registered below
       content,
       onClose: () => togglePanel(false),
@@ -2933,6 +3195,8 @@
         scanEquippedStatsViaFiber, readStatTotalFromCard, gearFromDisplayedTotal, equipmentTierMultiplier,
         statFinalFromRaw, rawPointsForFinalStat, scaleLevel,
         goldCostForPoints, maxLevelForBudget, splitDamageCritDamageByGold, allocateFighterForWorldBoss,
+        // ---- R22: no plan, and no auto-save, from unread inputs ----
+        worldBossReadGaps, planWorldBoss, autoSaveReadRefusal,
         // ---- item 1: boss-level memory ----
         STORAGE_KEY, flushStore, loadStore,
         bossLevelMemory: () => bossLevelMemory,
