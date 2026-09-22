@@ -1,6 +1,6 @@
 {
   "channel": "live",
-  "generated": "2026-09-22T04:23:33.403Z",
+  "generated": "2026-09-22T05:26:05.773Z",
   "core": {
     "version": "7.0.1",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js"
@@ -14,20 +14,6 @@
       "notes": "First release"
     },
     {
-      "id": "fighter-allocator",
-      "label": "Fighter Allocator",
-      "version": "1.12.1",
-      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/fighter-allocator.user.js",
-      "notes": "Refuses to plan or auto-save from stats it could not read\nDetection chips show what was read from the page\nClearer plan table; default size 850×520\nSays why when the preset gold cannot be read"
-    },
-    {
-      "id": "pet-slot-alarm",
-      "label": "Pet Slot Alarm",
-      "version": "4.12.1",
-      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/pet-slot-alarm.user.js",
-      "notes": "Rebuilt on the shared window layout\nFollows the AWOO+ themes"
-    },
-    {
       "id": "sculpture-grid-labels",
       "label": "Sculpture Grid Labels",
       "version": "0.1.0",
@@ -35,11 +21,31 @@
       "notes": "First release"
     },
     {
+      "id": "fighter-allocator",
+      "label": "Fighter Allocator",
+      "version": "1.12.2",
+      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/fighter-allocator.user.js",
+      "notes": "Retired: now shared by personal invitation only. This update switches it off; you can uninstall it afterwards.",
+      "retired": true,
+      "reason": "now shared by personal invitation only"
+    },
+    {
+      "id": "pet-slot-alarm",
+      "label": "Pet Slot Alarm",
+      "version": "4.12.2",
+      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/pet-slot-alarm.user.js",
+      "notes": "Retired: now shared by personal invitation only. This update switches it off; you can uninstall it afterwards.",
+      "retired": true,
+      "reason": "now shared by personal invitation only"
+    },
+    {
       "id": "tools",
       "label": "Tools",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/tools.user.js",
-      "notes": "Every tool page uses the AWOO+ themes and fonts\nCost Tables rebuilt on the shared design\nTool pages get sidebars and follow the game's number format"
+      "notes": "Retired: now shared by personal invitation only. This update switches it off; you can uninstall it afterwards.",
+      "retired": true,
+      "reason": "now shared by personal invitation only"
     }
   ]
 }
