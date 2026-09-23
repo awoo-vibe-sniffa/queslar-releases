@@ -1,24 +1,39 @@
 {
   "channel": "live",
-  "generated": "2026-09-22T05:26:05.773Z",
+  "generated": "2026-09-23T07:39:30.153Z",
   "core": {
-    "version": "7.0.1",
-    "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js"
+    "version": "7.0.2",
+    "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
+    "notes": "AWOO+ now includes Dungeon Win Rate and Sculpture Grid Labels: one script instead of three. Your separate copies switch themselves off and can be uninstalled\nModules shared with you personally now come as one script, AWOO+ Extras; AWOO+ offers to install it\nCost Tables now comes with AWOO+: open it from the Tools menu\nAWOO+ sends a small daily diagnostics check-in (character name, village, install and browser info, versions and errors); never your inventory, currencies or login details\nProfile Sync now uses captured live query names and the game's current React providers, and keeps page-specific data it already saw instead of losing it when you navigate away"
   },
   "modules": [
     {
       "id": "dungeon-win-rate",
       "label": "Dungeon Win Rate",
       "version": "0.1.0",
-      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/dungeon-win-rate.user.js",
-      "notes": "First release"
+      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
+      "bundledIn": "awoo-core",
+      "notes": "First release",
+      "standalone": {
+        "version": "0.1.1",
+        "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/dungeon-win-rate.user.js",
+        "retired": true,
+        "reason": "now part of AWOO+ itself"
+      }
     },
     {
       "id": "sculpture-grid-labels",
       "label": "Sculpture Grid Labels",
       "version": "0.1.0",
-      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/sculpture-grid-labels.user.js",
-      "notes": "First release"
+      "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
+      "bundledIn": "awoo-core",
+      "notes": "First release",
+      "standalone": {
+        "version": "0.1.1",
+        "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/sculpture-grid-labels.user.js",
+        "retired": true,
+        "reason": "now part of AWOO+ itself"
+      }
     },
     {
       "id": "fighter-allocator",
