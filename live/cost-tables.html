@@ -1,6 +1,6 @@
 <!doctype html>
 <meta charset="utf-8">
-<title>Queslar Cost Tables</title>
+<title>Cost Tables</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Azeret+Mono:wght@400;500;600&display=swap">
@@ -464,6 +464,87 @@
   overflow-y:auto; overflow-x:hidden; scrollbar-width:thin;
 }
 
+/* ===========================================================================
+   THE SHARED TOOL KIT (2026-09-23): the title block, the sync card, the field
+   lights, the Live/Standard switch and the one tooltip. tool-sync.js renders
+   the dynamic parts; these rules are the whole of their look, so every tool
+   shows the same card and the same lights.
+   =========================================================================== */
+
+/* Title block: eyebrow, title, one line, and the gear top-right. The layout
+   Party Gold ROI and Stat Rate Optimizer settled, now the standard. */
+.awoo-head{position:relative;padding-right:2.4rem}
+.awoo-head .awoo-gear{position:absolute;top:0;right:0}
+.awoo-eyebrow{font-family:var(--font-mono);font-size:.63rem;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin:0 0 .3rem}
+.awoo-title{font-family:var(--font-display);font-weight:700;font-size:1.7rem;line-height:1.05;margin:0 0 .3rem;text-wrap:balance;letter-spacing:normal;text-transform:none;color:var(--ink)}
+.awoo-sub{color:var(--ink-soft);font-size:.78rem;line-height:1.45;margin:0}
+
+/* Buttons the kit renders. Tools keep their own .btn; these do not collide. */
+.awoo-btn{
+  font-family:var(--font-body); font-size:.72rem; font-weight:500; color:var(--ink-soft);
+  background:var(--surface-2); border:1px solid var(--border-control); border-radius:6px;
+  padding:.28rem .6rem; cursor:pointer; white-space:nowrap; flex:1;
+}
+.awoo-btn:hover{border-color:var(--accent-fill);color:var(--accent);background:var(--surface-3)}
+.awoo-btn:disabled{opacity:.4;cursor:default}
+.awoo-btn:disabled:hover{border-color:var(--border-control);color:var(--ink-soft);background:var(--surface-2)}
+.awoo-btn-primary{color:var(--on-accent);background:var(--accent-fill);border-color:var(--accent-fill)}
+.awoo-btn-primary:hover{filter:brightness(1.07);color:var(--on-accent);background:var(--accent-fill)}
+
+/* The sync card: state and age on one line, the mode switch, two actions. */
+.awoo-sync{
+  background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border-strong);
+  border-radius:var(--radius); padding:var(--pad-panel); box-shadow:var(--shadow);
+  display:flex; flex-direction:column; gap:.45rem; font-family:var(--font-body); font-size:.75rem;
+}
+.awoo-sync[data-state="synced"]{border-left-color:var(--success-fill)}
+.awoo-sync[data-state="stale"]{border-left-color:var(--accent-fill)}
+.awoo-sync-head{display:flex;align-items:center;gap:.45rem}
+.awoo-sync-head .awoo-light{cursor:default;margin:0}
+.awoo-sync-state{font-weight:600;color:var(--ink);border-bottom:1px dotted var(--ink-mute);cursor:help}
+.awoo-sync-age{margin-left:auto;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--ink-mute);font-size:.68rem}
+.awoo-sync-actions{display:flex;gap:.35rem}
+
+/* Live / Standard. */
+.awoo-seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:2px;background:var(--surface-2);border:1px solid var(--border-control);border-radius:6px}
+.awoo-seg button{border:0;background:transparent;color:var(--ink-soft);font:inherit;font-size:.72rem;font-weight:600;padding:.22rem .4rem;border-radius:4px;cursor:pointer}
+.awoo-seg button:hover{color:var(--ink)}
+.awoo-seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
+[data-sync-mode="live"] [data-mode-only="standard"],
+[data-sync-mode="standard"] [data-mode-only="live"],
+:root:not([data-sync-mode]) [data-mode-only="standard"]{display:none!important}
+
+/* A field's light. Filled means the game supplied it; hollow means it never
+   did (Core's convention: a state you cannot act on renders hollow). */
+.awoo-light{
+  display:inline-block; flex:none; width:.55rem; height:.55rem; border-radius:50%;
+  border:0; padding:0; margin:0 .3rem 0 0; vertical-align:middle; cursor:pointer;
+  background:transparent; box-shadow:inset 0 0 0 1.5px var(--ink-mute);
+}
+.awoo-light[data-state="synced"]{background:var(--success-fill);box-shadow:none}
+.awoo-light[data-state="stale"]{background:var(--accent-fill);box-shadow:none}
+.awoo-light[data-state="edited"]{background:var(--info);box-shadow:none}
+.awoo-light[data-off="true"]{opacity:.35}
+.awoo-light:focus-visible{outline:2px solid var(--accent-fill);outline-offset:2px}
+
+/* The one tooltip. */
+#awooTip{
+  position:fixed; z-index:200; left:0; top:0; max-width:22rem; pointer-events:none;
+  background:var(--ink); color:var(--surface); white-space:pre-line;
+  font-family:var(--font-body); font-size:.73rem; font-weight:400; line-height:1.45; letter-spacing:normal; text-transform:none;
+  padding:.45rem .6rem; border-radius:6px; box-shadow:var(--shadow);
+  opacity:0; visibility:hidden; transition:opacity .1s;
+}
+#awooTip.on{opacity:1;visibility:visible}
+#awooTip .awoo-tip-dev{display:block;margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--ink-mute);color:var(--bg-dev)}
+.awoo-tip{border-bottom:1px dotted var(--ink-mute);cursor:help}
+@media (prefers-reduced-motion:reduce){#awooTip{transition:none}}
+
+/* Number boxes (data-num): tabular figures in the number font, a size
+   smaller than body text (2026-09-23, asked for), right-aligned so a column
+   of them lines up on the last digit. */
+input[data-num]{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:.74rem;text-align:right}
+
 </style>
 <script>
 /* ===========================================================================
@@ -523,15 +604,32 @@ var FONT_NUM = {
   roboto: { stack:"'Roboto Mono',ui-monospace,monospace",             family:'Roboto+Mono:wght@400;500;600' }
 };
 
+// NUMBER PRESENTATION (2026-09-23: moved here from Cost Tables, so every tool
+// carries it). The game keeps two per-character settings, both CODE facts in
+// data/tables/number-display.json: numberFormatting (standard | exponential |
+// letters) and numberLocale ('Local' -> the browser, '1.000,00', '1,000.00').
+// Core hands the player's own over in AWOO_APPEARANCE.number; the gear menu
+// can override either, per tool. The suffix ladder starts at 1e3, and below
+// 1e6 every mode falls through to standard, which is the game's own rule.
+var NUM_MODES = ['letters', 'standard', 'exponential'];
+var LADDER = ['k','m','b','t','qa','qi','sx','sp','oc','no','dc','ud'];
+var LOCALE_MAP = { 'Local':null, '1.000,00':'de-DE', '1,000.00':'en-US' };
+
 var root = document.documentElement;
 var meta = document.querySelector('meta[name="awoo-tool"]');
 var TOOL = (meta && meta.getAttribute('content')) || 'tool';
 var LS = 'awoo:tool:' + TOOL + ':appearance';
 
-var local = { theme:null, dev:null, sideScroll:false };
+var local = { theme:null, dev:null, sideScroll:false, numMode:null, numLocale:null, fontText:null, fontNum:null };
 try {
   var raw = localStorage.getItem(LS);
-  if (raw){ var p = JSON.parse(raw); if (p && typeof p === 'object'){ local.theme = p.theme || null; local.dev = (typeof p.dev === 'boolean') ? p.dev : null; local.sideScroll = p.sideScroll === true; } }
+  if (raw){ var p = JSON.parse(raw); if (p && typeof p === 'object'){
+    local.theme = p.theme || null; local.dev = (typeof p.dev === 'boolean') ? p.dev : null; local.sideScroll = p.sideScroll === true;
+    local.numMode = NUM_MODES.indexOf(p.numMode) >= 0 ? p.numMode : null;
+    local.numLocale = Object.prototype.hasOwnProperty.call(LOCALE_MAP, p.numLocale) ? p.numLocale : null;
+    local.fontText = FONT_TEXT[p.fontText] ? p.fontText : null;
+    local.fontNum = FONT_NUM[p.fontNum] ? p.fontNum : null;
+  } }
 } catch(e){ /* private window or blocked storage: inherit everything */ }
 function persist(){
   try { localStorage.setItem(LS, JSON.stringify(local)); } catch(e){ /* not durable, still applied */ }
@@ -594,9 +692,86 @@ function devOn(){
 }
 function applyDev(){ root.setAttribute('data-dev', devOn() ? 'on' : 'off'); }
 
-// Fonts are never chosen here: Settings > Fonts in Core is the only place,
-// and each surface is saved there explicitly. A tool just wears the result.
-// A face outside the page's own stylesheet link is fetched only when chosen.
+function inheritedNumber(){
+  var a = window.AWOO_APPEARANCE && window.AWOO_APPEARANCE.number;
+  return {
+    mode: a && NUM_MODES.indexOf(a.formatting) >= 0 ? a.formatting : null,
+    locale: a && Object.prototype.hasOwnProperty.call(LOCALE_MAP, a.locale) ? a.locale : null
+  };
+}
+function numMode(){ return local.numMode || inheritedNumber().mode || 'letters'; }
+function numLocaleKey(){ return local.numLocale || inheritedNumber().locale || 'Local'; }
+function numLocaleTag(){
+  var tag = LOCALE_MAP[numLocaleKey()];
+  if (tag) return tag;
+  try { return navigator.language || 'en-US'; } catch(e){ return 'en-US'; }
+}
+function finite(n){ return typeof n === 'number' && isFinite(n); }
+// Grouped digits, rounded. A dash for anything that is not a number, so a
+// missing input never renders as a confident 0.
+function fmtInt(n){
+  if (!finite(n)) return n === Infinity ? '\u221e' : '\u2014';
+  try { return Math.round(n).toLocaleString(numLocaleTag()); } catch(e){ return String(Math.round(n)); }
+}
+// Exactly d decimals, in the player's separators.
+function fmtDec(n, d){
+  if (!finite(n)) return n === Infinity ? '\u221e' : '\u2014';
+  d = d == null ? 2 : d;
+  try { return n.toLocaleString(numLocaleTag(), { minimumFractionDigits:d, maximumFractionDigits:d }); }
+  catch(e){ return n.toFixed(d); }
+}
+// A fraction as a percentage: 0.1234 -> "12.34%".
+function fmtPct(frac, d){ return finite(frac) ? fmtDec(frac * 100, d == null ? 2 : d) + '%' : '\u2014'; }
+// The game's own rule: below 1e6 standard (with up to `small` decimals for
+// small non-integers), from 1e6 letters / exponential / standard.
+function fmtNum(n, small){
+  if (!finite(n)) return n === Infinity ? '\u221e' : '\u2014';
+  if (n === 0) return '0';
+  var mode = numMode(), abs = Math.abs(n);
+  if (abs < 1e6 || mode === 'standard'){
+    if (abs < 1000 && small && Math.round(n) !== n){
+      var dd = abs < 10 ? small : Math.max(0, small - 1);
+      try { return n.toLocaleString(numLocaleTag(), { maximumFractionDigits:dd }); } catch(e){ return n.toFixed(dd); }
+    }
+    return fmtInt(n);
+  }
+  if (mode === 'exponential') return n.toExponential(2);
+  var i = Math.min(LADDER.length - 1, Math.floor(Math.log10(abs) / 3) - 1);
+  var v = n / Math.pow(1000, i + 1);
+  // Always two decimals: the game's own letter form (NumberDisplay, CODE;
+  // data/tables/number-display.json display.letterFormat.threshold). Cost
+  // Tables showed one decimal from 100 up until 2026-09-23, which the game never does.
+  return fmtDec(v, 2) + LADDER[i];
+}
+// Reads what a person typed, in the player's separators, with the game's
+// letter suffixes ("4.18t"). null when it is not a number, never 0.
+function parseNum(str){
+  if (typeof str === 'number') return finite(str) ? str : null;
+  if (typeof str !== 'string') return null;
+  var t = str.trim().toLowerCase().replace(/[\s%]/g, '');
+  if (!t) return null;
+  var mult = 1, m = t.match(/(qa|qi|sx|sp|oc|no|dc|ud|k|m|b|t)$/);
+  if (m){ mult = Math.pow(1000, LADDER.indexOf(m[1]) + 1); t = t.slice(0, -m[1].length); }
+  var dec = fmtDec(1.5, 1).replace(/[0-9]/g, '') || '.';
+  var group = dec === ',' ? '.' : ',';
+  t = t.split(group).join('');
+  if (dec !== '.') t = t.replace(dec, '.');
+  if (!/^[-+]?\d*\.?\d+(e[-+]?\d+)?$/.test(t)) return null;
+  var v = parseFloat(t) * mult;
+  return finite(v) ? v : null;
+}
+function numberNote(){
+  var inh = inheritedNumber(), parts = [];
+  if (!local.numMode) parts.push(inh.mode ? 'format from game' : 'format: letters (not opened from the game)');
+  if (!local.numLocale) parts.push(inh.locale ? 'separators from game' : 'separators: browser');
+  return parts.join(' \u00b7 ');
+}
+
+// Fonts: Settings > Fonts in Core sets the tools' faces for every tool, and
+// since 2026-09-23 each tool's gear can override them for that tool alone
+// (the maintainer asked for the number font in every settings menu). "Match
+// AWOO+" hands the choice back to Core. A face outside the page's own
+// stylesheet link is fetched only when chosen.
 function loadFamily(family){
   if (!family || document.querySelector('link[data-awoo-font="' + family + '"]')) return;
   var l = document.createElement('link');
@@ -605,11 +780,18 @@ function loadFamily(family){
   l.setAttribute('data-awoo-font', family);
   (document.head || root).appendChild(l);
 }
-function applyFonts(){
+function fontIds(){
   var f = inherited().fonts;
   var tools = f && (f.tools || f);
-  var text = tools && FONT_TEXT[tools.text];
-  var num = tools && FONT_NUM[tools.num];
+  return {
+    text: local.fontText || (tools && FONT_TEXT[tools.text] ? tools.text : null),
+    num: local.fontNum || (tools && FONT_NUM[tools.num] ? tools.num : null)
+  };
+}
+function applyFonts(){
+  var ids = fontIds();
+  var text = ids.text && FONT_TEXT[ids.text];
+  var num = ids.num && FONT_NUM[ids.num];
   if (text){
     loadFamily(text.family);
     root.style.setProperty('--font-body', text.stack);
@@ -619,6 +801,51 @@ function applyFonts(){
     loadFamily(num.family);
     root.style.setProperty('--font-num', num.stack);
   }
+  // Switching back to "Match AWOO+" with nothing inherited must undo an
+  // override, not leave the last one painted.
+  var rm = root.style && typeof root.style.removeProperty === 'function' ? function(k){ root.style.removeProperty(k); } : function(){};
+  if (!text){ rm('--font-body'); rm('--font-display'); }
+  if (!num) rm('--font-num');
+}
+var FONT_LABEL = { public:'Public Sans', open:'Open Sans', figtree:'Figtree', roboto:'Roboto Mono (marked 0)' };
+
+/* NUMBER INPUTS (2026-09-23). A box marked data-num shows thousands
+   separators while you are not in it, and plain digits while you edit (so the
+   caret never fights a separator). What you paste may carry separators, as
+   long as they are your format's; letter suffixes ("4.18t") work too.
+   num.read(el) is how a page reads one: the value, or null, never 0 for a
+   box that is empty or not a number. */
+function showNum(el, v){
+  if (v === null || v === undefined){ return; }
+  var dig = el.getAttribute('data-num-digits');
+  var max = dig !== null ? parseInt(dig, 10) : 6;
+  var focused = document.activeElement === el;
+  try {
+    el.value = focused
+      ? v.toLocaleString(numLocaleTag(), { useGrouping:false, maximumFractionDigits:max })
+      : v.toLocaleString(numLocaleTag(), { maximumFractionDigits:max });
+  } catch(e){ el.value = String(v); }
+}
+function readNum(el){ return el ? parseNum(el.value) : null; }
+function enhanceNum(el){
+  if (!el || el.__awooNum) return;
+  el.__awooNum = true;
+  if (el.type === 'number') el.type = 'text';
+  el.setAttribute('inputmode', 'decimal');
+  el.setAttribute('autocomplete', 'off');
+  el.addEventListener('focus', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });
+  el.addEventListener('blur', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });
+  var v0 = readNum(el);
+  if (v0 === null && el.value){ var raw = parseFloat(el.value); if (isFinite(raw)) v0 = raw; }
+  if (v0 !== null) showNum(el, v0);
+}
+function enhanceAll(scope){
+  var list = (scope || document).querySelectorAll('input[data-num]');
+  for (var i = 0; i < list.length; i++) enhanceNum(list[i]);
+}
+function reformatAll(){
+  var list = document.querySelectorAll('input[data-num]');
+  for (var i = 0; i < list.length; i++){ if (document.activeElement !== list[i]){ var v = readNum(list[i]); if (v !== null) showNum(list[i], v); } }
 }
 
 // Sidebar pinning (see tool-settings.css). A page marks its sidebar with
@@ -689,6 +916,37 @@ function mount(host, opts){
   var themeNote = el('div', { 'class':'awoo-gear-note' });
   menu.appendChild(themeNote);
 
+  // Numbers and separators: in every tool's gear, not one tool's extra rows.
+  var numRow = el('div', { 'class':'awoo-gear-row' });
+  numRow.appendChild(el('label', { 'for':'awooNumMode' }, 'Numbers'));
+  var numSel = el('select', { id:'awooNumMode' });
+  [['', 'Match game'], ['letters', '105.44b'], ['standard', '105,440,000,000'], ['exponential', '1.05e+11']]
+    .forEach(function(o){ numSel.appendChild(el('option', { value:o[0] }, o[1])); });
+  numRow.appendChild(numSel);
+  menu.appendChild(numRow);
+  var locRow = el('div', { 'class':'awoo-gear-row' });
+  locRow.appendChild(el('label', { 'for':'awooNumLocale' }, 'Decimal separator'));
+  var locSel = el('select', { id:'awooNumLocale' });
+  [['', 'Match game'], ['1,000.00', '1,000.00 \u00b7 point'], ['1.000,00', '1.000,00 \u00b7 comma'], ['Local', 'Browser default']]
+    .forEach(function(o){ locSel.appendChild(el('option', { value:o[0] }, o[1])); });
+  locRow.appendChild(locSel);
+  menu.appendChild(locRow);
+  var numNote = el('div', { 'class':'awoo-gear-note' });
+  menu.appendChild(numNote);
+
+  function fontRow(id, label, list){
+    var row = el('div', { 'class':'awoo-gear-row' });
+    row.appendChild(el('label', { 'for':id }, label));
+    var sel2 = el('select', { id:id });
+    sel2.appendChild(el('option', { value:'' }, 'Match AWOO+'));
+    Object.keys(list).forEach(function(k){ sel2.appendChild(el('option', { value:k }, FONT_LABEL[k] || k)); });
+    row.appendChild(sel2);
+    menu.appendChild(row);
+    return sel2;
+  }
+  var fontNumSel = fontRow('awooFontNum', 'Number font', FONT_NUM);
+  var fontTextSel = fontRow('awooFontText', 'Text font', FONT_TEXT);
+
   if (opts.extra) menu.appendChild(opts.extra);
 
   var devRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });
@@ -727,8 +985,35 @@ function mount(host, opts){
     themeNote.classList.toggle('fallback', r.source === 'fallback');
     dev.checked = devOn();
     if (side) side.checked = !!local.sideScroll;
+    numSel.value = local.numMode || '';
+    locSel.value = local.numLocale || '';
+    numNote.textContent = numberNote();
+    var fi = fontIds();
+    fontNumSel.value = local.fontNum || '';
+    fontTextSel.value = local.fontText || '';
+    fontNumSel.options[0].textContent = 'Match AWOO+' + (!local.fontNum ? ' \u00b7 ' + (FONT_LABEL[fi.num] || 'Public Sans') : '');
+    fontTextSel.options[0].textContent = 'Match AWOO+' + (!local.fontText ? ' \u00b7 ' + (FONT_LABEL[fi.text] || 'Public Sans') : '');
   }
   render();
+
+  fontNumSel.addEventListener('change', function(){
+    local.fontNum = fontNumSel.value || null;
+    persist(); applyFonts(); render(); changed();
+  });
+  fontTextSel.addEventListener('change', function(){
+    local.fontText = fontTextSel.value || null;
+    persist(); applyFonts(); render(); changed();
+  });
+
+  numSel.addEventListener('change', function(){
+    local.numMode = numSel.value || null;
+    persist(); render(); reformatAll(); changed();
+  });
+  locSel.addEventListener('change', function(){
+    local.numLocale = locSel.value || null;
+    persist(); render(); reformatAll(); changed();
+  });
+  enhanceAll();
 
   sel.addEventListener('change', function(){
     local.theme = sel.value || null;
@@ -781,6 +1066,20 @@ function sources(names){
 
 window.AWOO_TOOL_SETTINGS = {
   mount: mount,
+  // Number presentation, the same for every tool (see NUMBER PRESENTATION).
+  num: { mode:numMode, localeKey:numLocaleKey, localeTag:numLocaleTag,
+         fmt:fmtNum, int:fmtInt, dec:fmtDec, pct:fmtPct, parse:parseNum,
+         read:readNum, show:showNum, enhance:enhanceAll,
+         // A tool that stored its own override before this layer carried one
+         // hands it over once; an override already set here wins.
+         adopt:function(mode, locale){
+           var any = false;
+           if (!local.numMode && NUM_MODES.indexOf(mode) >= 0){ local.numMode = mode; any = true; }
+           if (!local.numLocale && Object.prototype.hasOwnProperty.call(LOCALE_MAP, locale)){ local.numLocale = locale; any = true; }
+           if (any) persist();
+         },
+         // Test seam.
+         _set:function(mode, locale){ local.numMode = mode || null; local.numLocale = locale || null; } },
   sources: sources,
   onChange: function(fn){ if (typeof fn === 'function') listeners.push(fn); },
   theme: resolveTheme,
@@ -798,6 +1097,446 @@ window.AWOO_TOOL_SETTINGS = {
 })();
 
 </script>
+<script>
+/* ===========================================================================
+   AWOO+ TOOL SYNC — the profile, the four field states, the Live/Standard
+   switch and the one tooltip every tool shares (2026-09-23).
+
+   Hand-written. Injected by userscripts/build.mjs at <!-- @AWOO_TOOL_SETTINGS@ -->
+   right after tool-settings.js, so a tool that takes the gear menu takes this
+   too. NO-PROVENANCE: it moves the player's observations around and reads no
+   game fact; every formula stays in the tool that uses it.
+
+   WHERE THE PROFILE COMES FROM. A tool opens in its own tab, but that tab has
+   the game's origin (a blob URL), so the BroadcastChannel Core already speaks
+   ('awoo-profile') reaches it:
+     - window.AWOO_INITIAL_PROFILE: what Core handed over at open time, when
+       the tool's .release.json asks for it (prefill: ["profile"]);
+     - PROFILE_UPDATED: every capture Core makes afterwards, pushed live;
+     - REQUEST_PROFILE_SYNC: "Sync now" asks the game tab to capture now.
+   Opened anywhere else (a file, a preview), nothing arrives, and the card
+   says so rather than pretending.
+
+   THE FOUR FIELD STATES (REGISTER.md R48; ARTIFACT_STYLE_GUIDE.md Part III).
+   Every bound input carries a light, visible without hovering:
+     synced       read from the profile, fresh               filled, success
+     stale        read from the profile, older than the window filled, accent
+     edited       you typed it; a sync never overwrites it    filled, info
+     unavailable  never observed; the box holds your figure   hollow
+   Hover explains; a click hands that one field back to the profile. "Reset
+   inputs" on the card hands every field back at once.
+
+   A SYNC APPLIES ITSELF to every field you have not edited. That replaced the
+   old "detect, then press Apply" flow on purpose: R48 (the maintainer's own
+   note) asks that syncs update the fields and never the ones you changed, and
+   the light is the visibility the Apply step used to provide.
+
+   AGE IS PER SECTION. A reading's age is profile.meta.observedAt[section],
+   stamped by Profile Sync only for sections that capture actually saw. A
+   profile from an older AWOO+ has no stamps; its readings show as stale with
+   the age "unknown", never as fresh (R49 found a tool falling back to "now").
+
+   LIVE / STANDARD. A tool may offer the switch. Live: the account as it is.
+   Standard: a documented reference setup for the parts of the answer that
+   depend on one account's luck (a pet's rolls, a party's make-up), so two
+   runs, or two players, compare like with like. What Standard swaps is the
+   TOOL's decision, stated in the tool; this file only holds the state and
+   hides whatever a page marks data-mode-only="live" or "standard".
+   =========================================================================== */
+(function(){
+'use strict';
+
+var root = document.documentElement;
+var meta = document.querySelector('meta[name="awoo-tool"]');
+var TOOL = (meta && meta.getAttribute('content')) || 'tool';
+var LS = 'awoo:tool:' + TOOL + ':sync';
+var DEFAULT_STALE_MS = 6 * 60 * 60 * 1000;
+var NO_ANSWER_MS = 4000;
+
+function settings(){ return window.AWOO_TOOL_SETTINGS || null; }
+
+var saved = { edited:{}, mode:null };
+try {
+  var raw = localStorage.getItem(LS);
+  if (raw){ var o = JSON.parse(raw); if (o && typeof o === 'object'){
+    if (o.edited && typeof o.edited === 'object') saved.edited = o.edited;
+    if (o.mode === 'live' || o.mode === 'standard') saved.mode = o.mode;
+  } }
+} catch(e){ /* storage blocked: nothing remembered, everything still works */ }
+function persist(){ try { localStorage.setItem(LS, JSON.stringify(saved)); } catch(e){ /* not durable */ } }
+
+/* ---------------------------------------------------------------- profile */
+var profile = (window.AWOO_INITIAL_PROFILE && typeof window.AWOO_INITIAL_PROFILE === 'object') ? window.AWOO_INITIAL_PROFILE : null;
+var connected = !!profile;           // has anything ever arrived?
+var requestedAt = null;              // last "Sync now", for the no-answer state
+var profileListeners = [];
+
+function setProfile(p){
+  if (!p || typeof p !== 'object') return;
+  profile = p; connected = true; requestedAt = null;
+  applyAll();
+  for (var i = 0; i < profileListeners.length; i++){ try { profileListeners[i](profile); } catch(e){ /* one page bug must not stop the others */ } }
+  renderCards();
+}
+
+var bc = null;
+try {
+  if (typeof BroadcastChannel !== 'undefined'){
+    bc = new BroadcastChannel('awoo-profile');
+    bc.onmessage = function(ev){
+      var d = ev && ev.data;
+      if (d && d.type === 'PROFILE_UPDATED' && d.profile) setProfile(d.profile);
+    };
+  }
+} catch(e){ bc = null; }
+
+function request(){
+  requestedAt = Date.now();
+  if (bc){ try { bc.postMessage({ type:'REQUEST_PROFILE_SYNC', timestamp:requestedAt }); } catch(e){ /* closed */ } }
+  renderCards();
+  setTimeout(renderCards, NO_ANSWER_MS + 50);
+}
+
+// A dotted path into the profile; null for anything absent. Never 0.
+function get(path, p){
+  var cur = p || profile;
+  if (!cur || !path) return null;
+  var parts = String(path).split('.');
+  for (var i = 0; i < parts.length; i++){
+    if (cur == null || typeof cur !== 'object') return null;
+    cur = cur[parts[i]];
+  }
+  return cur === undefined ? null : cur;
+}
+function sectionAge(section){
+  var at = get('meta.observedAt.' + section);
+  return (typeof at === 'number' && isFinite(at)) ? at : null;
+}
+
+/* ----------------------------------------------------------------- fields */
+var fields = [];
+var byKey = {};
+var applyListeners = [];
+var applying = false;
+
+// f.local: the field reads a source of the page's own (another module's
+// handover) and is read even before any profile arrives; f.observedAt()
+// then dates it.
+function readField(f){
+  if (!profile && !f.local) return null;
+  var v;
+  try { v = typeof f.read === 'function' ? f.read(profile, get) : get(f.read); } catch(e){ v = null; }
+  if (v === undefined || v === null) return null;
+  if (typeof v === 'number' && !isFinite(v)) return null;
+  return v;
+}
+function modeAllows(f){ return !f.modes || f.modes.indexOf(mode()) >= 0; }
+
+function state(f){
+  if (saved.edited[f.key]) return 'edited';
+  var v = readField(f);
+  if (v === null) return 'unavailable';
+  var at = fieldAge(f);
+  if (at === null) return 'stale';
+  return (Date.now() - at) > (f.staleMs || DEFAULT_STALE_MS) ? 'stale' : 'synced';
+}
+function fieldAge(f){
+  if (typeof f.observedAt === 'function'){ var t = f.observedAt(profile); if (typeof t === 'number' && isFinite(t)) return t; }
+  return sectionAge(f.section || String(f.read).split('.')[0]);
+}
+function ago(at){
+  if (at === null) return 'unknown';
+  var s = Math.max(0, Math.round((Date.now() - at) / 1000));
+  if (s < 60) return s + 's';
+  var m = Math.round(s / 60); if (m < 60) return m + 'm';
+  var h = Math.round(m / 60); if (h < 48) return h + 'h';
+  return Math.round(h / 24) + 'd';
+}
+var STATE_TIP = {
+  synced: 'Synced from the game. Click to re-sync.',
+  stale: 'Synced, but old. Click to re-sync.',
+  edited: 'Typed by you; a sync keeps it. Click to sync it again.',
+  unavailable: 'Not synced yet. This is your own figure.'
+};
+function lightTip(f, st){
+  var t = (st === 'unavailable' && f.unavailableTip) ? f.unavailableTip : STATE_TIP[st];
+  if (st === 'synced' || st === 'stale') t += ' (' + ago(fieldAge(f)) + ' old)';
+  if (f.source && (st === 'synced' || st === 'stale')){ var src = f.source(profile); if (src) t += ' From ' + src + '.'; }
+  if (!modeAllows(f)) t = 'Not used in ' + (mode() === 'standard' ? 'Standard' : 'Live') + ' mode.';
+  return t;
+}
+function devTip(f){
+  return 'Profile: ' + (f.path || (typeof f.read === 'string' ? f.read : f.key));
+}
+
+function setInput(f, v){
+  var el = f.el;
+  applying = true;
+  try {
+    var S = settings();
+    if (el.type === 'checkbox') el.checked = !!v;
+    else if (f.fmt) el.value = f.fmt(v);
+    else if (el.hasAttribute('data-num') && typeof v === 'number' && S && S.num) S.num.show(el, v);
+    else el.value = String(v);
+  } finally { applying = false; }
+}
+function renderLight(f){
+  if (!f.light) return;
+  var st = state(f);
+  f.light.setAttribute('data-state', st);
+  f.light.setAttribute('data-off', modeAllows(f) ? 'false' : 'true');
+  f.light.setAttribute('data-tip', lightTip(f, st));
+  f.light.setAttribute('data-tip-dev', devTip(f));
+  f.light.setAttribute('aria-label', 'Sync: ' + st);
+}
+function applyOne(f){
+  if (saved.edited[f.key] || !modeAllows(f)) return false;
+  var v = readField(f);
+  if (v === null) return false;
+  setInput(f, v);
+  return true;
+}
+function notifyApplied(){
+  for (var i = 0; i < applyListeners.length; i++){ try { applyListeners[i](); } catch(e){ /* keep going */ } }
+}
+function applyAll(){
+  var any = false;
+  for (var i = 0; i < fields.length; i++) any = applyOne(fields[i]) || any;
+  for (var j = 0; j < fields.length; j++) renderLight(fields[j]);
+  if (any) notifyApplied();
+  return any;
+}
+
+function labelFor(el){
+  if (el.id){ var l = document.querySelector('label[for="' + el.id + '"]'); if (l) return l; }
+  return el.closest ? el.closest('label') : null;
+}
+
+/* bind(def) — def: { key, el, read: 'dotted.path' | function(profile, get),
+   section?, fmt?, staleMs?, modes?: ['live'] , label? }. Returns the field. */
+function bind(def){
+  if (!def || !def.el || !def.key) return null;
+  if (byKey[def.key]) return byKey[def.key];
+  var f = def;
+  if (!f.path && typeof f.read === 'string') f.path = f.read;
+  var host = f.label || labelFor(f.el);
+  var light = document.createElement('button');
+  light.type = 'button';
+  light.className = 'awoo-light';
+  if (host) host.insertBefore(light, host.firstChild);
+  f.light = light;
+  light.addEventListener('click', function(e){
+    e.preventDefault(); e.stopPropagation();
+    delete saved.edited[f.key]; persist();
+    if (!connected) request();
+    if (applyOne(f)) notifyApplied();
+    renderLight(f); renderCards();
+  });
+  var onEdit = function(){
+    if (applying) return;
+    saved.edited[f.key] = true; persist();
+    renderLight(f); renderCards();
+  };
+  f.el.addEventListener('input', onEdit);
+  f.el.addEventListener('change', onEdit);
+  fields.push(f); byKey[f.key] = f;
+  applyOne(f);
+  renderLight(f);
+  return f;
+}
+function resetAll(){
+  for (var x = 0; x < extensions.length; x++){ try { if (extensions[x].reset) extensions[x].reset(); } catch(e){ /* keep going */ } }
+  saved.edited = {}; persist();
+  if (!connected) request();
+  applyAll();
+  for (var j = 0; j < fields.length; j++) renderLight(fields[j]);
+  notifyApplied();
+  renderCards();
+}
+
+/* ------------------------------------------------------------------- mode */
+var modeListeners = [];
+var modeOffered = false;
+function mode(){ return modeOffered ? (saved.mode || 'live') : 'live'; }
+function setMode(m){
+  if (m !== 'live' && m !== 'standard') return;
+  saved.mode = m; persist();
+  root.setAttribute('data-sync-mode', mode());
+  applyAll();
+  for (var i = 0; i < modeListeners.length; i++){ try { modeListeners[i](mode()); } catch(e){ /* keep going */ } }
+  for (var j = 0; j < fields.length; j++) renderLight(fields[j]);
+  renderCards();
+}
+
+/* ------------------------------------------------------------------- card */
+var cards = [];
+function el(tag, attrs, text){
+  var n = document.createElement(tag);
+  for (var k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+}
+// A tool that keeps its own per-field state (Cost Tables re-renders its inputs
+// per subject, so it cannot bind a lasting element) reports through this: its
+// counts join the card, and the card's Reset reaches it.
+var extensions = [];
+function summary(){
+  var total = 0, synced = 0, stale = 0, edited = 0;
+  for (var x = 0; x < extensions.length; x++){
+    var e = extensions[x].summary ? extensions[x].summary() : null;
+    if (e){ total += e.total || 0; synced += e.synced || 0; stale += e.stale || 0; edited += e.edited || 0; }
+  }
+  for (var i = 0; i < fields.length; i++){
+    if (!modeAllows(fields[i])) continue;
+    total++;
+    var st = state(fields[i]);
+    if (st === 'synced') synced++; else if (st === 'stale') stale++; else if (st === 'edited') edited++;
+  }
+  return { total:total, synced:synced, stale:stale, edited:edited };
+}
+function renderCards(){
+  for (var i = 0; i < cards.length; i++) renderCard(cards[i]);
+}
+function renderCard(c){
+  var s = summary();
+  var st, label, tip;
+  if (connected || s.synced || s.stale){
+    st = s.synced ? 'synced' : (s.stale ? 'stale' : 'unavailable');
+    label = s.synced || s.stale ? 'Synced' : 'Connected';
+    tip = 'Fields follow the game tab. ' + (s.synced + s.stale) + ' of ' + s.total + ' read' +
+      (s.edited ? ', ' + s.edited + ' typed by you' : '') + '.';
+  } else if (requestedAt && Date.now() - requestedAt < NO_ANSWER_MS){
+    st = 'stale'; label = 'Asking the game…'; tip = 'Waiting for an open Queslar tab to answer.';
+  } else if (requestedAt){
+    st = 'unavailable'; label = 'No game tab'; tip = 'No Queslar tab with AWOO+ answered. Open the game in this browser, then Sync.';
+  } else {
+    st = 'unavailable'; label = 'Not synced'; tip = 'Open this tool from AWOO+ in the game, or keep the game open and press Sync.';
+  }
+  c.box.setAttribute('data-state', st);
+  c.light.setAttribute('data-state', st);
+  c.state.textContent = label;
+  c.state.setAttribute('data-tip', tip);
+  var at = get('meta.timestamp');
+  c.age.textContent = (connected || s.synced || s.stale) ? (s.total ? (s.synced + s.stale) + '/' + s.total : '') + (at ? ' · ' + ago(at) : '') : '';
+  c.reset.disabled = !s.edited;
+  if (c.seg){
+    var m = mode();
+    c.seg.live.setAttribute('aria-pressed', String(m === 'live'));
+    c.seg.standard.setAttribute('aria-pressed', String(m === 'standard'));
+  }
+}
+/* card(host, { modes?: { live:tip, standard:tip } }) */
+function card(host, opts){
+  if (!host) return;
+  opts = opts || {};
+  host.textContent = '';
+  var box = el('div', { 'class':'awoo-sync', 'data-state':'unavailable' });
+  var head = el('div', { 'class':'awoo-sync-head' });
+  var light = el('span', { 'class':'awoo-light', 'data-state':'unavailable', 'aria-hidden':'true' });
+  var stEl = el('span', { 'class':'awoo-sync-state' });
+  var age = el('span', { 'class':'awoo-sync-age' });
+  head.appendChild(light); head.appendChild(stEl); head.appendChild(age);
+  box.appendChild(head);
+  var c = { box:box, light:light, state:stEl, age:age };
+  if (opts.modes){
+    modeOffered = true;
+    root.setAttribute('data-sync-mode', mode());
+    var seg = el('div', { 'class':'awoo-seg', role:'group', 'aria-label':'Mode' });
+    var live = el('button', { type:'button', 'data-tip':opts.modes.live || 'Your account, as synced.' }, 'Live');
+    var std = el('button', { type:'button', 'data-tip':opts.modes.standard || 'A fixed reference setup, for fair comparisons.' }, 'Standard');
+    live.addEventListener('click', function(){ setMode('live'); });
+    std.addEventListener('click', function(){ setMode('standard'); });
+    seg.appendChild(live); seg.appendChild(std);
+    box.appendChild(seg);
+    c.seg = { live:live, standard:std };
+  }
+  var actions = el('div', { 'class':'awoo-sync-actions' });
+  var syncBtn = el('button', { type:'button', 'class':'awoo-btn awoo-btn-primary', 'data-tip':'Ask the open game tab for a fresh reading.' }, 'Sync');
+  var reset = el('button', { type:'button', 'class':'awoo-btn', 'data-tip':'Hand every field you typed back to the game.' }, 'Reset inputs');
+  syncBtn.addEventListener('click', request);
+  reset.addEventListener('click', resetAll);
+  actions.appendChild(syncBtn); actions.appendChild(reset);
+  box.appendChild(actions);
+  c.reset = reset;
+  host.appendChild(box);
+  cards.push(c);
+  renderCard(c);
+  return c;
+}
+// Ages and staleness move with the clock, not only with events.
+setInterval(function(){ renderCards(); for (var j = 0; j < fields.length; j++) renderLight(fields[j]); }, 30000);
+
+// One quiet request on load when Core handed nothing over: an already-open
+// game tab answers within a moment, and the card says so when none does.
+setTimeout(function(){ if (!connected && bc) request(); }, 300);
+
+/* ---------------------------------------------------------------- tooltip */
+// ONE fixed-position element on <body> (the Core lesson, DESIGN.md: a
+// pseudo-element or an absolutely-positioned child is clipped by scroll
+// containers and inherits an ancestor's opacity). data-tip is for the
+// player; data-tip-dev is appended only with "Show developer info" on, in
+// the --dev tint (R67).
+var tipEl = null, tipFor = null;
+function ensureTip(){
+  if (tipEl || !document.body) return tipEl;
+  tipEl = document.createElement('div');
+  tipEl.id = 'awooTip';
+  tipEl.setAttribute('role', 'tooltip');
+  document.body.appendChild(tipEl);
+  return tipEl;
+}
+function showTip(t){
+  var text = t.getAttribute('data-tip');
+  var s = settings();
+  var dev = s && s.devOn && s.devOn() ? t.getAttribute('data-tip-dev') : null;
+  if (!text && !dev) return;
+  var tip = ensureTip(); if (!tip) return;
+  tipFor = t;
+  tip.textContent = text || '';
+  if (dev){ var d = document.createElement('span'); d.className = 'awoo-tip-dev'; d.textContent = dev; tip.appendChild(d); }
+  tip.classList.add('on');
+  var r = t.getBoundingClientRect(), b = tip.getBoundingClientRect();
+  var left = Math.min(Math.max(8, r.left + r.width / 2 - b.width / 2), window.innerWidth - b.width - 8);
+  var top = r.top - b.height - 8;
+  if (top < 8) top = r.bottom + 8;
+  tip.style.left = Math.round(left) + 'px';
+  tip.style.top = Math.round(top) + 'px';
+}
+function hideTip(){ tipFor = null; if (tipEl) tipEl.classList.remove('on'); }
+function tipTarget(e){ return e.target && e.target.closest ? e.target.closest('[data-tip],[data-tip-dev]') : null; }
+document.addEventListener('mouseover', function(e){ var t = tipTarget(e); if (t) showTip(t); });
+document.addEventListener('mouseout', function(e){ var t = tipTarget(e); if (t && t === tipFor) hideTip(); });
+document.addEventListener('focusin', function(e){ var t = tipTarget(e); if (t) showTip(t); });
+document.addEventListener('focusout', hideTip);
+window.addEventListener('scroll', hideTip, true);
+
+window.AWOO_SYNC = {
+  profile: function(){ return profile; },
+  connected: function(){ return connected; },
+  get: get,
+  age: sectionAge,
+  onProfile: function(fn){ if (typeof fn === 'function') profileListeners.push(fn); },
+  onApply: function(fn){ if (typeof fn === 'function') applyListeners.push(fn); },
+  request: request,
+  bind: bind,
+  field: function(key){ return byKey[key] || null; },
+  state: function(key){ var f = byKey[key]; return f ? state(f) : null; },
+  isEdited: function(key){ return !!saved.edited[key]; },
+  resetAll: resetAll,
+  refresh: function(){ applyAll(); renderCards(); },
+  card: card,
+  extend: function(ext){ if (ext && typeof ext === 'object'){ extensions.push(ext); renderCards(); } },
+  renderCards: renderCards,
+  ago: ago,
+  mode: mode,
+  setMode: setMode,
+  onMode: function(fn){ if (typeof fn === 'function') modeListeners.push(fn); },
+  // Test seam: push a profile as if Core had broadcast it.
+  _receive: setProfile
+};
+})();
+
+</script>
 
 <style>
 *{box-sizing:border-box}
@@ -810,20 +1549,8 @@ body{
 button,input,select{font-family:inherit;font-size:inherit;color:inherit}
 :focus-visible{outline:2px solid var(--brass-fill);outline-offset:2px;border-radius:3px}
 
-/* --- topbar --------------------------------------------------------- */
-.topbar{
-  position:sticky; top:env(safe-area-inset-top,0px); z-index:30;
-  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
-  padding:10px 20px; background:var(--surface); border-bottom:1px solid var(--border);
-}
-.brand{display:flex;align-items:baseline;gap:9px;margin-right:auto}
-.brand h1{
-  font-family:var(--font-head); font-weight:600; font-size:1.18rem;
-  letter-spacing:.055em; text-transform:uppercase; margin:0;
-}
-.brand .sub{font-size:.72rem;color:var(--ink-mute);letter-spacing:.04em}
-.topbar .spacer{flex:1}
-
+/* The title block and the gear live at the top of the sidebar, like every
+   other tool (2026-09-23; this page had its own top bar until then). */
 .btn{
   background:var(--surface-2); border:1px solid var(--border-control);
   border-radius:4px; padding:5px 11px; cursor:pointer;
@@ -841,16 +1568,14 @@ button,input,select{font-family:inherit;font-size:inherit;color:inherit}
   max-width:1400px; margin:0 auto; padding:18px 20px 60px;
   display:grid; grid-template-columns:288px minmax(0,1fr); gap:18px; align-items:start;
 }
+/* One column: the title, sync card and subject list first, as in every tool. */
 @media (max-width:1040px){
   .shell{grid-template-columns:minmax(0,1fr)}
-  .side{order:2}
-  #main{order:1}
 }
 
 /* Pinned or not is the shared settings layer's call (tool-settings.js,
    "Sidebar scrolls on its own"): by default the sidebar scrolls with the page
-   and is pinned only while it fits on screen. It sits below the
-   sticky top bar, hence data-side-top="70". */
+   and is pinned only while it fits on screen. */
 .side{display:flex; flex-direction:column; gap:10px}
 .panel{
   background:var(--surface); border:1px solid var(--border);
@@ -905,16 +1630,6 @@ button,input,select{font-family:inherit;font-size:inherit;color:inherit}
 }
 .navbtn[aria-current="true"] .nlv{color:var(--brass)}
 
-/* --- sync card ------------------------------------------------------ */
-.sync .pb{display:flex;flex-direction:column;gap:8px}
-.syncline{display:flex;align-items:center;gap:8px;font-size:.78rem;color:var(--ink-soft)}
-.syncmsg{font-size:.74rem;color:var(--ink-mute);line-height:1.45}
-.dot{width:9px;height:9px;border-radius:50%;flex:none;border:1px solid rgba(0,0,0,.18)}
-.dot.off{background:var(--ink-mute)}
-.dot.ok{background:var(--moss-fill)}
-.dot.stale{background:var(--brass-fill)}
-.dot.edited{background:var(--steel)}
-
 /* --- options -------------------------------------------------------- */
 .optrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:3px 0}
 .optrow label{font-size:.78rem;color:var(--ink-soft)}
@@ -965,10 +1680,7 @@ button,input,select{font-family:inherit;font-size:inherit;color:inherit}
   font-family:var(--font-num); font-size:.8rem; font-variant-numeric:tabular-nums;
 }
 .field select{width:auto;min-width:112px;font-family:var(--font-body);font-size:.76rem}
-.lightbtn{
-  background:none;border:0;padding:0;cursor:pointer;display:inline-flex;
-  align-items:center;line-height:0;
-}
+.field > .lab .awoo-light{margin:0}
 
 /* summary strip */
 .summary{
@@ -1065,7 +1777,27 @@ tbody tr.bp:hover td{background:var(--bg-violet)}
 tbody td .bpnote{
   font-family:var(--font-body);font-size:.6rem;letter-spacing:.06em;
   color:var(--violet);margin-left:8px;text-transform:uppercase;font-weight:600;
+  border-bottom:1px dotted currentColor;cursor:help;
 }
+
+/* BREAKPOINTS (2026-09-23): every place the formula changes shape, listed
+   above the table whatever the step, with what changes there. Click one to
+   make it the target. */
+.bpstrip{
+  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
+  padding:8px 14px; border-bottom:1px solid var(--border); background:var(--surface);
+}
+.bpstrip .bk{font-size:.64rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-mute);margin-right:2px}
+.bpchip{
+  display:inline-flex; align-items:baseline; gap:5px; cursor:pointer;
+  font-size:.72rem; color:var(--ink-soft); background:var(--bg-info);
+  border:1px solid color-mix(in srgb,var(--info) 35%,transparent); border-radius:4px; padding:2px 7px;
+}
+.bpchip b{font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--info);font-weight:700}
+.bpchip:hover{border-color:var(--info);color:var(--ink)}
+.bpchip.passed{background:var(--surface-2);border-color:var(--border);opacity:.7}
+.bpchip.passed b{color:var(--ink-mute)}
+.bpnone{font-size:.72rem;color:var(--ink-mute)}
 
 .rowctl{
   display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;
@@ -1103,15 +1835,9 @@ details.notes[open] > summary::before{content:'▾'}
 }
 .srcline .pill{background:var(--surface-3);color:var(--ink-mute)}
 
-/* tooltip */
-.tip{position:relative;cursor:help;border-bottom:1px dotted var(--ink-mute)}
-.tip:hover::after,.tip:focus-visible::after{
-  content:attr(data-tip); position:absolute; left:0; top:calc(100% + 6px); z-index:50;
-  background:var(--ink); color:var(--ground); padding:6px 9px; border-radius:4px;
-  font-family:var(--font-body); font-size:.72rem; font-weight:400; line-height:1.4;
-  letter-spacing:0; text-transform:none; white-space:pre-wrap; width:max-content;
-  max-width:280px; box-shadow:0 4px 14px rgba(0,0,0,.28); pointer-events:none;
-}
+/* Tooltips are the shared kit's (tool-sync.js): one fixed element, never
+   clipped by the table's scroll box. .tip only marks what has one. */
+.tip{cursor:help;border-bottom:1px dotted var(--ink-mute)}
 .banner{
   display:flex;gap:9px;align-items:flex-start;
   padding:9px 12px;border-radius:5px;font-size:.78rem;line-height:1.45;
@@ -1175,19 +1901,19 @@ window.AWOO_FACTS = (function () {
   /* formulas/equipment.json :: equipment.slotUpgrade.costFormula  [CODE] */
   function slotUpgradeCost(currentLevel, newLevel) { let ratio = 1.1; let count = newLevel - currentLevel; if (count <= 0) return 0; let cost = Math.round(250 * ratio**(currentLevel+1) * (ratio**count - 1) / (ratio - 1)); return { meat: cost, iron: cost, wood: cost, stone: cost }; }
   /* formulas/leveling.json :: leveling.genericExpRequired.formula  [CODE] */
-  function expRequired(level, type) { if (type === 'sanctum') level += 500; if (level < 10) return level * 150; if (level < 20) return level * 250; if (level < 40) return level * 400; if (level < 50) return level * 600; if (level < 100 || type === 'crafting') return level * 1000; let base = 20000 * Math.sqrt(level); if (level <= 500) return Math.round(base); let n = level - 500; let extra = 2500 * n**1.25; if (level > 10000) { n = level - 10000; extra += 10000 * n**1.35; } return Math.round(base + extra); }
+  function expRequired(level, type) { if (type === 'sanctum') level += 500; if (level < 10) return level * 150; if (level < 20) return level * 250; if (level < 40) return level * 400; if (level < 50) return level * 600; if (level < 100 || type === 'crafting') return level * 1000; let base = 20000 * Math.sqrt(level); if (level <= 500) return Math.round(base); let n = level - 500; let extra = 2500 * n**1.25; if (level > 10000) { n = level - 10000; extra += 100000 * n**1.4; } return Math.round(base + extra); }
   /* formulas/partners.json :: partner.level.expFormula  [CODE] */
-  function partnerLevelExp(level) { if (level < 10) return level * 150; if (level < 20) return level * 200; if (level < 40) return level * 300; if (level < 50) return level * 400; let base = Math.round(25000 * level**0.5); if (level <= 1500) return Math.round(base); let n = level - 1500; let extra = 250 * n**1.25; if (level > 6000) { n = level - 6000; extra += 2500 * n**1.35; } return Math.round(base + extra); }
+  function partnerLevelExp(level) { if (level < 10) return level * 150; if (level < 20) return level * 200; if (level < 40) return level * 300; if (level < 50) return level * 400; let base = Math.round(25000 * level**0.5); if (level <= 1500) return Math.round(base); let n = level - 1500; let extra = 250 * n**1.25; if (level > 6000) { n = level - 6000; extra += 2500 * n**1.4; } return Math.round(base + extra); }
   /* formulas/partners.json :: partner.boostUpgradeCost.formula  [CODE] */
   function partnerBoostUpgradeCost(currentLevel, targetLevel) { const tri = (a, b, mult) => (a + b) * (b - a) / 2 * mult; if (targetLevel < 10) return tri(currentLevel, targetLevel, 150); let total = tri(Math.max(currentLevel - 9, 0), Math.max(targetLevel - 9, 1), 15000); const brackets = [[1000, 10000], [2000, 100000], [3500, 500000]]; for (const [threshold, mult] of brackets) { const a = Math.max(currentLevel, threshold), b = Math.max(targetLevel, threshold); if (a <= b) total += tri(a, b, mult); } return { currency: 'gold', value: total }; }
   /* formulas/relic-boosts.json :: relicBoost.bracketSurcharge  [CODE] */
-  function bracketSurcharge(currentLevel, newLevel) { if (newLevel <= 5000) return 0; let sum = 0; let bracketIndex = Math.floor((Math.max(currentLevel, 5000) - 5000) / 1000); let cursor = Math.max(currentLevel, 5000); while (cursor < newLevel) { const segmentEnd = Math.min(5000 + (bracketIndex + 1) * 1000, newLevel); const rateParam = bracketIndex < 5 ? 20 : 20 + (bracketIndex - 4) * 10; sum += triangular(cursor - 5000, segmentEnd - 5000, rateParam); cursor = segmentEnd; bracketIndex++; } return sum; }
+  function bracketSurcharge(currentLevel, newLevel) { const series = (x, m) => x * (x + 1) / 2 * m; if (newLevel <= 5000) return 0; let sum = 0; const first = Math.floor((Math.max(currentLevel, 5001) - 5001) / 1000), last = Math.floor((newLevel - 5001) / 1000); for (let o = first; o <= last; o++) { const bracketStart = 5001 + o * 1000, bracketEnd = Math.min(5000 + (o + 1) * 1000, newLevel); const rate = o < 5 ? 20 : 20 + (o - 4) * 10; const lo = Math.max(currentLevel + 1, bracketStart), hi = bracketEnd; if (hi >= lo) sum += series(hi - 5000, rate) - series(lo - 5000 - 1, rate); } return sum; }
   /* formulas/relic-boosts.json :: relicBoost.veryHighLevelSurcharge  [CODE] */
-  function veryHighLevelSurcharge(currentLevel, newLevel) { let low = Math.max(currentLevel, 50000); let high = Math.max(newLevel, 50000); if (low > high) return 0; return triangular(low - 50000, high - 50000, 20000); }
+  function veryHighLevelSurcharge(currentLevel, newLevel) { let low = Math.max(currentLevel, 50000); let high = Math.max(newLevel, 50000); if (low > high) return 0; return triangular(low - 50000, high - 50000, 50000); }
   /* formulas/relic-boosts.json :: relicBoost.costFormula  [CODE] */
-  function boostCost(currentLevel, newLevel, boostType) { if (boostType==='defenseFlat' || boostType==='damageFlat') { let cost = triangular(currentLevel, newLevel, 100) + bracketSurcharge(currentLevel, newLevel); return {currency:'gold', value: Math.round(cost)}; } let cost = triangular(currentLevel, newLevel, 10) + bracketSurcharge(currentLevel, newLevel) + veryHighLevelSurcharge(currentLevel, newLevel); return {currency:'relics', value: Math.round(cost)}; }
+  function boostCost(currentLevel, newLevel, boostType) { const series = (x, m) => x * (x + 1) / 2 * m; if (boostType==='defenseFlat' || boostType==='damageFlat') { let cost = series(newLevel, 100) - series(currentLevel, 100) + bracketSurcharge(currentLevel, newLevel); return {currency:'gold', value: Math.round(cost)}; } let cost = series(newLevel, 10) - series(currentLevel, 10) + bracketSurcharge(currentLevel, newLevel) + veryHighLevelSurcharge(currentLevel, newLevel); return {currency:'relics', value: Math.round(cost)}; }
   /* formulas/sculptures.json :: sculptures.tileUpgradeCost  [CODE] */
-  function tileUpgradeCost(currentLevel, newLevel) { return Math.round(triangular(currentLevel, newLevel, 25000)); }  // triangular(a,b,mult) = (b-a)*(a+b)/2*mult, same helper as village.strengths and relicBoost costs
+  function tileUpgradeCost(currentLevel, newLevel) { const series = (x, m) => x * (x + 1) / 2 * m; const a = Math.max(currentLevel, 2500), b = Math.max(newLevel, 2500); const past2500 = a <= b ? triangular(a - 2500, b - 2500, 2500000) : 0; return Math.round(series(newLevel, 25000) - series(currentLevel, 25000) + past2500); }  // level L costs 25,000*L, plus (L-2500-0.5)*2,500,000 past 2500
   /* formulas/village-boss.json :: villageBoss.costFormula  [CODE] */
   function villageBossCost(currentLevel, newLevel, base, ratio=1.15) { let start = currentLevel+1; let count = newLevel-currentLevel; return Math.round(base * ratio**start * (ratio**count - 1) / (ratio-1)); }
   /* formulas/village.json :: village.buildings.costFormula.implementation  [CODE] */
@@ -1203,56 +1929,17 @@ window.AWOO_FACTS = (function () {
 window.AWOO_FACTS_META = {"sanctumNodeCost":{"file":"tables/sanctum-nodes.json","fact":"sanctumNodes.formula.status","confidence":"CROSS","checked":"2026-08-23"},"petSlotUpgradeCost":{"file":"formulas/pets.json","fact":"pets.slotUpgrade.costFormula","confidence":"CODE","checked":"2026-09-07"},"slotUpgradeCost":{"file":"formulas/equipment.json","fact":"equipment.slotUpgrade.costFormula","confidence":"CODE","checked":"2026-08-23"},"expRequired":{"file":"formulas/leveling.json","fact":"leveling.genericExpRequired.formula","confidence":"CODE","checked":"2026-08-23"},"partnerLevelExp":{"file":"formulas/partners.json","fact":"partner.level.expFormula","confidence":"CODE","checked":"2026-08-23"},"partnerBoostUpgradeCost":{"file":"formulas/partners.json","fact":"partner.boostUpgradeCost.formula","confidence":"CODE","checked":"2026-08-23"},"bracketSurcharge":{"file":"formulas/relic-boosts.json","fact":"relicBoost.bracketSurcharge","confidence":"CODE","checked":"2026-08-23"},"veryHighLevelSurcharge":{"file":"formulas/relic-boosts.json","fact":"relicBoost.veryHighLevelSurcharge","confidence":"CODE","checked":"2026-08-23"},"boostCost":{"file":"formulas/relic-boosts.json","fact":"relicBoost.costFormula","confidence":"CODE","checked":"2026-08-23"},"tileUpgradeCost":{"file":"formulas/sculptures.json","fact":"sculptures.tileUpgradeCost","confidence":"CODE","checked":"2026-08-23"},"villageBossCost":{"file":"formulas/village-boss.json","fact":"villageBoss.costFormula","confidence":"CODE","checked":"2026-08-23"},"villageBuildingCost":{"file":"formulas/village.json","fact":"village.buildings.costFormula.implementation","confidence":"CODE","checked":"2026-08-23"},"caveToolUpgradeCost":{"file":"formulas/caves.json","fact":"caves.toolUpgradeCost.formula","confidence":"CODE","checked":"2026-08-23"},"fighterSlotCost":{"file":"formulas/dungeons.json","fact":"dungeon.fighterSlotCost.formula","confidence":"CODE","checked":"2026-08-23"},"houseUpgradeCost":{"file":"tables/house-upgrades.json","fact":"house.resourceCost.formula","confidence":"CODE","checked":"2026-08-23"}};
 </script>
 
-<div class="topbar">
-  <div class="brand">
-    <h1>Queslar Cost Tables</h1>
-    <span class="sub">AWOO+ · upgrade pricing across 15 systems</span>
-  </div>
-  <button class="btn ghost" type="button" id="resetAllBtn">Reset all levels</button>
-
-  <!-- The gear menu (theme, developer info) is the shared tool-settings
-       layer; the two number rows below are this page's own, and the layer
-       places them between Theme and Show developer info. -->
-  <div id="gear"></div>
-  <div id="gearExtra" hidden>
-    <div class="awoo-gear-row">
-      <label for="numMode">Numbers</label>
-      <select id="numMode">
-        <option value="">Match game</option>
-        <option value="letters">105.44b</option>
-        <option value="standard">105,440,000,000</option>
-        <option value="exponential">1.05e+11</option>
-      </select>
-    </div>
-    <div class="awoo-gear-row">
-      <label for="numLocale">Decimal separator</label>
-      <select id="numLocale">
-        <option value="">Match game</option>
-        <option value="1,000.00">1,000.00 &mdash; point</option>
-        <option value="1.000,00">1.000,00 &mdash; comma</option>
-        <option value="Local">Browser default</option>
-      </select>
-    </div>
-    <div class="awoo-gear-note" id="numSrc"></div>
-  </div>
-</div>
-
 <div class="shell">
-  <aside class="side" data-awoo-sidebar data-side-min="1041" data-side-top="70">
-    <div class="panel sync">
-      <div class="ph"><span class="dot off" id="syncDot"></span>Profile sync</div>
-      <div class="pb">
-        <div class="syncline"><span id="syncState">Not connected</span></div>
-        <div class="syncmsg" id="syncMsg">
-          No AWOO+ profile layer on this page, so every current level below is
-          yours to type in. Once the profile layer lands, levels it has observed
-          fill in automatically and any field you have typed in stays yours.
-        </div>
-        <button class="btn sm" type="button" id="syncBtn">Refresh from profile</button>
-      </div>
+  <aside class="side" data-awoo-sidebar data-side-min="1041" data-side-top="20">
+    <div class="awoo-head">
+      <div id="gear"></div>
+      <div class="awoo-eyebrow">Upgrade pricing &middot; 15 systems</div>
+      <h1 class="awoo-title">Cost Tables</h1>
+      <p class="awoo-sub">What the next levels cost, from where you are to where you want to be.</p>
     </div>
-
+    <div id="syncCard"></div>
     <nav class="panel" id="nav" aria-label="Cost systems"></nav>
+    <button class="btn ghost sm" type="button" id="resetAllBtn" data-tip="Current levels, targets, steps and row counts back to their defaults, for every subject.">Reset every subject</button>
 
     <div class="panel">
       <div class="ph">Legend</div>
@@ -1271,8 +1958,8 @@ window.AWOO_FACTS_META = {"sanctumNodeCost":{"file":"tables/sanctum-nodes.json",
 <button id="backTop" type="button" aria-label="Back to top" hidden>↑</button>
 
 <div class="foot">
-  Formulas are ported verbatim from the AWOO+ core (<code>core/engine/</code>,
-  <code>core/data/formulas/</code>). Confidence tags are that core's own evidence
+  Formulas are generated from the AWOO+ core (<code>core/data/formulas/</code>) and
+  were last checked against the game's own code (1.2.3.12) on 2026-09-23. Confidence tags are that core's own evidence
   tiers, not a generic severity scale — a <b>CROSS</b> or <b>OPEN</b> table is
   telling you something real about how far to trust the number.
 </div>
@@ -1282,77 +1969,15 @@ window.AWOO_FACTS_META = {"sanctumNodeCost":{"file":"tables/sanctum-nodes.json",
 'use strict';
 
 /* =====================================================================
-   NUMBER FORMATTING
-   The game's own "letters" mode (tables/number-display.json,
-   display.suffixLadder, CODE): suffixes start at 1e3, everything below
-   1e6 falls through to standard grouped digits in every mode.
+   NUMBER FORMATTING — the shared settings layer's (tool-settings.js,
+   2026-09-23). The game's own two settings, inherited through AWOO+ and
+   overridable in the gear menu, the same in every tool. This page carried
+   its own copy of that until then; its saved override is handed over once
+   (see load()).
    ===================================================================== */
-var LADDER = ['k','m','b','t','qa','qi','sx','sp','oc','no','dc','ud'];
-var LOCALE_MAP = { 'Local':null, '1.000,00':'de-DE', '1,000.00':'en-US' };
-
-// Number presentation is the PLAYER'S setting, not this page's. The game keeps
-// two, independently: characterSettingsGeneral.numberLocale (separators) and
-// .numberFormatting (standard | exponential | letters). Both are CODE facts in
-// tables/number-display.json. We inherit whatever the profile reports and let
-// the reader override, in that order — so the page agrees with the game it is
-// sitting next to, but a calculator can still be forced to full digits.
-//
-// The ambiguity that makes this matter: "1.234" is genuinely either 1234 or
-// 1.234 depending on the viewing character's own setting. It is per-character,
-// not a property of the game.
-var numberMode = null;    // null = inherit; else 'standard'|'letters'|'exponential'
-var numberLocale = null;  // null = inherit; else a LOCALE_MAP key
-
-function inheritedNumber(){
-  // What AWOO+ Core handed over when it opened this tab (window.AWOO_APPEARANCE,
-  // 2026-09-21) comes first: a tool in its own tab cannot read the game, and
-  // the profile section below exists only when the page sits beside Core.
-  var a = (typeof window !== 'undefined' && window.AWOO_APPEARANCE && window.AWOO_APPEARANCE.number) || {};
-  var mode = readSection('settings.numberFormatting');
-  var loc  = readSection('settings.numberLocale');
-  return {
-    mode: (typeof a.formatting === 'string') ? a.formatting : (mode && typeof mode.raw === 'string') ? mode.raw : null,
-    locale: (typeof a.locale === 'string') ? a.locale : (loc && typeof loc.raw === 'string') ? loc.raw : null
-  };
-}
-function effectiveMode(){
-  if (numberMode) return numberMode;
-  var inh = inheritedNumber();
-  return inh.mode || 'letters';
-}
-function effectiveLocaleKey(){
-  if (numberLocale) return numberLocale;
-  var inh = inheritedNumber();
-  return inh.locale || 'Local';
-}
-function resolvedLocale(){
-  var key = effectiveLocaleKey();
-  var tag = LOCALE_MAP[key];
-  if (tag) return tag;
-  try { return navigator.language || 'en-US'; } catch(e){ return 'en-US'; }
-}
-
-function fmtInt(n){
-  if (!isFinite(n)) return '∞';
-  try { return Math.round(n).toLocaleString(resolvedLocale()); }
-  catch(e){ return String(Math.round(n)); }
-}
-function fmtNum(n){
-  if (n === 0) return '0';
-  if (!isFinite(n)) return '∞';
-  var mode = effectiveMode();
-  // Below 1e6 every mode falls through to standard - the game's own rule.
-  if (Math.abs(n) < 1e6 || mode === 'standard') return fmtInt(n);
-  if (mode === 'exponential') return Number(n).toExponential(2);
-  var i = Math.floor(Math.log10(Math.abs(n)) / 3) - 1;
-  if (i >= LADDER.length) i = LADDER.length - 1;
-  var v = n / Math.pow(1000, i + 1);
-  var digits = Math.abs(v) >= 100 ? 1 : 2;
-  var body;
-  try { body = v.toLocaleString(resolvedLocale(), { minimumFractionDigits:digits, maximumFractionDigits:digits }); }
-  catch(e){ body = v.toFixed(digits); }
-  return body + LADDER[i];
-}
+var NUM = window.AWOO_TOOL_SETTINGS.num;
+function fmtInt(n){ return NUM.int(n); }
+function fmtNum(n){ return NUM.fmt(n); }
 
 /* =====================================================================
    COST FORMULAS — verbatim ports. Each system exposes range(a,b,variant)
@@ -1443,9 +2068,10 @@ var SYSTEMS = [
   range:function(a,b){ return { gold: sanctumNodeCost(a,b) }; },
   formula:'cost(n) = 125,000 · n⁵  +  12,500,000 · n      (n = the nth node bought)',
   userNote:'Every node costs the same wherever you spend it — the price is set by how many you have bought in total, so the cheapest node is always the next one.',
-  devNote:'Reproduces the known cost table <b>exactly</b> for nodes 6–15, then runs 0.3–0.4% <b>low</b> from node 16 onward (computed 996 vs table 999 at node 24). Budget slightly above what this table says. Reading one real per-node price off the Skill Tree page past node 24 would settle what the drift actually is.',
+  devNote:'Reproduces the known cost table <b>exactly</b> for nodes 6–15, then runs 0.3–0.4% <b>low</b> from node 16 onward (computed 996 vs table 999 at node 24). Budget slightly above what this table says. Reading one real per-node price off the Skill Tree page past node 24 would settle what the drift actually is. Checked against the 1.2.3.12 bundle 2026-09-23: unchanged.',
   srcs:['tables/sanctum-nodes.json','engine/income/sanctum.js'],
-  alias:'Called "sanctum nodes" in game, but 81 of its 84 nodes have nothing to do with sanctums.'
+  alias:'Called "sanctum nodes" in game, but 81 of its 84 nodes have nothing to do with sanctums.',
+  noBreaks:'One smooth curve: no breakpoints.'
 },
 {
   id:'petslot', group:'Pets', name:'Pet slot', tier:'LIVE',
@@ -1453,35 +2079,74 @@ var SYSTEMS = [
   desc:'Each of the three slots levels and is paid for separately. Gold only — pet slots never cost village resources.',
   variants:{ label:'Slot', options:[{id:'combat',label:'Combat'},{id:'utility',label:'Utility'},{id:'gathering',label:'Gathering'}] },
   defByVariant:{ combat:136, utility:51, gathering:71 },
-  cur:['gold'], breakpoints:[150],
+  cur:['gold'],
+  breaks:[
+    { at:31, short:'boost ×2 rate', tip:'From here each level adds 2% boost instead of 1%. The rate steps up every 30 levels.' },
+    { at:61, short:'boost ×3 rate', tip:'Each level now adds 3% boost.' },
+    { at:91, short:'boost ×4 rate', tip:'Each level now adds 4% boost.' },
+    { at:121, short:'boost ×5 rate', tip:'Each level now adds 5% boost.' },
+    { at:151, short:'cost ×5 curve', tip:'Past 150 the cost exponent jumps from 3 to 15 (the patch notes call it "x5 scaling"). The boost still adds 6% a level up to 179.', dev:'pets.slotUpgrade.costFormula: floor(500,000 · 150³ · (L/150)^15) for L > 150.' },
+    { at:180, short:'boost falls to +450%', tip:'The pet boost saw-tooths from here: 179 gives +624%, 180 gives +450%, and it climbs 6% a level back to +624% at 209. Buying 179 → 180 lowers your boost; so does every 30th level after.', dev:'pets.slotUpgrade.boostFormula: the block term freezes at block 5 (0.3·5·6/2 = 4.5) while intoBlock keeps cycling.' }
+  ],
   range:function(a,b){ return { gold: petSlotCost(a,b) }; },
   formula:'level ≤ 150:  floor(500,000 · level³)\nlevel > 150:  floor(500,000 · 150³ · (level/150)¹⁵)',
-  userNote:'Gold only, and each of the three slots is priced separately. Past level 150 the cost climbs far faster — the exponent jumps from 3 to 15, which is the dev’s “x5 scaling” note.',
+  userNote:'Gold only, and each of the three slots is priced separately. Past level 150 the cost climbs far faster — the exponent jumps from 3 to 15, which is the dev’s “x5 scaling” note, while from level 180 the boost falls back to +450% every 30 levels.',
   devNote:'The cubic branch is <b>live-verified</b> at three points on a real account (combat 135→136, utility 50→51, gathering 70→71 — all exact). The post-150 branch is <b>bundle-only</b>: no tracked account has reached 150 yet.',
   srcs:['formulas/pets.json','engine/income/profile.js']
 },
 {
   id:'equipslot', group:'Character', name:'Equipment slot', tier:'CODE',
   unit:'slot level', unitShort:'Level', def:60, min:1, max:300, view:50, expandBy:50, step:1, checked:'2026-08-25',
-  desc:'Character equipment slots. Costs the same amount of all four village resources at once — no gold.',
+  desc:'Character equipment slots, each levelled on its own. Costs the same amount of all four village resources at once — no gold.',
+  variants:{ label:'Slot', options:[{id:'head',label:'Head'},{id:'body',label:'Body'},{id:'legs',label:'Legs'},{id:'hands',label:'Hands'},{id:'feet',label:'Feet'},{id:'leftHand',label:'Left hand'},{id:'rightHand',label:'Right hand'}] },
   cur:['meat','iron','wood','stone'],
+  breaks:[
+    { at:31, short:'boost ×2 rate', tip:'The boost these levels buy accelerates in 30-level blocks: from here each level adds 2%.' },
+    { at:61, short:'boost ×3 rate', tip:'Each level now adds 3%.' },
+    { at:91, short:'boost ×4 rate', tip:'Each level now adds 4%.' },
+    { at:121, short:'boost ×5 rate', tip:'Each level now adds 5%.' },
+    { at:151, short:'boost ×6 rate', tip:'Each level now adds 6%. Unlike pets, equipment keeps climbing past 150.' },
+    { at:181, short:'boost ×7 rate', tip:'Each level now adds 7%.' },
+    { at:211, short:'boost ×8 rate', tip:'Each level now adds 8%.' },
+    { at:241, short:'boost ×9 rate', tip:'Each level now adds 9%.' },
+    { at:271, short:'boost ×10 rate', tip:'Each level now adds 10%.' }
+  ],
   range:function(a,b){ return asCost(fact('slotUpgradeCost')(a,b),'meat'); },  /* GENERATED: equipment.slotUpgrade.costFormula */
   formula:'geometric series, base 250, ratio 1.10 per level, charged in each of meat / iron / wood / stone',
-  userNote:'Costs the same amount of all four village resources at once, and no gold. The boost these levels buy accelerates in blocks of 30 — level 30 gives +30%, 60 gives +90%, 90 gives +180%.',
+  userNote:'Costs the same amount of all four village resources at once, and no gold. The cost itself has no breakpoints; the boost these levels buy steps up every 30 levels — level 30 gives +30%, 60 gives +90%, 90 gives +180%.',
   devNote:'A different curve from pet slots, and deliberately so — the level-150 cap the dev added to pets was gated on a pet-only branch and never touched equipment.',
   srcs:['formulas/equipment.json','engine/income/profile.js']
 },
 {
   id:'charlevel', group:'Character', name:'Level EXP', tier:'CODE',
-  unit:'level', unitShort:'Level', def:300, min:1, max:20000, view:2000, expandBy:2000, step:10, checked:'2026-08-25',
+  unit:'level', unitShort:'Level', def:300, min:1, max:20000, view:2000, expandBy:2000, step:10, checked:'2026-09-23',
   desc:'One curve backs three tracks. Crafting never leaves the flat stair-step; sanctum shifts the level by +500 before applying the same curve, so sanctum level N costs what battling level N+500 costs.',
   variants:{ label:'Which level', options:[{id:'battling',label:'Character level'},{id:'crafting',label:'Crafting / forging level'},{id:'sanctum',label:'Sanctum level'}] },
   defByVariant:{ battling:300, crafting:300, sanctum:120 },
-  cur:['exp'], breakpoints:[10,20,40,50,100,500],
+  cur:['exp'],
+  breaks:function(v){
+    var stairs = [
+      { at:10, short:'250 per level', tip:'Levels 10–19 cost 250 EXP × level.' },
+      { at:20, short:'400 per level', tip:'Levels 20–39 cost 400 EXP × level.' },
+      { at:40, short:'600 per level', tip:'Levels 40–49 cost 600 EXP × level.' },
+      { at:50, short:'1,000 per level', tip:'Levels 50–99 cost 1,000 EXP × level.' }
+    ];
+    if (v === 'crafting') return stairs.concat([{ at:100, short:'stays flat', tip:'Crafting never leaves the flat 1,000 × level stair-step.' }]);
+    var tail = [
+      { at:100, short:'√ curve', tip:'From here: 20,000 · √level.' },
+      { at:501, short:'+ power tail', tip:'Adds 2,500 · (level − 500)^1.25.' },
+      { at:10001, short:'+ steep tail', tip:'Adds 100,000 · (level − 10,000)^1.4 — the steepest part of the curve.', dev:'Changed in 1.2.3.11 from 10,000 · (level − 10,000)^1.35; this table used the old tail until 2026-09-23.' }
+    ];
+    if (v === 'sanctum') return [
+      { at:1, short:'starts on the √ curve', tip:'Sanctum level N is priced as character level N + 500, so it starts past the stair-steps, on the √ curve with its first tail.' },
+      { at:9501, short:'+ steep tail', tip:'Sanctum 9,501 is character-curve level 10,001: the steep tail starts here.' }
+    ];
+    return stairs.concat(tail);
+  },
   range:function(a,b,v){ var t=0; for(var n=a+1;n<=b;n++) t+=levelExp(n,v||'battling'); return {exp:t}; },
-  formula:'<10: L·150   <20: L·250   <40: L·400   <50: L·600   <100: L·1000\n≥100: 20,000·√L  (+ 2,500·(L−500)^1.25 past 500, + 10,000·(L−10,000)^1.35 past 10,000)',
+  formula:'<10: L·150   <20: L·250   <40: L·400   <50: L·600   <100: L·1000\n≥100: 20,000·√L  (+ 2,500·(L−500)^1.25 past 500, + 100,000·(L−10,000)^1.4 past 10,000)',
   userNote:'This is EXP required, not currency — the “cost” columns count experience. Crafting never leaves the flat stair-step; a sanctum level costs what a character level 500 higher would.',
-  devNote:'The sanctum +500 shift was read from the bundle only and has not been checked against a live sanctum level.',
+  devNote:'<b>Corrected 2026-09-23</b>: the past-10,000 tail changed in 1.2.3.11 (was 10,000·(L−10,000)^1.35). Every figure above level 10,000 in this table was low until then — about a sixth of the real value at 11,500. The sanctum +500 shift was read from the bundle only and has not been checked against a live sanctum level.',
   srcs:['formulas/leveling.json','engine/income/leveling.js']
 },
 
@@ -1489,11 +2154,18 @@ var SYSTEMS = [
   id:'partnerboost', group:'Partners', name:'Speed / intelligence boost', tier:'CODE',
   unit:'boost level', unitShort:'Level', def:900, min:0, max:5000, view:200, expandBy:200, step:10, checked:'2026-08-25',
   desc:'Per partner, per boost. The same function priced at current level 0 is what the game shows you as the refund when you reset a partner’s boosts.',
-  cur:['gold'], breakpoints:[10,1000,2000,3500],
+  variants:{ label:'Boost', options:[{id:'speed',label:'Speed'},{id:'intelligence',label:'Intelligence'}] },
+  cur:['gold'],
+  breaks:[
+    { at:10, short:'rate 15,000', tip:'From level 10 each level costs about 15,000 × (level − 9). One purchase across this seam is slightly cheaper than two.', dev:'Known discontinuity: cost(5→15) = 270,000 but cost(5→9) + cost(9→15) = 274,200.' },
+    { at:1001, short:'+10,000/level', tip:'Past 1,000 each level adds about 10,000 × level on top.' },
+    { at:2001, short:'+100,000/level', tip:'Past 2,000 each level adds about 100,000 × level on top.' },
+    { at:3501, short:'+500,000/level', tip:'Past 3,500 each level adds about 500,000 × level on top: the steepest stretch.' }
+  ],
   range:function(a,b){ return { gold: partnerBoostCost(a,b) }; },
   formula:'below 10:  triangular(a, b, 150)\nfrom 10:   triangular(max(a−9,0), max(b−9,1), 15,000)\n+ triangular past 1,000 @ 10,000 · past 2,000 @ 100,000 · past 3,500 @ 500,000',
-  userNote:'Per partner, per boost. The same figure priced from level 0 is what the game shows you as the refund when you reset a partner’s boosts.',
-  devNote:'<b>Known discontinuity at level 10.</b> One purchase spanning the seam is cheaper than the same range bought as two: cost(5→15) = 270,000, but cost(5→9) + cost(9→15) = 274,200. The ≥10 branch re-indexes by −9 and clamps at zero, so every starting level from 0 to 9 lands on the same point. A real property of the game’s formula, not a transcription slip — and the reason this page always prices a range with the range function rather than adding up single levels. The other three thresholds are properly additive.',
+  userNote:'Per partner, per boost: buying a level for every partner costs this times your partner count. The same figure priced from level 0 is what the game shows you as the refund when you reset a partner’s boosts.',
+  devNote:'<b>Known discontinuity at level 10.</b> One purchase spanning the seam is cheaper than the same range bought as two: cost(5→15) = 270,000, but cost(5→9) + cost(9→15) = 274,200. The ≥10 branch re-indexes by −9 and clamps at zero, so every starting level from 0 to 9 lands on the same point. A real property of the game’s formula, not a transcription slip — and the reason this page always prices a range with the range function rather than adding up single levels. The other three thresholds are properly additive. Synced level = your LOWEST partner’s, the one you would buy next to keep them even.',
   srcs:['formulas/partners.json','engine/income/partners.js']
 },
 {
@@ -1505,28 +2177,39 @@ var SYSTEMS = [
   formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',
   userNote:'Ten times the previous one, every time — the steepest curve in the game. <b>Whether partners cap at all is unknown</b>; this table stops at 12 for a technical reason, not a game one.',
   devNote:'It stops at 12 because that is where the cost passes what a double-precision number represents exactly. Byte-for-byte the same closed form as the fighter-slot cost, one shared primitive across two unrelated systems; fighter slots are known to cap at 6.',
-  srcs:['formulas/partners.json','engine/income/partners.js']
+  srcs:['formulas/partners.json','engine/income/partners.js'],
+  noBreaks:'No breakpoints: every partner costs exactly ten times the one before.'
 },
 {
   id:'partnerlevel', group:'Partners', name:'Partner level EXP', tier:'CODE',
-  unit:'partner level', unitShort:'Level', def:400, min:0, max:10000, view:500, expandBy:500, step:10, checked:'2026-08-23',
+  unit:'partner level', unitShort:'Level', def:400, min:0, max:10000, view:500, expandBy:500, step:10, checked:'2026-09-23',
   desc:'A sibling of the character curve with its own coefficients — same √ + power-tail family, different numbers.',
-  cur:['exp'], breakpoints:[10,20,40,50,1500],
+  cur:['exp'],
+  breaks:[
+    { at:10, short:'200 per level', tip:'Levels 10–19 cost 200 EXP × level.' },
+    { at:20, short:'300 per level', tip:'Levels 20–39 cost 300 EXP × level.' },
+    { at:40, short:'400 per level', tip:'Levels 40–49 cost 400 EXP × level.' },
+    { at:50, short:'√ curve', tip:'From here: 25,000 · √level.' },
+    { at:1501, short:'+ power tail', tip:'Adds 250 · (level − 1,500)^1.25.' },
+    { at:6001, short:'+ steep tail', tip:'Adds 2,500 · (level − 6,000)^1.4.', dev:'The game’s own formula label still prints 1.35 here; the code charges 1.4 (since 1.2.3.11).' }
+  ],
   range:function(a,b){ var t=0; for(var n=a+1;n<=b;n++) t+=partnerLevelExpAt(n); return {exp:t}; },
-  formula:'<10: L·150   <20: L·200   <40: L·300   <50: L·400\n≥50: 25,000·√L  (+ 250·(L−1500)^1.25 past 1500, + 2,500·(L−6000)^1.35 past 6000)',
-  userNote:'A partner’s four <i>skills</i> level on this curve. They are not the same thing as its four base <i>stats</i> — skill level only feeds the roster-wide flat boost.',
-  devNote:'How partner stats actually grow is still unknown; the dev’s own wiki page for it reads “coming soon”. Same √ + power-tail family as the character curve, with its own coefficients.',
+  formula:'<10: L·150   <20: L·200   <40: L·300   <50: L·400\n≥50: 25,000·√L  (+ 250·(L−1500)^1.25 past 1500, + 2,500·(L−6000)^1.4 past 6000)',
+  userNote:'A partner’s four <i>skills</i> level on this curve. They are not the same thing as its four base <i>stats</i>. Every skill level also raises that partner’s own income multiplier.',
+  devNote:'<b>Corrected 2026-09-23</b>: the past-6000 exponent is 1.4 since 1.2.3.11 (the Partners page label still says 1.35). The live checks all sit between 1,500 and 6,000, where the two agree. How partner stats grow is still unknown; the dev’s own wiki page for it reads “coming soon”.',
   srcs:['formulas/partners.json','engine/income/partners.js']
 },
 
 {
   id:'villagebuilding', group:'Village', name:'Buildings', tier:'LIVE',
   unit:'building level', unitShort:'Level', def:38, min:1, max:200, view:50, expandBy:50, step:1, checked:'2026-08-25',
-  desc:'Gold and all four resources at once, on the same geometric curve at different bases. Relics join the bill only past level 40.',
-  cur:['gold','meat','iron','wood','stone','relics'], breakpoints:[41],
+  desc:'Every building shares one price curve. Gold and all four resources at once, on the same geometric curve at different bases. Relics join the bill only past level 40.',
+  variants:{ label:'Building', options:[{id:'market',label:'Market'},{id:'stable',label:'Stable'},{id:'tavern',label:'Tavern'},{id:'well',label:'Well'},{id:'mill',label:'Mill'},{id:'granary',label:'Granary'},{id:'shrine',label:'Shrine'},{id:'treasury',label:'Treasury'},{id:'warehouse',label:'Warehouse'}] },
+  cur:['gold','meat','iron','wood','stone','relics'],
+  breaks:[{ at:41, short:'relics join the bill', tip:'From level 41 every level also costs relics (base 3,000, ratio 1.15).' }],
   range:villageBuildingCost,
   formula:'gold: geometric base 200,000 · ratio 1.15\nmeat / iron / wood / stone: geometric base 4,000 · ratio 1.15\nrelics: geometric base 3,000, pivoted at level 41, nothing below',
-  userNote:'Gold and all four resources at once, on the same curve at different bases. Relics join the bill only past level 40.',
+  userNote:'Every building shares one curve: pick yours to see your own level. Gold and all four resources at once; relics join the bill only past level 40.',
   devNote:'<b>Live-verified end to end</b> across all six currencies against a real Village → Upgrades price, which also settled a long-standing 3,000-vs-8,000 disagreement in the relic coefficient in favour of 3,000.',
   srcs:['formulas/village.json','engine/costs/village.js']
 },
@@ -1534,13 +2217,14 @@ var SYSTEMS = [
   id:'villagestrength', group:'Village', name:'Strengths', tier:'OPEN',
   unit:'strength level', unitShort:'Level', def:20, min:0, max:500, view:50, expandBy:50, step:1, checked:'2026-08-23',
   desc:'Brave / Wealthy / Bold / Swift / Trailblazer / Potent all cost ×2. Loyal alone costs ×10 — five times any other strength, per level.',
-  variants:{ label:'Strength', options:[{id:'other',label:'Any except Loyal (×2)'},{id:'loyal',label:'Loyal (×10)'}] },
+  variants:{ label:'Strength', options:[{id:'brave',label:'Brave (×2)'},{id:'wealthy',label:'Wealthy (×2)'},{id:'bold',label:'Bold (×2)'},{id:'swift',label:'Swift (×2)'},{id:'trailblazer',label:'Trailblazer (×2)'},{id:'potent',label:'Potent (×2)'},{id:'loyal',label:'Loyal (×10)'}] },
   cur:['unrecorded'],
   range:function(a,b,v){ return { unrecorded: Math.round(triangular(a,b, v==='loyal'?10:2)) }; },
   formula:'cost(a → b) = triangular(a, b) × 10 for Loyal, × 2 for every other strength',
   userNote:'Loyal costs five times what any other strength costs per level. The bonus side is simpler: level × 1% for the six, while Loyal returns the bare level.',
   devNote:'<b>What this is paid in is not recorded anywhere in the core</b> — the bundle gives the arithmetic and not the currency, so the column is labelled “Cost” rather than guessed at. The bonus formula is cross-confirmed exactly against six live readings on two different characters.',
-  srcs:['formulas/village.json','engine/costs/village.js']
+  srcs:['formulas/village.json','engine/costs/village.js'],
+  noBreaks:'No breakpoints: one triangular curve.'
 },
 {
   id:'villageboss', group:'Village', name:'Boss upgrades', tier:'CODE',
@@ -1559,18 +2243,20 @@ var SYSTEMS = [
   formula:'geometric series, ratio 1.15, base 200,000 (gold) / 3,000 (relics) / 3,000 (essence) / 4,000 (each of four resources)',
   userNote:'Four upgrade types, four different currencies, one shared curve — and every type gives the same +2% per level. The only real decision is which currency you would rather spend.',
   devNote:'Confirmed to be literally the same helper function as Buildings, not merely a similar shape.',
-  srcs:['formulas/village-boss.json','engine/costs/village.js']
+  srcs:['formulas/village-boss.json','engine/costs/village.js'],
+  noBreaks:'No breakpoints: one geometric curve (×1.15 per level).'
 },
 
 {
   id:'sculpture', group:'Sculpture', name:'Sculpture tile', tier:'LIVE',
-  unit:'tile level', unitShort:'Level', def:223, min:0, max:3000, view:300, expandBy:300, step:25, checked:'2026-08-25',
+  unit:'tile level', unitShort:'Level', def:223, min:0, max:3000, view:300, expandBy:300, step:25, checked:'2026-09-23',
   desc:'Which resource a tile bills you in is fixed by its position on a 2×2 checkerboard — 16 of the 64 tiles on each resource. The price is the same wherever it sits.',
   cur:['tileres'],
+  breaks:[{ at:2501, short:'+2.5m per level', tip:'Past level 2,500 every level also pays (level − 2,500) × 2,500,000 on top: the cost climbs a hundred times faster.', dev:'New in 1.2.3.11; this table did not know it until 2026-09-23.' }],
   range:function(a,b){ return { tileres: fact('tileUpgradeCost')(a,b) }; },  /* GENERATED: sculptures.tileUpgradeCost */
-  formula:'cost(a → b) = triangular(a, b) × 25,000, billed in that tile’s own resource',
+  formula:'level L costs 25,000 · L\n+ past 2,500: (L − 2,500 − ½) · 2,500,000, in the same resource',
   userNote:'Which resource a tile bills you in is fixed by its position on the grid; the price is the same wherever it sits. The slot boost these levels feed has diminishing returns, so the last levels cost the most and give the least.',
-  devNote:'<b>Live-verified exact:</b> level 223 → 224 costs 5,587,500. The boost shape is the opposite of equipment’s accelerating blocks.',
+  devNote:'<b>Corrected 2026-09-23.</b> Level L costs 25,000 × L exactly: 223 → 224 is 5,600,000, the live-observed “5.60m”. This table used triangular(a, b, 25,000), which prices it at 5,587,500 (“5.59m”) and was wrongly recorded as a match. The past-2,500 surcharge is from 1.2.3.11.',
   srcs:['formulas/sculptures.json','engine/income/sculptures.js'],
   curNote:'meat / iron / wood / stone — set by the tile’s coordinates'
 },
@@ -1579,42 +2265,61 @@ var SYSTEMS = [
   unit:'tool level', unitShort:'Level', def:150, min:0, max:500, view:300, expandBy:100, step:5, checked:'2026-08-25',
   desc:'Every tool but the repeater costs four resources plus a gentle diamond fee. The repeater is diamonds only, and doubles.',
   variants:{ label:'Tool', options:[{id:'standard',label:'Any tool except repeater'},{id:'repeater',label:'Repeater (diamonds, ×2/level)'}] },
-  cur:['meat','iron','wood','stone','diamonds'], breakpoints:[100,200,600],
+  cur:['meat','iron','wood','stone','diamonds'],
+  breaks:function(v){
+    if (v === 'repeater') return [];
+    return [
+      { at:101, short:'+4,000 layer', tip:'Past level 100 a second 4,000-per-level layer is added to the resource cost.' },
+      { at:201, short:'+400,000 layer', tip:'Past level 200 a 400,000-per-level layer is added.' },
+      { at:601, short:'+2m layer', tip:'Past level 600 a 2,000,000-per-level layer is added.' }
+    ];
+  },
   range:function(a,b,v){ return caveToolCost(a,b,v==='repeater'?'repeater':'standard'); },
   formula:'resources: triangular @ 4,000, + 4,000 from level 100, + 400,000 from 200, + 2,000,000 from 600\ndiamonds: triangular @ 1  (≈ the target level per single upgrade)\nrepeater: 1,000 · (2^(b+1) − 2^(a+1)) / 9, diamonds only',
   userNote:'Every tool but the repeater costs four resources plus a gentle diamond fee; the repeater is diamonds only, and doubles. Worth knowing before you spend: resetting a tool refunds all four resources and none of the diamonds — so the repeater refunds nothing at all.',
-  devNote:'<b>Live-verified exact</b> against four real upgrade prices.',
+  devNote:'<b>Live-verified exact</b> against four real upgrade prices. Checked against the 1.2.3.12 bundle 2026-09-23: unchanged.',
   srcs:['formulas/caves.json','engine/income/caves.js']
 },
 {
   id:'house', group:'Caves', name:'House', tier:'CROSS',
   unit:'house level', unitShort:'Level', def:40, min:0, max:100, view:100, expandBy:50, step:1, checked:'2026-08-27',
   desc:'All four resources at the same value each, on a gentle power curve — until level 50, where a flat million per level per resource lands on top.',
-  cur:['meat','iron','wood','stone'], breakpoints:[51],
+  cur:['meat','iron','wood','stone'],
+  breaks:[{ at:51, short:'+1m per level', tip:'From level 51 every level also costs a flat 1,000,000 of each resource.' }],
   range:houseCost,
   formula:'per level: 5,000 + round(5,000 · level^1.25)\npast level 50: + 1,000,000 per level, to each of the four resources',
   userNote:'All four resources at the same value each, on a gentle curve — until level 50, where a flat million per level per resource lands on top.',
   devNote:'26 of 32 known table rows match exactly; the six that miss look like transcription noise in the source table rather than a second branch.',
-  srcs:['formulas/house.json','engine/income/house.js']
+  srcs:['tables/house-upgrades.json','engine/income/house.js']
 },
 {
   id:'relicboost', group:'Relics', name:'Relic boost shop', tier:'CODE',
-  unit:'boost level', unitShort:'Level', def:2000, min:0, max:60000, view:2000, expandBy:2000, step:100, checked:'2026-08-25',
+  unit:'boost level', unitShort:'Level', def:2000, min:0, max:60000, view:2000, expandBy:2000, step:100, checked:'2026-09-23',
   desc:'Defense and damage flat are gold and skip the top surcharge layer. Everything else is relic-paid and carries all three layers.',
   variants:{ label:'Boost', options:[
-    {id:'relic',label:'Crit / speed / healing … (relics)'},
-    {id:'gold',label:'Defense flat · Damage flat (gold)'}]},
-  defByVariant:{ relic:2000, gold:2000 },
-  cur:['relics','gold'], breakpoints:[5001,10001,50001],
-  range:function(a,b,v){
-    // Any gold type and any relic type price identically within their tab,
-    // so one representative of each is enough to ask boostCost for.
-    var out = relicBoostCost(a, b, v==='gold' ? 'damageFlat' : 'critChance');
-    return asCost(out, v==='gold' ? 'gold' : 'relics');
+    {id:'critChance',label:'Crit chance'},{id:'critDamage',label:'Crit damage'},{id:'multistrike',label:'Multistrike'},
+    {id:'healing',label:'Healing'},{id:'defense',label:'Defense'},
+    {id:'huntingBoost',label:'Hunting'},{id:'miningBoost',label:'Mining'},{id:'woodcuttingBoost',label:'Woodcutting'},{id:'stonecarvingBoost',label:'Stonecarving'},
+    {id:'damageFlat',label:'Damage flat (gold)'},{id:'defenseFlat',label:'Defense flat (gold)'}]},
+  defByVariant:{ damageFlat:1000, defenseFlat:1000 },
+  cur:['relics','gold'],
+  breaks:function(v){
+    var gold = v === 'damageFlat' || v === 'defenseFlat';
+    var out = [
+      { at:5001, short:'+20 × (L−5,000)', tip:'Past 5,000 every level pays an extra (level − 5,000) × 20.' },
+      { at:10001, short:'rate +10 per 1,000', tip:'From 10,001 that extra rate climbs by 10 every 1,000 levels (30, 40, 50, …).' }
+    ];
+    if (!gold) out.push({ at:50001, short:'+50,000 layer', tip:'Past 50,000 relic-paid boosts add a third layer at 50,000 per level.', dev:'50,000 since 1.2.3.11; this table used 1.2.3.7’s 20,000 until 2026-09-23.' });
+    return out;
   },
-  formula:'layer 1: triangular @ 100/level (gold types) or 10/level (relic types)\nlayer 2, past 5,000: 1,000-level brackets — rate 20 through bracket 4, then +10 per bracket\nlayer 3, past 50,000, relic types only: triangular @ 20,000/level',
-  userNote:'Defense and damage flat are gold-paid; everything else costs relics. What a level buys: +10 flat for the gold types, level/5,000 for attack speed, level/2,000 for everything else.',
-  devNote:'All three layers now generate from <code>data/</code> through the game’s own <code>boostCost</code>. The bracket layer was recorded as pseudocode until 2026-09-21 and hand-translated here; it is real JavaScript now, pinned against the engine’s loop, and the engine’s additivity tests still guard the multi-bracket path where an off-by-one would hide.',
+  range:function(a,b,v){
+    var gold = v==='damageFlat' || v==='defenseFlat';
+    var out = relicBoostCost(a, b, gold ? 'damageFlat' : 'critChance');
+    return asCost(out, gold ? 'gold' : 'relics');
+  },
+  formula:'layer 1: level L costs L · 100 (gold types) or L · 10 (relic types)\nlayer 2, past 5,000: (L − 5,000) · rate — 20 through 10,000, then +10 per 1,000 levels\nlayer 3, past 50,000, relic types only: triangular @ 50,000/level',
+  userNote:'Defense and damage flat are gold-paid; everything else costs relics, and every relic type is priced the same. What a level buys: +10 flat for the gold types, level/5,000 for attack speed, level/2,000 for everything else.',
+  devNote:'<b>Corrected 2026-09-23</b> against the 1.2.3.12 function: layers 1 and 2 are arithmetic-series differences (level L costs L·rate; the old triangular form charged (L−½)·rate), and layer 3 charges 50,000 since 1.2.3.11 (was 20,000). The shattered-relics discount the game shows is server-side and not modelled.',
   srcs:['formulas/relic-boosts.json','engine/income/relicBoosts.js']
 },
 {
@@ -1626,7 +2331,8 @@ var SYSTEMS = [
   formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',
   userNote:'Six slots is the cap, and each one costs ten times the last.',
   devNote:'The cap of 6 is from the maintainer (2026-09-21). The arithmetic is certain, but <b>what it buys is inferred</b> from the function’s shape and where it sits in the bundle, not from watching a slot get bought — if you expand one and the price does not match this row, that is the more interesting finding.',
-  srcs:['formulas/dungeons.json','engine/costs/dungeon.js']
+  srcs:['formulas/dungeons.json','engine/costs/dungeon.js'],
+  noBreaks:'No breakpoints: each slot costs ten times the last, to the cap of 6.'
 }
 ];
 
@@ -1667,100 +2373,79 @@ var BY_ID = {};
 SYSTEMS.forEach(function(s){ BY_ID[s.id]=s; });
 
 /* =====================================================================
-   PROFILE SYNC — prepared, not yet live.
+   PROFILE SYNC — live since 2026-09-23, through the shared kit
+   (tool-sync.js: the profile Core hands over and every capture after it).
 
-   The contract this is written against is REGISTER.md R46/R48:
-     Core.profile.section(path) -> { value, observedAt } | null
-     null means NEVER OBSERVED. It never means zero.
-   and four states per field: synced · stale · edited · unavailable.
-   A field the user has typed in is never overwritten by a sync; the
-   status light resets that one field back to syncing, and "Reset all
-   levels" resets every field at once.
-
-   To hook it up, nothing in here changes — the page already calls
-   readSection() on load and on Refresh. Either expose
-   window.AWOO_CORE.profile.section, or push a snapshot in:
-     window.AWOO_COST_TABLES.applyProfile({ sanctum:{value:25,observedAt:…} })
-   Keys are system ids, or "<systemId>:<variantId>" for a per-variant
-   level (pet slots, boost tracks). Anything absent stays absent.
+   Each subject key ("<systemId>" or "<systemId>:<variantId>") names what it
+   reads and which profile section dates it. A key with no entry is never
+   synced: its level is always yours to type. The four states are the kit's
+   (synced / stale / edited / unavailable); this page keeps its own record of
+   which keys you typed, because its inputs are rebuilt for every subject.
    ===================================================================== */
+var SYNC = window.AWOO_SYNC;
 var STALE_MS = 6*60*60*1000;
-var PROFILE_PATHS = {
-  'sanctum':              'skillTree.nodesPurchased',
-  'petslot:combat':       'pets.slots.combat.level',
-  'petslot:utility':      'pets.slots.utility.level',
-  'petslot:gathering':    'pets.slots.gathering.level',
-  'equipslot':            'equipment.slotLevel',
-  'charlevel:battling':   'character.battlingLevel',
-  'charlevel:crafting':   'character.craftingLevel',
-  'charlevel:sanctum':    'character.sanctumLevel',
-  'partnerboost':         'partners.boostLevel',
-  'partnerhire':          'partners.count',
-  'partnerlevel':         'partners.skillLevel',
-  'villagebuilding':      'village.buildingLevel',
-  'villagestrength':      'village.strengthLevel',
-  'villageboss':          'village.boss.upgradeLevel',
-  'sculpture':            'sculptures.tileLevel',
-  'cavetool':             'caves.toolLevel',
-  'house':                'house.level',
-  'relicboost':           'relicBoosts.level',
-  // Not a level: the player's own appearance and number settings, inherited
-  // rather than invented (ARTIFACT_STYLE_GUIDE.md Part IV).
-  'fighterslot':          'dungeons.fighterSlots'
+function g(path){ return SYNC.get(path); }
+// The lowest of your partners' speed or intelligence: the level you would buy
+// next to keep them even, which is the price this table can honestly quote.
+function lowestPartner(boost){
+  return function(){
+    var r = g('partner.roster');
+    if (!Array.isArray(r) || !r.length) return null;
+    var min = null;
+    for (var i = 0; i < r.length; i++){ var v = r[i] && r[i][boost]; if (typeof v === 'number' && (min === null || v < min)) min = v; }
+    return min;
+  };
+}
+var PROFILE_READS = {
+  'charlevel:battling':   ['levels', function(){ var v = g('levels.battling'); return v != null ? v : g('core.level'); }],
+  'charlevel:crafting':   ['levels', 'levels.crafting'],
+  'charlevel:sanctum':    ['levels', 'levels.sanctum'],
+  'petslot:combat':       ['pets', 'pets.combat.slotLevel'],
+  'petslot:utility':      ['pets', 'pets.utility.slotLevel'],
+  'petslot:gathering':    ['pets', 'pets.gathering.slotLevel'],
+  'partnerboost:speed':        ['partner', lowestPartner('speed')],
+  'partnerboost:intelligence': ['partner', lowestPartner('intelligence')],
+  'partnerhire':          ['partner', 'partner.count']
 };
+['head','body','legs','hands','feet','leftHand','rightHand'].forEach(function(k){ PROFILE_READS['equipslot:' + k] = ['equipment', 'equipment.slots.' + k + 'Level']; });
+['market','stable','tavern','well','mill','granary','shrine','treasury','warehouse'].forEach(function(k){ PROFILE_READS['villagebuilding:' + k] = ['village', 'village.buildings.' + k]; });
+['brave','wealthy','bold','swift','trailblazer','potent','loyal'].forEach(function(k){ PROFILE_READS['villagestrength:' + k] = ['village', 'village.strengths.' + k]; });
+['critChance','critDamage','multistrike','healing','defense','huntingBoost','miningBoost','woodcuttingBoost','stonecarvingBoost','damageFlat','defenseFlat'].forEach(function(k){ PROFILE_READS['relicboost:' + k] = ['relicBoosts', 'relicBoosts.' + k]; });
 
-function readSection(path){
-  try {
-    var core = (typeof window!=='undefined') && (window.AWOO_CORE || window.Core);
-    if (!core || !core.profile || typeof core.profile.section !== 'function') return null;
-    var s = core.profile.section(path);
-    if (!s || s.value == null) return null;
-    var numeric = (typeof s.value === 'number' && isFinite(s.value)) ? s.value : null;
-    return { value:numeric, raw:s.value, observedAt:s.observedAt || null };
-  } catch(e){ return null; }
+// key -> { value, observedAt } | null. Never 0 for "not observed".
+function profileValue(key){
+  var spec = PROFILE_READS[key];
+  if (!spec || !SYNC) return null;
+  var v = typeof spec[1] === 'function' ? spec[1]() : g(spec[1]);
+  if (typeof v !== 'number' || !isFinite(v)) return null;
+  return { value:v, observedAt:SYNC.age(spec[0]) };
 }
 
-var profile = {};   // key -> { value, observedAt }
-var edited  = {};   // key -> true once the user types in that field
-
-function pullProfile(){
-  var found = 0, next = {};
-  for (var key in PROFILE_PATHS){
-    var got = readSection(PROFILE_PATHS[key]);
-    if (got && got.value != null){ next[key] = got; found++; }
-  }
-  profile = next;
-  return found;
-}
-function applyProfile(snapshot){
-  if (!snapshot) return 0;
-  var n = 0;
-  for (var k in snapshot){
-    var e = snapshot[k];
-    var v = (e && typeof e === 'object') ? e.value : e;
-    if (typeof v !== 'number' || !isFinite(v)) continue;
-    profile[k] = { value:v, observedAt:(e && e.observedAt) || Date.now() };
-    n++;
-  }
-  if (n) { syncLevelsFromProfile(); renderAll(); }
-  return n;
-}
+var edited = {};   // key -> true once the user types in that field
 
 /* state of one field: 'edited' | 'synced' | 'stale' | 'unavailable' */
 function fieldState(key){
   if (edited[key]) return 'edited';
-  var p = profile[key];
+  var p = profileValue(key);
   if (!p) return 'unavailable';
-  if (p.observedAt && (Date.now() - p.observedAt) > STALE_MS) return 'stale';
+  if (p.observedAt === null || (Date.now() - p.observedAt) > STALE_MS) return 'stale';
   return 'synced';
 }
 var STATE_TEXT = {
-  edited:'You typed this in. Syncing will not overwrite it — click to hand it back to the profile.',
-  synced:'Read from your profile.',
-  stale:'Read from your profile, but the reading is over six hours old.',
-  unavailable:'Never observed — this is your own figure, not the game’s.'
+  edited:'Typed by you; a sync keeps it. Click to sync it again.',
+  synced:'Synced from the game. Click to re-sync.',
+  stale:'Synced, but over six hours old. Click to re-sync.',
+  unavailable:'Not synced: this is your own figure.'
 };
-var STATE_DOT = { edited:'edited', synced:'ok', stale:'stale', unavailable:'off' };
+function syncSummary(){
+  var out = { total:0, synced:0, stale:0, edited:0 };
+  for (var key in PROFILE_READS){
+    out.total++;
+    var st = fieldState(key);
+    if (st === 'synced') out.synced++; else if (st === 'stale') out.stale++; else if (st === 'edited') out.edited++;
+  }
+  return out;
+}
 
 /* =====================================================================
    STATE
@@ -1805,12 +2490,11 @@ function defaultLevel(sys){
 }
 function currentLevel(sys){
   var k = keyFor(sys);
+  if (edited[k] && state.levels[k] != null) return clampLevel(sys, state.levels[k]);
+  var p = profileValue(k);
+  if (p) return clampLevel(sys, p.value);
   if (state.levels[k] != null) return clampLevel(sys, state.levels[k]);
-  if (!edited[k] && profile[k]) return clampLevel(sys, profile[k].value);
   return clampLevel(sys, defaultLevel(sys));
-}
-function syncLevelsFromProfile(){
-  for (var k in profile){ if (!edited[k]) delete state.levels[k]; }
 }
 
 function load(){
@@ -1824,8 +2508,9 @@ function load(){
     if (o.edited) edited = o.edited;
     if (o.targets) state.targets = o.targets;
     if (o.steps) state.steps = o.steps;
-    if (o.numberMode) numberMode = o.numberMode;
-    if (o.numberLocale) numberLocale = o.numberLocale;
+    // This page kept its own number override until 2026-09-23; hand it to
+    // the shared layer once, where every tool now keeps it.
+    if (o.numberMode || o.numberLocale) NUM.adopt(o.numberMode, o.numberLocale);
     if (o.expanded) state.expanded = true;
     if (o.active && BY_ID[o.active]) state.active = o.active;
   } catch(e){}
@@ -1838,8 +2523,7 @@ function save(){
       localStorage.setItem(LS, JSON.stringify({
         levels:state.levels, variants:state.variants, currency:state.currency,
         targets:state.targets, expanded:state.expanded,
-        steps:state.steps, numberMode:numberMode, numberLocale:numberLocale,
-        edited:edited, active:state.active
+        steps:state.steps, edited:edited, active:state.active
       }));
     } catch(e){}
   }, 700);
@@ -1872,22 +2556,6 @@ function renderNav(){
   });
   html += '</div>';
   document.getElementById('nav').innerHTML = html;
-}
-
-function renderSync(){
-  var have = 0; for (var k in profile) have++;
-  var dot = document.getElementById('syncDot');
-  var st  = document.getElementById('syncState');
-  var msg = document.getElementById('syncMsg');
-  if (have){
-    dot.className = 'dot ok';
-    st.textContent = have + ' level' + (have===1?'':'s') + ' from your profile';
-    msg.textContent = 'Fields you have typed in keep your number. Click the light beside a field to hand it back to the profile.';
-  } else {
-    dot.className = 'dot off';
-    st.textContent = 'Not connected';
-    msg.innerHTML = 'No AWOO+ profile layer on this page, so every current level below is yours to type in. Once the profile layer lands, levels it has observed fill in automatically and any field you have typed in stays yours.';
-  }
 }
 
 function costCell(amounts, cur){
@@ -1923,13 +2591,15 @@ function renderSystem(){
   /* controls */
   h += '<div class="controls">';
   h += '<div class="field"><span class="lab">' +
-       '<button class="lightbtn" type="button" id="stateLight" aria-label="Sync status"><span class="dot ' + STATE_DOT[fstate] + '"></span></button>' +
-       '<span class="tip" data-tip="' + esc(STATE_TEXT[fstate]) + '">Current ' + esc(sys.unit) + '</span></span>' +
-       '<input type="number" id="lvInput" value="' + lv + '" min="' + sys.min + '" max="' + sys.max + '" step="1"></div>';
+       (PROFILE_READS[key]
+         ? '<button class="awoo-light" type="button" id="stateLight" data-state="' + fstate + '" aria-label="Sync: ' + fstate + '" data-tip="' + esc(STATE_TEXT[fstate]) + '" data-tip-dev="' + esc('Profile: ' + (typeof PROFILE_READS[key][1] === 'string' ? PROFILE_READS[key][1] : PROFILE_READS[key][0])) + '"></button>'
+         : '<span class="awoo-light" data-state="unavailable" data-tip="Not something the game sync reads. Type your own level."></span>') +
+       '<span>Current ' + esc(sys.unit) + '</span></span>' +
+       '<input type="text" data-num data-num-digits="0" id="lvInput" value="' + lv + '" min="' + sys.min + '" max="' + sys.max + '" step="1"></div>';
   h += '<div class="field"><span class="lab"><span class="tip" data-tip="' +
        esc('Where you want to get to. Sets the headline total, and grows the table to reach it.') +
        '">Target</span></span>' +
-       '<input type="number" id="tgtInput" value="' + tgt + '" min="' + (lv+1) + '" max="' + sys.max + '" step="1"></div>';
+       '<input type="text" data-num data-num-digits="0" id="tgtInput" value="' + tgt + '" min="' + (lv+1) + '" max="' + sys.max + '" step="1"></div>';
   if (sys.variants){
     h += '<div class="field"><span class="lab">' + esc(sys.variants.label) + '</span><select id="varSel">';
     sys.variants.options.forEach(function(o){
@@ -1947,7 +2617,7 @@ function renderSystem(){
   h += '<div class="field"><span class="lab"><span class="tip" data-tip="' +
        esc('Rows advance by this many levels. A subject that runs to thousands is unreadable at 1.') +
        '">Step</span></span>' +
-       '<input type="number" id="stepInput" value="' + step + '" min="1" max="' + Math.max(1, sys.max) + '" step="1"></div>';
+       '<input type="text" data-num data-num-digits="0" id="stepInput" value="' + step + '" min="1" max="' + Math.max(1, sys.max) + '" step="1"></div>';
   h += '<button class="btn" type="button" id="resetSysBtn">Reset this subject</button>';
   h += '</div>';
 
@@ -1975,6 +2645,20 @@ function renderSystem(){
          others.map(function(o){ return '<span class="bv">' + esc(o) + '</span>'; }).join('') + '</div>';
   }
 
+  /* breakpoints: every one, whatever the step, with what changes there */
+  var bps = breaksFor(sys, variant);
+  h += '<div class="bpstrip"><span class="bk">Breakpoints</span>';
+  if (bps.length){
+    bps.forEach(function(b){
+      h += '<button type="button" class="bpchip' + (b.at <= lv ? ' passed' : '') + '" data-bp="' + b.at + '" data-tip="' +
+           esc(b.tip + (b.at <= lv ? ' (Behind you.)' : ' Click to make it your target.')) + '"' +
+           (b.dev ? ' data-tip-dev="' + esc(b.dev) + '"' : '') + '><b>' + fmtInt(b.at) + '</b>' + esc(b.short) + '</button>';
+    });
+  } else {
+    h += '<span class="bpnone">' + esc(sys.noBreaks || 'None.') + '</span>';
+  }
+  h += '</div>';
+
   if (sys.curNote){
     h += '<div style="padding:10px 16px 0"><div class="banner"><span>' + sys.curNote + '</span></div></div>';
   }
@@ -1995,6 +2679,11 @@ function renderSystem(){
   for (var q = Math.max(from, sys.min + 1); q <= rowsTo; q += step) marks[q] = true;
   if (lv > sys.min) marks[lv] = true;
   if (tgt > sys.min && tgt <= rowsTo) marks[tgt] = true;
+  // Breakpoint rows are always shown in range, even off-step: a table that
+  // steps past the level where the formula changes hides the one row that
+  // explains the jump.
+  var bpAt = {};
+  bps.forEach(function(b){ bpAt[b.at] = b; if (b.at > sys.min && b.at >= from && b.at <= rowsTo) marks[b.at] = true; });
   var rowLevels = Object.keys(marks).map(Number).sort(function(a,b){ return a-b; });
 
   for (var ri = 0; ri < rowLevels.length; ri++){
@@ -2002,12 +2691,12 @@ function renderSystem(){
     var prev = ri > 0 ? rowLevels[ri-1] : Math.max(sys.min, n - step);
     var cls = n === lv ? 'current' : (n < lv ? 'past' : '');
     if (n === tgt && n !== lv) cls += ' target';
-    var bp = sys.breakpoints && sys.breakpoints.indexOf(n) >= 0;
+    var bp = bpAt[n] || null;
     if (bp) cls += ' bp';
     var stepCost = sys.range(prev, n, variant);
     var cum  = sys.range(sys.min, n, variant);
     h += '<tr class="' + cls + '"' + (n===lv ? ' id="curRow"' : '') + '>';
-    h += '<td>' + fmtInt(n) + (bp ? '<span class="bpnote">breakpoint</span>' : '') + '</td>';
+    h += '<td>' + fmtInt(n) + (bp ? '<span class="bpnote" data-tip="' + esc(bp.tip) + '">' + esc(bp.short) + '</span>' : '') + '</td>';
     h += costCell(stepCost, cur);
     h += costCell(cum, cur);
     if (n <= lv) h += '<td class="dash">—</td>';
@@ -2021,7 +2710,7 @@ function renderSystem(){
   h += '<span class="hint">Showing ' + Math.max(from, sys.min+1) + '–' + rowsTo +
        ' of ' + sys.min + '–' + fmtInt(sys.max) + ', every ' + step + '.' +
        (sys.maxNote ? ' ' + sys.maxNote : '') +
-       (sys.breakpoints ? ' Violet rows mark where the formula changes shape.' : '') + '</span>';
+       (bps.length ? ' Violet rows mark where the formula changes shape.' : '') + '</span>';
   h += '<button class="btn sm expandbtn" type="button" id="expandBtn" aria-pressed="' +
        (state.expanded ? 'true' : 'false') + '">' +
        (state.expanded ? 'Shrink table' : 'Expand table') + '</button>';
@@ -2047,16 +2736,30 @@ function renderSystem(){
   h += '</div></div></details>';
 
   document.getElementById('main').innerHTML = h;
+  NUM.enhance(document.getElementById('main'));
   wireSystem(sys);
+}
+
+function breaksFor(sys, variant){
+  var b = typeof sys.breaks === 'function' ? sys.breaks(variant) : (sys.breaks || []);
+  return b.filter(function(x){ return x.at >= sys.min && x.at <= sys.max; }).sort(function(x, y){ return x.at - y.at; });
 }
 
 function wireSystem(sys){
   var key = keyFor(sys);
 
+  Array.prototype.forEach.call(document.querySelectorAll('.bpchip'), function(chip){
+    chip.addEventListener('click', function(){
+      var at = parseInt(chip.getAttribute('data-bp'), 10);
+      if (at > currentLevel(sys)){ state.targets[key] = at; delete state.rows[key]; save(); }
+      renderSystem(); sizeTable(); scrollRowIntoView(at);
+    });
+  });
+
   var lvInput = document.getElementById('lvInput');
   lvInput.addEventListener('input', function(){
-    var v = parseInt(lvInput.value, 10);
-    if (!isFinite(v) || v < sys.min || v > sys.max) return;
+    var v = NUM.read(lvInput); if (v !== null) v = Math.round(v);
+    if (v === null || v < sys.min || v > sys.max) return;
     state.levels[key] = v;
     edited[key] = true;
     save();
@@ -2065,18 +2768,20 @@ function wireSystem(sys){
 
   var tgtInput = document.getElementById('tgtInput');
   tgtInput.addEventListener('input', function(){
-    var v = parseInt(tgtInput.value, 10);
-    if (!isFinite(v) || v <= currentLevel(sys) || v > sys.max) return;
+    var v = NUM.read(tgtInput); if (v !== null) v = Math.round(v);
+    if (v === null || v <= currentLevel(sys) || v > sys.max) return;
     state.targets[key] = v;
     delete state.rows[key];
     save();
     renderAll('tgtInput');
   });
 
-  document.getElementById('stateLight').addEventListener('click', function(){
+  var light = document.getElementById('stateLight');
+  if (light) light.addEventListener('click', function(){
     delete edited[key];
     delete state.levels[key];
     save();
+    if (!SYNC.connected()) SYNC.request();
     renderAll();
   });
 
@@ -2104,8 +2809,8 @@ function wireSystem(sys){
 
   var stepInput = document.getElementById('stepInput');
   stepInput.addEventListener('input', function(){
-    var v = parseInt(stepInput.value, 10);
-    if (!isFinite(v) || v < 1 || v > sys.max) return;
+    var v = NUM.read(stepInput); if (v !== null) v = Math.round(v);
+    if (v === null || v < 1 || v > sys.max) return;
     state.steps[key] = v;
     save(); renderAll('stepInput');
   });
@@ -2132,8 +2837,7 @@ function renderAll(refocusId, forceScrollY){
     if (was) { try { caret = was.selectionStart; } catch(e){} }
   }
   renderNav();
-  renderSync();
-  renderNumberSource();
+  if (SYNC) SYNC.renderCards();
   renderSystem();
   if (refocusId){
     var el = document.getElementById(refocusId);
@@ -2159,6 +2863,20 @@ function sizeTable(){
   w.style.maxHeight = Math.max(320, window.innerHeight - reserve) + 'px';
 }
 
+function scrollRowIntoView(level){
+  var wrap = document.querySelector('.tablewrap');
+  if (!wrap) return;
+  var rows = wrap.querySelectorAll('tbody tr');
+  for (var i = 0; i < rows.length; i++){
+    var c = rows[i].firstChild;
+    if (c && parseInt(c.textContent.replace(/[^0-9]/g, ''), 10) === level){
+      var delta = rows[i].getBoundingClientRect().top - wrap.getBoundingClientRect().top;
+      wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * rows[i].offsetHeight);
+      return;
+    }
+  }
+}
+
 function scrollCurrentIntoView(){
   var wrap = document.querySelector('.tablewrap');
   var row = document.getElementById('curRow');
@@ -2173,22 +2891,8 @@ function scrollCurrentIntoView(){
 /* =====================================================================
    BOOT
    ===================================================================== */
-// Both controls default to "Match game": the player's own numberFormatting and
-// numberLocale, read from the profile. Until the profile layer lands there is
-// nothing to match, so the readout says so rather than implying it inherited.
-function renderNumberSource(){
-  var inh = inheritedNumber();
-  var el = document.getElementById('numSrc');
-  if (!el) return;
-  var parts = [];
-  if (!numberMode) parts.push(inh.mode ? 'format from game' : 'format: letters (no profile)');
-  if (!numberLocale) parts.push(inh.locale ? 'separators from game' : 'separators: browser');
-  el.textContent = parts.join(' \u00b7 ');
-}
-
 function init(){
   load();
-  pullProfile();
 
   document.getElementById('nav').addEventListener('click', function(e){
     var b = e.target.closest('.navbtn');
@@ -2198,38 +2902,37 @@ function init(){
     renderAll(null, 0);
   });
 
-  var numMode = document.getElementById('numMode');
-  var numLoc  = document.getElementById('numLocale');
-  numMode.value = numberMode || '';
-  numLoc.value = numberLocale || '';
-  numMode.addEventListener('change', function(){
-    numberMode = numMode.value || null; save(); renderAll();
-  });
-  numLoc.addEventListener('change', function(){
-    numberLocale = numLoc.value || null; save(); renderAll();
-  });
-
   document.getElementById('resetAllBtn').addEventListener('click', function(){
     state.levels = {}; state.rows = {}; state.targets = {}; state.steps = {}; edited = {};
-    pullProfile();
     save(); renderAll();
   });
 
-  document.getElementById('syncBtn').addEventListener('click', function(){
-    var n = pullProfile();
-    syncLevelsFromProfile();
-    renderAll();
-    var b = document.getElementById('syncBtn');
-    var t = b.textContent;
-    b.textContent = n ? ('Read ' + n + ' ✓') : 'Nothing to read';
-    setTimeout(function(){ b.textContent = t; }, 1600);
-  });
-
-  var gearExtra = document.getElementById('gearExtra');
-  gearExtra.hidden = false;
   AWOO_TOOL_SETTINGS.mount(document.getElementById('gear'), {
-    extra: gearExtra,
     devHint: 'Adds the evidence tier, source files and last-checked date to each Formula panel.'
+  });
+  // Numbers and theme re-render the page; the gear menu says when they change.
+  AWOO_TOOL_SETTINGS.onChange(function(){ renderAll(); });
+
+  // The shared sync card, with this page's own per-subject state reported
+  // into it: its counts, and its Reset.
+  SYNC.card(document.getElementById('syncCard'));
+  SYNC.extend({
+    summary: syncSummary,
+    reset: function(){
+      for (var k in edited){ if (PROFILE_READS[k]) { delete edited[k]; delete state.levels[k]; } }
+      save(); renderAll();
+    }
+  });
+  // A live capture re-prices the page, but never under someone's typing: an
+  // input with focus waits for blur.
+  var pendingProfile = false;
+  SYNC.onProfile(function(){
+    var a = document.activeElement;
+    if (a && a.closest && a.closest('#main') && /INPUT|SELECT/.test(a.tagName)){ pendingProfile = true; return; }
+    renderAll();
+  });
+  document.addEventListener('focusout', function(){
+    if (pendingProfile){ pendingProfile = false; setTimeout(function(){ renderAll(); }, 0); }
   });
 
   var backTop = document.getElementById('backTop');
@@ -2246,28 +2949,24 @@ function init(){
   renderAll();
 }
 
-/* The hookup point for the profile layer, and the test seam. */
+/* The test seam, and the profile reads for inspection. */
 window.AWOO_COST_TABLES = {
-  applyProfile: applyProfile,
-  refresh: function(){ var n = pullProfile(); syncLevelsFromProfile(); renderAll(); return n; },
-  paths: PROFILE_PATHS,
-  systems: SYSTEMS
+  refresh: function(){ renderAll(); return syncSummary(); },
+  reads: PROFILE_READS,
+  systems: SYSTEMS,
+  breaks: breaksFor
 };
 window.__AWOO_COST_TABLES_FOR_TEST = {
   sanctumNodeCost:sanctumNodeCost, petSlotCost:petSlotCost,
   partnerBoostCost:partnerBoostCost, levelExp:levelExp, houseCost:houseCost,
   caveToolCost:caveToolCost, villageBuildingCost:villageBuildingCost,
   relicBracketSurcharge:relicBracketSurcharge, triangular:triangular,
-  geomCost:geomCost, base10Series:base10Series, fmtNum:function(n,mode,localeKey){
-    var pm=numberMode, pl=numberLocale;
-    numberMode=mode||'letters';
-    if (localeKey !== undefined) numberLocale=localeKey;
-    var out=fmtNum(n);
-    numberMode=pm; numberLocale=pl;
-    return out;
+  geomCost:geomCost, base10Series:base10Series,
+  fmtNum:function(n, mode, localeKey){
+    NUM._set(mode || 'letters', localeKey);
+    try { return fmtNum(n); } finally { NUM._set(null, null); }
   },
-  setNumberSettings:function(mode,localeKey){ numberMode=mode||null; numberLocale=localeKey||null; },
-  effectiveMode:effectiveMode, effectiveLocaleKey:effectiveLocaleKey, resolvedLocale:resolvedLocale
+  profileValue:profileValue, fieldState:fieldState, breaksFor:breaksFor
 };
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
