@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.5
+// @version      7.0.6
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -18,7 +18,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.5",
+    "version": "7.0.6",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -157,6 +157,12 @@
       // module finding no profile must refuse rather than guess (rule 3), so
       // off degrades to "missing", never to wrong.
       profileAutoSync: true,
+      // ON by default: Profile Sync may ask the game's own client to hold open
+      // the few queries only a page would otherwise open (the party overview,
+      // members' levels), while a module needs them (REGISTER.md R88,
+      // profile-sync.js "Tier 3"). OFF closes every such watch; the sections
+      // then refresh only when you open those pages yourself.
+      profileWatch: true,
       // ---- the Control Panel (REGISTER.md R69) ----
       // 'tabs': sections in the sidebar, pages as tabs in the page. 'tree': an
       // expandable list. Both were designed; the maintainer asked for both.
@@ -279,6 +285,9 @@
       }
       // Profile Sync lives outside this scope (src/core/profile-sync.js), so it
       // hears about the flip as an event and reads the value via Core.profile.
+      if (key === 'profileWatch') {
+        try { window.dispatchEvent(new CustomEvent('awoo:profile:watch', { detail: !!value })); } catch (e) { /* ignore */ }
+      }
       if (key === 'profileAutoSync') {
         try { window.dispatchEvent(new CustomEvent('awoo:profile:auto-sync', { detail: !!value })); } catch (e) { /* ignore */ }
         renderProfileRow();
@@ -1379,19 +1388,28 @@
     // Live Convex client probe: finds the live ConvexClient / React Provider instance
     // holding optimistic and remote query results. Authoritative source for all
     // active profile states (§9.4 - refuse rather than guess).
+    //
+    // FIXED 2026-09-25 (REGISTER.md R88): it returned null on the live page.
+    // Two causes. The game's ConvexReactClient keeps its sync client in
+    // `cachedSync`, which no check below looked at (profile-sync.js found it
+    // there all along). And a null was cached forever, so a probe that ran
+    // before the game rendered never looked again. Only a found client is
+    // cached now.
     let convexClientProbe;
     function probeConvexClient(force) {
-      if (convexClientProbe !== undefined && !force) return convexClientProbe;
+      if (convexClientProbe && !force) return convexClientProbe;
       let out = null;
       walkFiber((cand) => {
         if (cand && typeof cand === 'object') {
           if (cand.optimisticQueryResults && cand.remoteQuerySet) { out = cand; return true; }
+          const cs = cand.client && cand.client.cachedSync;
+          if (cs && cs.optimisticQueryResults && cs.remoteQuerySet) { out = cs; return true; }
           if (cand.client && cand.client.optimisticQueryResults && cand.client.remoteQuerySet) { out = cand.client; return true; }
           if (cand.convex && cand.convex.optimisticQueryResults && cand.convex.remoteQuerySet) { out = cand.convex; return true; }
         }
         return false;
       });
-      convexClientProbe = out;
+      if (out) convexClientProbe = out;
       return out;
     }
 
@@ -1850,7 +1868,11 @@
            place a strong colour costs nothing because no content sits there),
            a slightly stronger outer ring, and a header title one type step up.
            Everything else is untouched. */
-        .awoo-window { position: fixed; z-index: 999000; display: flex; flex-direction: column;
+        /* border-box (2026-09-25, R89): the saved size is offsetWidth/Height,
+           which includes the border, and it is re-applied as style width and
+           height. Under content-box each save-and-reapply grew a window by
+           2px (after a drag and a reload, or a side panel opened and closed). */
+        .awoo-window { position: fixed; z-index: 999000; display: flex; flex-direction: column; box-sizing: border-box;
           background: var(--awoo-card); color: var(--awoo-popover-foreground); border: 1px solid var(--awoo-border);
           border-radius: 8px;
           box-shadow: 0 12px 32px rgba(0,0,0,.45), 0 0 0 1px color-mix(in srgb, var(--awoo-primary) 22%, transparent);
@@ -2169,7 +2191,9 @@
           margin-top: calc(var(--awoo-s3) * -1); font-variant-numeric: tabular-nums; }
         .awoo-ui-context b { font-weight: 600; opacity: 1; }
         /* A context line that is a REFUSAL (an input is missing) is not quiet. */
-        .awoo-ui-context.warn { color: var(--awoo-warn); opacity: 1; }
+        /* awoo-m-warn is the prefixed name (DESIGN.md §9: a bare "warn" can pick
+           up the game's own styles); bare .warn stays for the modules using it. */
+        .awoo-ui-context.warn, .awoo-ui-context.awoo-m-warn { color: var(--awoo-warn); opacity: 1; }
         /* The state chip: what the module is doing, as a word. */
         .awoo-ui-chip { margin-left: auto; flex: none; font-size: var(--awoo-fs-caption); font-weight: 600;
           letter-spacing: .04em; padding: 1px 7px; border-radius: var(--awoo-r-lg);
@@ -2452,6 +2476,11 @@
         const h = Math.min(Math.max(want.h || minH, minH), vp.h - 32);
         return { x: Math.round((vp.w - w) / 2), y: Math.round((vp.h - h) / 3), w, h };
       }
+      // Width a side panel has borrowed (handle.widen, REGISTER.md R89). It is added
+      // on screen and taken off everything that is measured or saved, so the
+      // saved size, Reset and the size floor all mean the window WITHOUT the
+      // panel: a window closed with its panel open reopens at its own size.
+      let extraW = 0;
       function applyRect(rect) {
         el.style.left = rect.x + 'px';
         el.style.top = rect.y + 'px';
@@ -2462,12 +2491,12 @@
         // height). The CSS `resize` handle, when present, still lets a
         // resizable window's box grow past this starting point by dragging.
         el.style.height = rect.h + 'px';
-        el.style.width = rect.w + 'px';
+        el.style.width = (rect.w + extraW) + 'px';
       }
       function currentRect() {
         return {
           x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0,
-          w: el.offsetWidth, h: el.offsetHeight,
+          w: Math.max(0, el.offsetWidth - extraW), h: el.offsetHeight,
         };
       }
       // The detached check is not defensive noise: a destroyed window's pending
@@ -2502,6 +2531,7 @@
         saveWindowGeometry(spec.id, currentRect());
       }
 
+      let widenedFromX = null; // where a widened window stood before it moved left to fit
       let rect = (persist && loadWindowGeometry(spec.id)) || computeDefaultRect();
       // REPORTED BUG: windows "start very small and always have to be
       // expanded." A persisted rect is trusted verbatim once saved — if it
@@ -2677,6 +2707,26 @@
           if (Number.isFinite(size.w)) minW = size.w;
           if (Number.isFinite(size.h)) minH = size.h;
         },
+        // widen(px): add px to the window's width for a side panel, and
+        // widen(0) to give it back (REGISTER.md R89: the Party
+        // module's Limits panel). The extra width is never persisted: the
+        // saved rect, Reset and the size floor all measure the window without
+        // it. The window is kept on-screen by moving left when the wider box
+        // would pass the right edge, and moves back when the panel closes.
+        widen(px) {
+          const want = Math.max(0, Math.round(Number(px) || 0));
+          if (want === extraW) return;
+          const base = currentRect();
+          if (want === 0 && widenedFromX !== null) base.x = widenedFromX;
+          widenedFromX = want > 0 ? (extraW > 0 ? widenedFromX : base.x) : null;
+          extraW = want;
+          const vp = viewportRect();
+          const fullW = base.w + extraW;
+          if (extraW > 0 && vp.w > 0 && base.x + fullW > vp.w - 4) base.x = Math.max(4, vp.w - 4 - fullW);
+          applyRect(base);
+          persistNow();
+        },
+        widened() { return extraW; },
       };
       // A module supplying onClose owns what "close" means (e.g. it may also
       // need to update its own open/closed state or persist something) — the
@@ -4001,7 +4051,16 @@
       { id: 'fighters', label: 'Fighters', what: 'The fighters in your active preset', queries: ['fighters.public.getCharacterFightersRaw', 'fighters.public.getActivePresetFighters'] },
       { id: 'equipment', label: 'Equipment & Gems', what: 'Equipped fighter gear and gems, per slot', queries: ['equipment.queries.getEquipmentSlots', 'character.gems.queries.getEquippedGems'] },
       { id: 'village', label: 'Village & PvP', what: 'Your village\'s name, buildings and strengths (PvP tiles are not read yet)', queries: ['village.queries.getVillage', 'village.queries.getBuildings', 'village.queries.getStrengths'] },
-      { id: 'party', label: 'Party', what: 'Your party and its members', queries: ['party.public.getParty'] },
+      // The party sections carry their own age limit (REGISTER.md R88): the
+      // actions count moves every 10 s during a run and is only worth 10
+      // minutes; members change rarely and are worth a day. The last-action
+      // reading never goes old by time: a run's rate stays the rate until a
+      // new run replaces it, and Party marks it when its conditions change.
+      { id: 'party', label: 'Party', what: 'Your party: members, their actions, monsters and multipliers', queries: ['party.public.getOverview'], staleMs: 24 * 60 * 60 * 1000 },
+      { id: 'partyActions', label: 'Party Actions', what: 'Party actions left, max actions, and the last daily reset', queries: ['party.combat.public.getActions'], staleMs: 10 * 60 * 1000 },
+      { id: 'partyLastAction', label: 'Party Last Action', what: 'Gold and EXP from the last party action, and from the last run', queries: ['party.combat.public.getLastActionState'], staleMs: Infinity },
+      { id: 'partyMonster', label: 'Party Monster', what: "Your party monster's level", queries: ['party.combat.public.getActionsMonster'], staleMs: 24 * 60 * 60 * 1000 },
+      { id: 'partyLevels', label: 'Party Levels', what: "Each party member's levels and EXP", queries: ['character.levels.public.getLevels'], staleMs: 24 * 60 * 60 * 1000 },
     ];
 
     // HOW FRESH ONE PROFILE SYNC SECTION IS. Six hours is the window the tools
@@ -4014,7 +4073,9 @@
       if (v === null || v === undefined) return { state: 'miss', age: 'never seen', at: null };
       const at = p.meta && p.meta.observedAt && p.meta.observedAt[key];
       if (!at) return { state: 'stale', age: 'age unknown', at: null };
-      return { state: Date.now() - at > PROFILE_STALE_MS ? 'stale' : 'ok', age: formatTimeAgo(at), at };
+      const cat = PROFILE_CATEGORIES.find((c) => c.id === key);
+      const limit = cat && cat.staleMs ? cat.staleMs : PROFILE_STALE_MS;
+      return { state: Date.now() - at > limit ? 'stale' : 'ok', age: formatTimeAgo(at), at };
     }
     function profileSummary() {
       const p = getProfile();
@@ -4086,6 +4147,7 @@
 
     const profileApi = {
       get autoSync() { return !!getSetting('profileAutoSync'); },
+      get watchEnabled() { return getSetting('profileWatch') !== false; },
       get: getProfile,
       set: setProfile,
       subscribe: subscribeProfile,
@@ -4650,9 +4712,21 @@
         onChange: (v) => setSetting('profileAutoSync', v),
       });
       profileGroup.appendChild(profileToggle);
+      const watchToggle = Core_ui_toggleRow({
+        label: 'Keep party data open',
+        info: 'ON (default): while a module needs them, AWOO+ asks the game to keep your party overview '
+          + 'and your members\' levels loaded, as its own Party page does. OFF: they update only '
+          + 'when you open those pages.',
+        checked: getSetting('profileWatch') !== false,
+        onChange: (v) => setSetting('profileWatch', v),
+      });
+      watchToggle.style.marginTop = '6px';
+      profileGroup.appendChild(watchToggle);
       onReset(() => {
         const pt = profileToggle.querySelector('input[type="checkbox"]');
         if (pt) pt.checked = !!getSetting('profileAutoSync');
+        const wt = watchToggle.querySelector('input[type="checkbox"]');
+        if (wt) wt.checked = getSetting('profileWatch') !== false;
       });
       category(paneSync, 'Syncing');
       paneSync.appendChild(profileGroup);
@@ -8780,23 +8854,64 @@
     return `${modulePath.replace(/\.js$/, '').split('/').join('.')}.${exportName}`;
   }
 
-  function extractConvexQueries(client) {
-    if (!client) return {};
+  // WHOSE DOCUMENT IS IT. One query name can be open with several argument
+  // sets at once: the game's public profile page asks getLevels, getStats and
+  // the rest with ANOTHER player's characterId (ProfileSkillTree `_t`,
+  // 1.2.3.12), and R88 subscribes getLevels for each party member. Keyed by
+  // name alone, whichever entry came last won, so viewing someone's profile
+  // could write their levels into yours. The own character's id is read from
+  // getActiveCharacter (or the provider); an entry asked for a different
+  // characterId is never the player's own. Those entries are returned apart,
+  // in `others[name][characterId]`, for the sections that want them.
+  function queryEntries(client) {
+    if (!client) return [];
     const optimistic = client.optimisticQueryResults || (client.client && client.client.optimisticQueryResults);
     const queryMap = optimistic && optimistic.queryResults;
-    if (!queryMap || typeof queryMap.forEach !== 'function') return {};
-
-    const queries = {};
+    if (!queryMap || typeof queryMap.forEach !== 'function') return [];
+    const out = [];
     try {
       queryMap.forEach((entry) => {
         if (!entry || !entry.udfPath) return;
         const res = entry.result;
-        if (res && res.success && res.value !== undefined) queries[dottedQueryName(entry.udfPath)] = res.value;
+        if (res && res.success && res.value !== undefined) {
+          out.push({ name: dottedQueryName(entry.udfPath), args: entry.args, value: res.value });
+        }
       });
     } catch (e) {
       console.warn('[AwooCore:ProfileSync] Failed scanning convex queries:', e);
     }
-    return queries;
+    return out;
+  }
+
+  // Convex keeps a query's args as an array holding one args object in some
+  // builds and the object itself in others; read the characterId either way.
+  function argCharacterId(args) {
+    const a = Array.isArray(args) ? args[0] : args;
+    return a && typeof a === 'object' && typeof a.characterId === 'string' ? a.characterId : null;
+  }
+
+  function extractConvexQueries(client, ownIdHint) {
+    return splitQueries(queryEntries(client), ownIdHint).own;
+  }
+
+  function splitQueries(entries, ownIdHint) {
+    const own = {};
+    const others = {};
+    const active = entries.find((e) => e.name === 'character.public.getActiveCharacter');
+    const ownId = (active && active.value && typeof active.value._id === 'string' && active.value._id) || ownIdHint || null;
+    for (const e of entries) {
+      const cid = argCharacterId(e.args);
+      if (cid && ownId && cid !== ownId) {
+        (others[e.name] = others[e.name] || {})[cid] = e.value;
+        continue;
+      }
+      // Own id unknown and the entry names a character: it is ours only if it
+      // is the one such entry. Two means another player's is among them, and
+      // refusing (rule 3) beats picking one.
+      if (cid && !ownId && entries.some((o) => o !== e && o.name === e.name && argCharacterId(o.args) && argCharacterId(o.args) !== cid)) continue;
+      own[e.name] = e.value;
+    }
+    return { own, others, ownId };
   }
 
   // ---- Live React provider discovery ----
@@ -8955,7 +9070,7 @@
   // ---- Normalization Engine: schema awoo:profile:v1 ----
   // Pure function: takes extracted queries and fiber data, produces canonical profile.
   // INVARIANT (§9.4): refuse rather than guess. Unobserved values MUST be null, never 0.
-  function normalizeProfile(q = {}, fiber = {}, dom = {}) {
+  function normalizeProfile(q = {}, fiber = {}, dom = {}, others = {}, ownId = null) {
     // 1. Character & Core
     const rawChar = q['character.public.getActiveCharacter'] ||
                     fiber.character ||
@@ -9045,12 +9160,17 @@
     // miningBoost: 25234, ...}), the official API's copies of the same
     // documents these Convex queries return. Levels also come from the
     // character provider (characterLevels), which the live page always has.
-    const rawLevels = numericFields(q['character.levels.public.getLevels'] || fiber.levels || null);
-    let levels = null;
-    if (rawLevels) {
-      levels = {};
-      for (const k of ['battling', 'crafting', 'sanctum']) levels[k] = typeof rawLevels[k] === 'number' ? rawLevels[k] : null;
-    }
+    // The <skill>Experience fields are the EXP into the current level (the
+    // captured document has them), which Party's EXP tab needs to say how many
+    // levels a run gains (REGISTER.md R88).
+    const LEVEL_KEYS = ['battling', 'crafting', 'sanctum', 'battlingExperience', 'craftingExperience', 'sanctumExperience'];
+    const pickLevels = (raw) => {
+      if (!raw) return null;
+      const out = {};
+      for (const k of LEVEL_KEYS) out[k] = typeof raw[k] === 'number' ? raw[k] : null;
+      return out;
+    };
+    const levels = pickLevels(numericFields(q['character.levels.public.getLevels'] || fiber.levels || null));
     const relicBoosts = numericFields(q['character.boosts.public.getBoosts'] || null);
 
     // 4. Pets & Pet Slots
@@ -9118,14 +9238,21 @@
     // 6. Sanctum
     const rawSanctums = q['sanctum.public.getActiveSanctums'] || fiber.sanctum || null;
     const rawSkillTree = q['sanctum.skilltree.public.getActiveSkillTreePoints'] || null;
+    // skillTreePoints: the points bought with gold, which the Party Shop prices
+    // the next ones from (sanctum.skillTree.pointCostFormula). BUNDLE: the
+    // schema's characterSanctumCore {characterId, skillTreePoints,
+    // dailySanctumsRemaining}, and the Skill Tree page reads
+    // `.skillTreePoints` off it (1.2.3.12). No live document captured yet.
+    const rawSanctumCore = q['sanctum.public.getSanctumCore'] || null;
     let sanctum = null;
-    if (rawSanctums || rawSkillTree) {
+    if (rawSanctums || rawSkillTree || rawSanctumCore) {
       const goldKeyUnlocked = rawSkillTree
         ? (Array.isArray(rawSkillTree) ? rawSkillTree.includes('w_key_gold') : Boolean(rawSkillTree.w_key_gold))
         : null;
       sanctum = {
         activeSanctums: Array.isArray(rawSanctums) ? rawSanctums : null,
         goldKeyPartnerStatsUnlocked: goldKeyUnlocked,
+        skillTreePoints: rawSanctumCore && typeof rawSanctumCore.skillTreePoints === 'number' ? rawSanctumCore.skillTreePoints : null,
       };
     }
 
@@ -9190,14 +9317,92 @@
       };
     }
 
-    // 11. Party
-    const rawParty = q['party.public.getParty'] || null;
+    // 11. Party (REGISTER.md R88). Every shape below is CAPTURE:
+    // capture/api/convex-2026-09-25/party-capture.json and
+    // party-capture-after-action.json, normalized by
+    // tests/profile-sync-real-captures.mjs. The game's own id strings are
+    // kept; nothing here is a game formula.
+    const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
+    const str = (v) => (typeof v === 'string' && v ? v : null);
+
+    // The overview is opened by the Party page, or by Core.profile.watch
+    // (tier 3) while a consumer holds it. It carries no levels (partyLevels).
+    // It replaces party.public.getParty, whose shape was never traced.
+    const rawOverview = q['party.public.getOverview'] || null;
     let party = null;
-    if (rawParty) {
+    if (rawOverview && typeof rawOverview === 'object' && Array.isArray(rawOverview.members)) {
       party = {
-        id: rawParty._id || rawParty.id || null,
-        members: Array.isArray(rawParty.members) ? rawParty.members : null,
+        id: str(rawOverview._id),
+        name: str(rawOverview.name),
+        ownerId: str(rawOverview.ownerId),
+        members: rawOverview.members.filter((m) => m && typeof m === 'object').map((m) => ({
+          characterId: str(m.characterId) || str(m.character && m.character._id),
+          name: str(m.character && m.character.name),
+          actionsType: str(m.characterActions && m.characterActions.actionsType),
+          isIdle: m.characterActions && typeof m.characterActions.isIdle === 'boolean' ? m.characterActions.isIdle : null,
+          actionsRemaining: num(m.partyMembersActions && m.partyMembersActions.actionsRemaining),
+          // monsterId IS the monster level: getPartyMonsterBattleStats
+          // reports battleStats.level equal to it ("Monster 438199").
+          monsterLevel: num(m.partyMembersActionsMonster && m.partyMembersActionsMonster.monsterId),
+          // Every numeric merged key, raw, as the own mergedMultipliers section
+          // keeps them: the EXP model reads monsterExperienceFlat/Percentage.
+          mergedMultipliers: numericFields(m.characterMergedMultipliers),
+        })),
       };
+    }
+
+    // The sidebar's Party Actions widget keeps getActions open on every page.
+    // actionsToUse is the in-game "max actions"; lastRefresh is the last
+    // daily reset (00:00 UTC in the capture).
+    const rawActions = q['party.combat.public.getActions'] || null;
+    const partyActions = rawActions && typeof rawActions === 'object' ? {
+      actionsRemaining: num(rawActions.actionsRemaining),
+      actionsToUse: num(rawActions.actionsToUse),
+      lastRefresh: num(rawActions.lastRefresh),
+    } : null;
+
+    // The last party action's outcome, a reading. Gain is before tax; the tax
+    // share is tax / gain (the capture: 972,436,655 of 31,442,118,515). Which
+    // reading is the RUN's rate is decided at the merge (foldPartyLastAction),
+    // the one place that sees the reading before this one.
+    const rawLast = q['party.combat.public.getLastActionState'] || null;
+    const outcome = rawLast && rawLast.lastActionState && rawLast.lastActionState.combatOutcome;
+    let partyLastAction = null;
+    if (outcome && typeof outcome === 'object') {
+      const part = (o) => (o && typeof o === 'object'
+        ? { gain: num(o.gain), tax: num(o.tax), taxEfficiency: num(o.taxEfficiency) } : null);
+      const stats = rawLast.lastActionState.combatStatistics || {};
+      const reading = {
+        gold: part(outcome.gold),
+        experience: part(outcome.experience),
+        rounds: num(stats.rounds),
+        // Two readings with the same outcome are one action seen twice. The
+        // attack and crit counts make two real actions all but never collide.
+        key: [outcome.gold && outcome.gold.gain, outcome.gold && outcome.gold.tax,
+          outcome.experience && outcome.experience.gain, stats.rounds, stats.playerAttacks, stats.playerCrits].join('|'),
+        seenAt: Date.now(),
+      };
+      partyLastAction = { last: reading, run: null, streak: 1 };
+    }
+
+    // The player's own party monster. Per member: the overview carries each
+    // member's own (four members, three different levels, in the capture).
+    const rawMonster = q['party.combat.public.getActionsMonster'] || null;
+    const partyMonster = rawMonster && typeof rawMonster === 'object' ? {
+      level: num(rawMonster.monsterId),
+      area: num(rawMonster.area),
+    } : null;
+
+    // Levels by characterId: the player's own getLevels and any a watch opened
+    // for another member (getLevels with their characterId, the query the
+    // game's public profile page opens). Own levels stay in `levels`.
+    const otherLevels = others['character.levels.public.getLevels'] || null;
+    let partyLevels = null;
+    if (otherLevels && typeof otherLevels === 'object') {
+      for (const cid of Object.keys(otherLevels)) {
+        const lv = pickLevels(numericFields(otherLevels[cid]));
+        if (lv) (partyLevels = partyLevels || {})[cid] = lv;
+      }
     }
 
     let source = 'convex';
@@ -9220,6 +9425,10 @@
       equipment,
       village,
       party,
+      partyActions,
+      partyLastAction,
+      partyMonster,
+      partyLevels,
     };
     // WHEN EACH SECTION WAS LAST SEEN. meta.timestamp is when this capture
     // ran, and the merge below keeps sections from earlier captures, so a
@@ -9244,6 +9453,11 @@
         source,
         characterName: charName,
         characterLevel: charLevel,
+        // The player's own characterId, as splitQueries resolved it. A
+        // consumer needs it to ask Core.profile.watch for a query the game
+        // keys by character (the party overview, REGISTER.md R89); null when
+        // this capture could not tell, and the merge keeps the last one seen.
+        characterId: typeof ownId === 'string' && ownId ? ownId : null,
         observedAt,
         observedOn,
       },
@@ -9269,6 +9483,33 @@
   //   depth 0: mergedMultipliers  (one observation, replaced whole: a key the
   //            game stops sending is a modifier that went away)
   const MERGE_DEPTH = { pets: 2, mergedMultipliers: 0, relicBoosts: 0 };
+
+  // WHICH LAST-ACTION READING IS THE RUN'S RATE (REGISTER.md R88). The gold
+  // per action depends on the set in use: 31.44b from last week's party run,
+  // 6.10b from one action taken today in another set (the 2026-09-25
+  // captures). So a lone action must not replace the run's rate. A reading is
+  // a run reading once RUN_MIN_READINGS distinct readings have arrived each
+  // within RUN_GAP_MS of the one before; a run makes one every 10 s. The gap is
+  // generous because a hidden tab clamps timers to about a minute
+  // (INSTRUMENTATION.md §4.4), and a capture can arrive that late; three
+  // readings rather than two because the maintainer's test used two actions.
+  // `last` is always the latest reading; `run` is the latest run reading and
+  // survives any number of lone ones. Sync bookkeeping, not a game formula.
+  const RUN_GAP_MS = 90_000;
+  const RUN_MIN_READINGS = 3;
+  function foldPartyLastAction(prev, cur) {
+    if (!cur || !cur.last) return prev === undefined ? null : prev;
+    if (!prev || !prev.last) return cur;
+    // The same action seen again: keep when it was FIRST seen.
+    if (prev.last.key === cur.last.key) return prev;
+    const streak = cur.last.seenAt - prev.last.seenAt <= RUN_GAP_MS ? (prev.streak || 1) + 1 : 1;
+    return {
+      last: cur.last,
+      run: streak >= RUN_MIN_READINGS ? cur.last : (prev.run || null),
+      streak,
+    };
+  }
+
   function mergeObservedProfile(previous, current) {
     if (!previous || typeof previous !== 'object') return current;
     if (!current || typeof current !== 'object') return previous;
@@ -9291,7 +9532,9 @@
 
     const merged = {};
     for (const key of new Set([...Object.keys(previous), ...Object.keys(current)])) {
-      merged[key] = mergeValue(previous[key], current[key], key in MERGE_DEPTH ? MERGE_DEPTH[key] : 1);
+      merged[key] = key === 'partyLastAction'
+        ? foldPartyLastAction(previous[key], current[key])
+        : mergeValue(previous[key], current[key], key in MERGE_DEPTH ? MERGE_DEPTH[key] : 1);
     }
     // Capture metadata describes this capture, never the page where an older
     // section happened to be observed. The one exception is observedAt, which
@@ -9303,6 +9546,7 @@
     const prevOn = (previous.meta && previous.meta.observedOn) || {};
     const curOn = (current.meta && current.meta.observedOn) || {};
     merged.meta = Object.assign({}, current.meta, {
+      characterId: (current.meta && current.meta.characterId) || (previous.meta && previous.meta.characterId) || null,
       observedAt: Object.assign({}, prevSeen, curSeen),
       observedOn: Object.assign({}, prevOn, curOn),
     });
@@ -9313,11 +9557,11 @@
   function captureNow() {
     captureScheduled = false;
 
-    // The generic Core probe is still preferred when it works. The live React
-    // provider scan is the verified fallback for the current Queslar client.
+    // The provider scan is the path the live page proved (2026-09-22, and the
+    // R88 tier-3 test found the client there again); Core.probeConvexClient
+    // returned null on the same page, so it is only the fallback now.
     const providers = scanReactProvidersForProfileData();
-    const probedClient = Core.probeConvexClient ? Core.probeConvexClient() : null;
-    const client = probedClient || providers.client || null;
+    const client = providers.client || (Core.probeConvexClient ? Core.probeConvexClient() : null) || null;
 
     if (client && client !== attachedClient) {
       attachedClient = client;
@@ -9328,16 +9572,21 @@
           console.warn('[AwooCore:ProfileSync] Failed hooking Convex transition handler:', e);
         }
       }
+      // A new client (a reload of the game's own) has none of our watches.
+      for (const w of watches.values()) w.unsubscribe = null;
     }
+    openWatches();
 
-    const q = extractConvexQueries(client);
+    const ownHint = providers.context && providers.context.characterData && providers.context.characterData._id;
+    const split = splitQueries(queryEntries(client), typeof ownHint === 'string' ? ownHint : null);
+    const q = split.own;
     const fiber = scanFiberForProfileData(providers.context);
     const dom = scanDomForProfileData();
 
     const hasData = Object.keys(q).length > 0 || Object.keys(fiber).length > 0 || Object.keys(dom).length > 0;
     if (!hasData) return null;
 
-    const observed = normalizeProfile(q, fiber, dom);
+    const observed = normalizeProfile(q, fiber, dom, split.others, split.ownId);
     const saved = activeProfile || (Core.profile && typeof Core.profile.get === 'function' ? Core.profile.get() : null);
     const profile = mergeObservedProfile(saved, observed);
     activeProfile = profile;
@@ -9350,6 +9599,95 @@
     captureScheduled = true;
     setTimeout(() => { captureNow(); }, 250);
   }
+
+  // ---- Tier 3: Core.profile.watch (REGISTER.md R88 step 5) ----
+  //
+  // Some data exists only while its game page is open: the party overview
+  // (members, their multipliers and monsters) and other members' levels. A
+  // watch asks the game's OWN Convex client to hold that query open, through
+  // the same `subscribe` its pages use, for as long as a consumer holds the
+  // watch. The answer lands in the query cache, the transition handler above
+  // fires, and the ordinary capture reads it; nothing here reads a result.
+  //
+  // Tested live 2026-09-25 (capture/api/convex-2026-09-25/README.md,
+  // INSTRUMENTATION.md §10a): getOverview arrived within 5 s with no page
+  // holding it, and the maintainer's other sessions stayed logged in.
+  //
+  // THE LOAD LIMIT. The maintainer approved this on the condition that the
+  // game's developer would not mind the load, so only queries the game itself
+  // opens when a page is visited are allowed, with the argument shape that
+  // page uses, and at most MAX_WATCHES at once. Asking for a query the game
+  // already holds adds a subscriber to it, not a request. A read, never an
+  // action (AGENTS.md rule 4). Off in Settings › Profile closes every watch.
+  const WATCHABLE = {
+    // the Party page (/game/party/*)
+    'party.public.getOverview': ['characterId'],
+    'party.combat.public.getActionsMonster': ['characterId'],
+    // a player's public profile page, asked with THAT player's id
+    'character.levels.public.getLevels': ['characterId'],
+  };
+  const MAX_WATCHES = 8;
+  const watches = new Map(); // key -> { name, args, holders, unsubscribe }
+  const watchOn = () => !(Core.profile && Core.profile.watchEnabled === false);
+
+  // "party.combat.public.getActions" -> "party/combat/public:getActions", the
+  // canonical form Convex's subscribe takes (dottedQueryName's inverse).
+  function canonicalUdfPath(dotted) {
+    const parts = String(dotted).split('.');
+    const exp = parts.pop();
+    return `${parts.join('/')}:${exp}`;
+  }
+
+  function openWatches() {
+    if (!attachedClient || typeof attachedClient.subscribe !== 'function' || !watchOn()) return;
+    for (const w of watches.values()) {
+      if (w.unsubscribe) continue;
+      try {
+        const sub = attachedClient.subscribe(canonicalUdfPath(w.name), w.args);
+        w.unsubscribe = sub && typeof sub.unsubscribe === 'function' ? sub.unsubscribe : () => {};
+      } catch (e) {
+        console.warn('[AwooCore:ProfileSync] watch failed:', w.name, e);
+      }
+    }
+  }
+
+  function closeWatch(w) {
+    if (w.unsubscribe) { try { w.unsubscribe(); } catch (e) { /* the client may be gone */ } }
+    w.unsubscribe = null;
+  }
+
+  // Returns a release function, or null when refused: a query not on the
+  // list, arguments of another shape, the cap reached, or watching off. A
+  // consumer given null reads the section as unobserved (rule 3).
+  function watchQuery(name, args) {
+    const shape = WATCHABLE[name];
+    if (!shape || !watchOn()) return null;
+    const a = args && typeof args === 'object' ? args : {};
+    const keys = Object.keys(a).sort();
+    if (keys.join(',') !== shape.slice().sort().join(',') || keys.some((k) => typeof a[k] !== 'string' || !a[k])) return null;
+    const key = name + ' ' + JSON.stringify(a, keys);
+    let w = watches.get(key);
+    if (!w) {
+      if (watches.size >= MAX_WATCHES) return null;
+      w = { name, args: Object.assign({}, a), holders: 0, unsubscribe: null };
+      watches.set(key, w);
+    }
+    w.holders++;
+    openWatches();
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      w.holders--;
+      if (w.holders <= 0) { closeWatch(w); watches.delete(key); }
+    };
+  }
+
+  if (Core.profile) Core.profile.watch = watchQuery;
+  window.addEventListener('awoo:profile:watch', (e) => {
+    if (e && e.detail) openWatches();
+    else for (const w of watches.values()) closeWatch(w);
+  });
 
   // ---- BroadcastChannel Cross-Tab Synchronization ----
   let profileBc = null;
@@ -9373,7 +9711,14 @@
   Core.__profileSyncForTest = {
     normalizeProfile,
     mergeObservedProfile,
+    foldPartyLastAction,
     extractConvexQueries,
+    splitQueries,
+    watchQuery,
+    canonicalUdfPath,
+    openWatches,
+    watches,
+    setClientForTest: (c) => { attachedClient = c; },
     scanReactProvidersForProfileData,
     scanFiberForProfileData,
     scanDomForProfileData,
@@ -11108,7 +11453,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.5", function (Core) {
+  })("awoo-tools-public", "7.0.6", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
