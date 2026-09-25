@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.6
+// @version      7.0.7
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -18,7 +18,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.6",
+    "version": "7.0.7",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -2716,7 +2716,13 @@
         widen(px) {
           const want = Math.max(0, Math.round(Number(px) || 0));
           if (want === extraW) return;
+          // From the style, not the box: a module may widen a window that is
+          // still hidden (restoring an open panel at load), and a hidden
+          // window's box measures 0x0, which laid it out 0 wide and 0 tall.
+          const sw = parseFloat(el.style.width), sh = parseFloat(el.style.height);
           const base = currentRect();
+          if (Number.isFinite(sw)) base.w = Math.max(0, sw - extraW);
+          if (Number.isFinite(sh)) base.h = sh;
           if (want === 0 && widenedFromX !== null) base.x = widenedFromX;
           widenedFromX = want > 0 ? (extraW > 0 ? widenedFromX : base.x) : null;
           extraW = want;
@@ -11453,7 +11459,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.6", function (Core) {
+  })("awoo-tools-public", "7.0.7", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //

@@ -1,10 +1,10 @@
 {
   "channel": "live",
-  "generated": "2026-09-25T16:36:08.852Z",
+  "generated": "2026-09-25T17:05:21.079Z",
   "core": {
-    "version": "7.0.6",
+    "version": "7.0.7",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
-    "notes": "Profile Sync now keeps your party: members, party actions left, your party monster, and the gold and EXP of the last party action and of the last run\nProfile Sync records how many skill-tree points you have bought, and the EXP into each level\nNew setting, Settings › Syncing › \"Keep party data open\": lets modules keep the party overview and members' levels loaded without you opening the Party page\nFixed: looking at another player's profile could overwrite your own synced levels and stats with theirs\nWindows no longer grow by 2 pixels each time their saved size is restored\nModules can widen a window for a side panel without changing its saved size (used by Party's Limits)"
+    "notes": "Fixed: a module restoring a side panel at load could draw its window tiny"
   },
   "modules": [
     {
