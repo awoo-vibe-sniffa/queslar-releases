@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.4
+// @version      7.0.5
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -18,7 +18,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.4",
+    "version": "7.0.5",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -3619,6 +3619,12 @@
           if (!RELEASE.manifestUrl) toast('This is a dev build: update checks are off.', { type: 'info', duration: 3000 });
           else if (updateState.error) toast('Could not reach the update server. It will try again shortly.', { type: 'warn', duration: 3500 });
           else if (!updateState.available.length) toast('Everything is up to date.', { type: 'success', duration: 3000 });
+          else {
+            // A check you asked for always answers, found or not.
+            const a = updateState.available;
+            toast(a.length === 1 ? `${a[0].label} ${a[0].to} is available` : `${a.length} AWOO+ updates available`,
+              { type: 'info', duration: 10000, action: 'Update', onAction: () => openUpdate(a[0]) });
+          }
           renderPaletteFooter();
         });
       });
@@ -8042,7 +8048,9 @@
     if (RELEASE.manifestUrl) {
       try {
         const savedUpd = JSON.parse(localStorage.getItem(UPDATE_KEY) || 'null');
-        if (savedUpd && typeof savedUpd.checkedAt === 'number') {
+        // v2: lists saved before retired entries were skipped may still hold
+        // a tombstone row. Drop those, and let the first check run on time.
+        if (savedUpd && savedUpd.v === 2 && typeof savedUpd.checkedAt === 'number') {
           updateState.checkedAt = savedUpd.checkedAt;
           updateState.available = Array.isArray(savedUpd.available) ? savedUpd.available : [];
         }
@@ -8094,6 +8102,7 @@
 
     function installedVersion(id) {
       if (id === 'awoo-core') return RELEASE.version;
+      if (id === 'awoo-extras') return (window.__awooExtras && window.__awooExtras.version) || null;
       const mod = modules[id];
       return mod && mod.version ? mod.version : null;
     }
@@ -8101,7 +8110,7 @@
     function persistUpdateState() {
       try {
         localStorage.setItem(UPDATE_KEY, JSON.stringify({
-          checkedAt: updateState.checkedAt, available: updateState.available,
+          v: 2, checkedAt: updateState.checkedAt, available: updateState.available,
         }));
       } catch (e) { /* ignore */ }
     }
@@ -8147,8 +8156,26 @@
             // left over from before the bundle updates itself to a tombstone
             // through Tampermonkey, which needs nothing from here.
             if (m.bundledIn) continue;
+            // A retired entry is a tombstone for an old standalone copy. It is
+            // not an update: installing it switches the module off, and when
+            // the same module also runs from AWOO+ Extras the row could never
+            // clear (reported 2026-09-25, Pet Slot Alarm 4.12.1 -> 4.12.2).
+            // Tampermonkey delivers the tombstone by itself.
+            if (m.retired) continue;
             consider(m.id, m.label || (modules[m.id] && modules[m.id].label) || m.id, m);
           }
+          // AWOO+ Extras lives behind the gate, not in the public manifest.
+          // Its own per-install manifest says what the gate would serve it;
+          // without this the Extras row read "up to date" on any version.
+          // A failure here is quiet: the public result still stands.
+          const extrasBase = window.__awooExtras && window.__awooExtras.base;
+          if (!extrasBase) return entries;
+          return fetch(`${extrasBase}/manifest.json`, { cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((gm) => { if (gm && gm.extras) consider('awoo-extras', 'AWOO+ Extras', gm.extras); return entries; })
+            .catch(() => entries);
+        })
+        .then((entries) => {
           updateState.available = entries;
           updateState.checkedAt = Date.now();
           persistUpdateState();
@@ -11081,7 +11108,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.4", function (Core) {
+  })("awoo-tools-public", "7.0.5", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
