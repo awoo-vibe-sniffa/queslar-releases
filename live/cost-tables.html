@@ -545,6 +545,29 @@
    of them lines up on the last digit. */
 input[data-num]{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:.74rem;text-align:right}
 
+/* THE DEFAULT INPUT BOX is Pet Slot ROI's (the maintainer, 2026-09-25: "I like
+   the input boxes from the pet ROI, make those default. They are nicely
+   compact in height"). It lives here, in the kit every tool gets, because a
+   box each page styled for itself is how two of them went unstyled: Cost
+   Tables' level boxes became type="text" for locale-aware numbers while its
+   rule still said input[type=number], and the optimizer's ratio boxes sat in
+   a table no rule reached. Both drew the browser's white box under the
+   theme's light ink, which is unreadable in every dark theme. A page rule with
+   a class still wins (this is element + attribute specificity; the select's
+   :not([multiple]) is there only to outrank a page's bare `select` reset), so a page sets
+   only what is its own: a width, an alignment. The gear menu keeps its own. */
+input[type=number],input[type=text],input:not([type]),select:not([multiple]){
+  font-family:var(--font-num);font-size:.74rem;font-weight:600;color:var(--ink);
+  background:var(--surface-2);border:1px solid var(--border-control);border-radius:4px;
+  padding:var(--ctl-y) var(--ctl-x);min-width:0;font-variant-numeric:tabular-nums;
+  line-height:1.4;height:1.45rem;box-sizing:border-box}
+select:not([multiple]){font-family:var(--font-body);font-weight:400}
+input[type=number]{-moz-appearance:textfield;appearance:textfield;text-align:right}
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]:focus,input[type=text]:focus,input:not([type]):focus,select:focus{outline:2px solid var(--accent-fill);outline-offset:1px}
+input[type=number]:disabled,input[type=text]:disabled,select:disabled{opacity:.45;cursor:not-allowed;background:var(--surface-3)}
+
 </style>
 <script>
 /* ===========================================================================
@@ -1674,12 +1697,8 @@ button,input,select{font-family:inherit;font-size:inherit;color:inherit}
   text-transform:uppercase; color:var(--ink-mute);
   display:flex; align-items:center; gap:5px;
 }
-.field input[type=number], .field select{
-  background:var(--surface); border:1px solid var(--border-control);
-  border-radius:4px; padding:var(--ctl-y) var(--ctl-x); width:var(--ctl-w);
-  font-family:var(--font-num); font-size:.8rem; font-variant-numeric:tabular-nums;
-}
-.field select{width:auto;min-width:112px;font-family:var(--font-body);font-size:.76rem}
+.field input, .field select{width:var(--ctl-w)}
+.field select{width:auto;min-width:112px}
 .field > .lab .awoo-light{margin:0}
 
 /* summary strip */
@@ -1804,11 +1823,7 @@ tbody td .bpnote{
   padding:7px 14px; border-top:1px solid var(--border); background:var(--surface-2);
 }
 .rowctl .hint{margin-right:auto;font-size:.72rem;color:var(--ink-mute)}
-.rowctl input[type=number]{
-  background:var(--surface);border:1px solid var(--border-control);border-radius:4px;
-  padding:var(--ctl-y) var(--ctl-x);width:64px;font-family:var(--font-num);font-size:.76rem;
-  font-variant-numeric:tabular-nums;
-}
+.rowctl input{width:64px}
 .rowctl label{font-size:.72rem;color:var(--ink-soft)}
 
 /* notes */
