@@ -1,19 +1,19 @@
 {
   "channel": "live",
-  "generated": "2026-09-26T16:43:27.948Z",
+  "generated": "2026-09-26T23:57:27.539Z",
   "core": {
-    "version": "7.0.9",
+    "version": "7.0.10",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
-    "notes": "Corrected the note on party gold: the synced amount is already after party tax. The fix for gold per action showing about 5% too low is in Party"
+    "notes": "New Profile data window (Profile Sync › View data, or \"Profile data\" in the menu): every synced section as a tile with its values, how fresh it is, how it is kept and what uses it, with search, filters and a Raw view\nAppearance › Layout › Top bar › Sync dot: turn off the dot on the Profile Sync icon\nModules and tools that not every player has are named in light blue in the menu and the Control Panel, with a small TRUSTED mark in their window (dev-only ones in the dev colour); Modules › Info explains the colours\nNotifications are easier to see: bigger (110%), 8 seconds instead of 6, and framed in their colour; Control Panel › General › Notifications sets where they appear (any corner, top centre, or beside the menu), how long they stay (up to \"until closed\"), their size and style\nChecking for updates from the menu now says \"Checking for updates…\" and turns into the answer\nCost Tables: the partner hiring cost now comes from the same game data as Party's Shop (same numbers)\nDungeon Win Rate: Now tells AWOO+ who it is for, which AWOO+ uses to colour the names of modules not every player has\nSculpture Grid Labels: Now tells AWOO+ who it is for, which AWOO+ uses to colour the names of modules not every player has"
   },
   "modules": [
     {
       "id": "dungeon-win-rate",
       "label": "Dungeon Win Rate",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
       "bundledIn": "awoo-core",
-      "notes": "Fixed: Clear left the old results on screen and brought them back on the next save; it now clears them completely (and waits while a scan runs)\nRuns on Queslar 2 only (v2.queslar.com and its test server)\nThe top-bar button now reads \"Dungeon WR\"\nSwitching it off now fully unloads it; a scan in progress stops, and every page it already read is kept",
+      "notes": "Now tells AWOO+ who it is for, which AWOO+ uses to colour the names of modules not every player has",
       "standalone": {
         "version": "0.1.1",
         "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/dungeon-win-rate.user.js",
@@ -24,10 +24,10 @@
     {
       "id": "sculpture-grid-labels",
       "label": "Sculpture Grid Labels",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
       "bundledIn": "awoo-core",
-      "notes": "A rotate button beside the overlay switch swaps the labels between roll % and the sculpture's item level (can be hidden in its settings)\nSwitching it off now fully unloads it, and it is grouped with the other page tweaks",
+      "notes": "Now tells AWOO+ who it is for, which AWOO+ uses to colour the names of modules not every player has",
       "standalone": {
         "version": "0.1.1",
         "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/sculpture-grid-labels.user.js",

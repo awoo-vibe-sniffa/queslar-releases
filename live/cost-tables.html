@@ -24,15 +24,19 @@
      Claude       light · medium · dark
      Claude Code  (RECONSTRUCTED from the brand register, not sampled)
 
-   ONE CONTRACT. Every theme defines the same 25 tokens and no component ever
+   ONE CONTRACT. Every theme defines the same tokens and no component ever
    names a colour, which is what makes an eighth theme a block of properties
-   rather than a rewrite. Two of those tokens exist for specific reasons:
+   rather than a rewrite. Three of those tokens exist for specific reasons:
      --accent-edge     the soft edge of a tinted row. A full-strength accent
                        ring reads as a frame around a table row, not emphasis
                        on it.
      --border-control  inputs, selects and buttons only, clearing WCAG
                        1.4.11's 3:1 against surface. Table hairlines stay soft
                        on --border.
+     --trusted         the name of a module or tool that not every player has
+                       (the trusted audience; REGISTER.md R97). A light blue,
+                       AA on surface and surface-2 in every theme, apart from
+                       --info (a user-facing note) and --dev (developer text).
 
    Every text pair in every theme clears WCAG AA; tertiary "muted" text is
    AA-large by design across the whole family.
@@ -66,6 +70,7 @@
   --bg-neutral:#EDE4D3;
   --dev:#2E6B5C;
   --bg-dev:#DCEBE6;
+  --trusted:#23618F;
   --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);
 
   /* TYPE, corrected 2026-09-21 after MEASURING the glyphs rather than
@@ -138,6 +143,7 @@
     --bg-neutral:#222A32;
     --dev:#78C8BC;
     --bg-dev:#14302C;
+    --trusted:#8CC4EE;
     --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
   }
 }
@@ -171,6 +177,7 @@
   --bg-neutral:#EDE4D3;
   --dev:#2E6B5C;
   --bg-dev:#DCEBE6;
+  --trusted:#23618F;
   --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);
 }
 
@@ -203,6 +210,7 @@
   --bg-neutral:#26282A;
   --dev:#7FC9B8;
   --bg-dev:#16302A;
+  --trusted:#8CC4EE;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
 }
 
@@ -235,6 +243,7 @@
   --bg-neutral:#222A32;
   --dev:#78C8BC;
   --bg-dev:#14302C;
+  --trusted:#8CC4EE;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
 }
 
@@ -267,6 +276,7 @@
   --bg-neutral:#EDEBE2;
   --dev:#256657;
   --bg-dev:#D8EBE5;
+  --trusted:#23618F;
   --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);
 }
 
@@ -299,6 +309,7 @@
   --bg-neutral:#343128;
   --dev:#82C9B9;
   --bg-dev:#1F3330;
+  --trusted:#8CC4EE;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
 }
 
@@ -331,6 +342,7 @@
   --bg-neutral:#26241F;
   --dev:#7FCBBA;
   --bg-dev:#132A26;
+  --trusted:#8CC4EE;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
 }
 
@@ -363,6 +375,7 @@
   --bg-neutral:#2C2C2A;
   --dev:#7DC6B6;
   --bg-dev:#1B2E2A;
+  --trusted:#8CC4EE;
   --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
 }
 
@@ -2047,11 +2060,13 @@ window.AWOO_FACTS = (function () {
   function caveToolUpgradeCost(currentLevel, targetLevel, toolName) { const tri = (a, b, mult) => (a + b) * (b - a) / 2 * mult; if (toolName === 'repeater') return { currency: 'diamonds', value: Math.round(1000 * (2 ** (targetLevel + 1) - 2 ** (currentLevel + 1)) / 9) }; const base = tri(currentLevel, targetLevel, 4000); const a = Math.max(currentLevel, 100), o = Math.max(targetLevel, 100), tier100 = a <= o ? tri(a, o, 4000) : 0; const c = Math.max(currentLevel, 200), l = Math.max(targetLevel, 200), tier200 = c <= l ? tri(c - 200, l - 200, 400000) : 0; const d = Math.max(currentLevel, 600), f = Math.max(targetLevel, 600), tier600 = d <= f ? tri(d - 600, f - 600, 2000000) : 0; const resourceCost = Math.round(base + tier100 + tier200 + tier600); const diamondCost = Math.round(tri(currentLevel, targetLevel, 1)); return { meat: resourceCost, iron: resourceCost, wood: resourceCost, stone: resourceCost, diamonds: diamondCost }; }
   /* formulas/dungeons.json :: dungeon.fighterSlotCost.formula  [CODE] */
   function fighterSlotCost(currentCount, targetCount) { if (targetCount <= currentCount) return { currency: 'gold', value: 0 }; return { currency: 'gold', value: 10000 * (Math.pow(10, targetCount + 1) - Math.pow(10, currentCount + 1)) / 9 }; }
+  /* formulas/partners.json :: partner.slotUnlock.formula  [CODE] */
+  function partnerHireCost(currentCount, targetCount) { if (targetCount <= currentCount) return { currency: 'gold', value: 0 }; return { currency: 'gold', value: 10000 * (Math.pow(10, targetCount + 1) - Math.pow(10, currentCount + 1)) / 9 }; }
   /* tables/house-upgrades.json :: house.resourceCost.formula  [CODE] */
   function houseUpgradeCost(currentLevel, newLevel) { const perLevel = (lvl) => 5000 + Math.round(5000 * Math.pow(lvl, 1.25)); let total = 0; for (let lvl = currentLevel + 1; lvl <= newLevel; lvl++) total += perLevel(lvl); let extra = 0; if (newLevel > 50) extra = (newLevel - Math.max(currentLevel, 50)) * 1e6; return { meat: total + extra, iron: total + extra, wood: total + extra, stone: total + extra }; }
-  return { sanctumNodeCost, petSlotUpgradeCost, slotUpgradeCost, expRequired, partnerLevelExp, partnerBoostUpgradeCost, bracketSurcharge, veryHighLevelSurcharge, boostCost, tileUpgradeCost, villageBossCost, villageBuildingCost, caveToolUpgradeCost, fighterSlotCost, houseUpgradeCost };
+  return { sanctumNodeCost, petSlotUpgradeCost, slotUpgradeCost, expRequired, partnerLevelExp, partnerBoostUpgradeCost, bracketSurcharge, veryHighLevelSurcharge, boostCost, tileUpgradeCost, villageBossCost, villageBuildingCost, caveToolUpgradeCost, fighterSlotCost, partnerHireCost, houseUpgradeCost };
 })();
-window.AWOO_FACTS_META = {"sanctumNodeCost":{"file":"tables/sanctum-nodes.json","fact":"sanctumNodes.formula.status","confidence":"CROSS","checked":"2026-08-23"},"petSlotUpgradeCost":{"file":"formulas/pets.json","fact":"pets.slotUpgrade.costFormula","confidence":"CODE","checked":"2026-09-07"},"slotUpgradeCost":{"file":"formulas/equipment.json","fact":"equipment.slotUpgrade.costFormula","confidence":"CODE","checked":"2026-08-23"},"expRequired":{"file":"formulas/leveling.json","fact":"leveling.genericExpRequired.formula","confidence":"CODE","checked":"2026-08-23"},"partnerLevelExp":{"file":"formulas/partners.json","fact":"partner.level.expFormula","confidence":"CODE","checked":"2026-08-23"},"partnerBoostUpgradeCost":{"file":"formulas/partners.json","fact":"partner.boostUpgradeCost.formula","confidence":"CODE","checked":"2026-08-23"},"bracketSurcharge":{"file":"formulas/relic-boosts.json","fact":"relicBoost.bracketSurcharge","confidence":"CODE","checked":"2026-08-23"},"veryHighLevelSurcharge":{"file":"formulas/relic-boosts.json","fact":"relicBoost.veryHighLevelSurcharge","confidence":"CODE","checked":"2026-08-23"},"boostCost":{"file":"formulas/relic-boosts.json","fact":"relicBoost.costFormula","confidence":"CODE","checked":"2026-08-23"},"tileUpgradeCost":{"file":"formulas/sculptures.json","fact":"sculptures.tileUpgradeCost","confidence":"CODE","checked":"2026-08-23"},"villageBossCost":{"file":"formulas/village-boss.json","fact":"villageBoss.costFormula","confidence":"CODE","checked":"2026-08-23"},"villageBuildingCost":{"file":"formulas/village.json","fact":"village.buildings.costFormula.implementation","confidence":"CODE","checked":"2026-08-23"},"caveToolUpgradeCost":{"file":"formulas/caves.json","fact":"caves.toolUpgradeCost.formula","confidence":"CODE","checked":"2026-08-23"},"fighterSlotCost":{"file":"formulas/dungeons.json","fact":"dungeon.fighterSlotCost.formula","confidence":"CODE","checked":"2026-08-23"},"houseUpgradeCost":{"file":"tables/house-upgrades.json","fact":"house.resourceCost.formula","confidence":"CODE","checked":"2026-08-23"}};
+window.AWOO_FACTS_META = {"sanctumNodeCost":{"file":"tables/sanctum-nodes.json","fact":"sanctumNodes.formula.status","confidence":"CROSS","checked":"2026-08-23"},"petSlotUpgradeCost":{"file":"formulas/pets.json","fact":"pets.slotUpgrade.costFormula","confidence":"CODE","checked":"2026-09-07"},"slotUpgradeCost":{"file":"formulas/equipment.json","fact":"equipment.slotUpgrade.costFormula","confidence":"CODE","checked":"2026-08-23"},"expRequired":{"file":"formulas/leveling.json","fact":"leveling.genericExpRequired.formula","confidence":"CODE","checked":"2026-08-23"},"partnerLevelExp":{"file":"formulas/partners.json","fact":"partner.level.expFormula","confidence":"CODE","checked":"2026-08-23"},"partnerBoostUpgradeCost":{"file":"formulas/partners.json","fact":"partner.boostUpgradeCost.formula","confidence":"CODE","checked":"2026-08-23"},"bracketSurcharge":{"file":"formulas/relic-boosts.json","fact":"relicBoost.bracketSurcharge","confidence":"CODE","checked":"2026-08-23"},"veryHighLevelSurcharge":{"file":"formulas/relic-boosts.json","fact":"relicBoost.veryHighLevelSurcharge","confidence":"CODE","checked":"2026-08-23"},"boostCost":{"file":"formulas/relic-boosts.json","fact":"relicBoost.costFormula","confidence":"CODE","checked":"2026-08-23"},"tileUpgradeCost":{"file":"formulas/sculptures.json","fact":"sculptures.tileUpgradeCost","confidence":"CODE","checked":"2026-08-23"},"villageBossCost":{"file":"formulas/village-boss.json","fact":"villageBoss.costFormula","confidence":"CODE","checked":"2026-08-23"},"villageBuildingCost":{"file":"formulas/village.json","fact":"village.buildings.costFormula.implementation","confidence":"CODE","checked":"2026-08-23"},"caveToolUpgradeCost":{"file":"formulas/caves.json","fact":"caves.toolUpgradeCost.formula","confidence":"CODE","checked":"2026-08-23"},"fighterSlotCost":{"file":"formulas/dungeons.json","fact":"dungeon.fighterSlotCost.formula","confidence":"CODE","checked":"2026-08-23"},"partnerHireCost":{"file":"formulas/partners.json","fact":"partner.slotUnlock.formula","confidence":"CODE","checked":"2026-08-23"},"houseUpgradeCost":{"file":"tables/house-upgrades.json","fact":"house.resourceCost.formula","confidence":"CODE","checked":"2026-08-23"}};
 </script>
 
 <div class="shell">
@@ -2140,10 +2155,6 @@ function fact(name){
   return F[name];
 }
 
-// partner.slotUnlock.formula and dungeon.fighterSlotCost.formula are the same
-// base-10 closed form. The dungeon one generates; the partner one is recorded
-// as prose, so it is hand-written here against that shared shape.
-function base10Series(a,b){ return (10000*(Math.pow(10,b+1)-Math.pow(10,a+1)))/9; }
 
 /* GENERATED: tables/sanctum-nodes.json :: sanctumNodes.formula.status */
 function sanctumNodeCost(a,b){ return asCost(fact('sanctumNodeCost')(a,b),'gold').gold; }
@@ -2298,7 +2309,7 @@ var SYSTEMS = [
   unit:'partners owned', unitShort:'Partners', def:5, min:0, max:12, view:12, expandBy:0, step:1, checked:'2026-08-23',
   desc:'Unlocking the next partner slot. Ten times the previous one, every time — the single steepest curve in the game.',
   cur:['gold'],
-  range:function(a,b){ return { gold: base10Series(a,b) }; },
+  range:function(a,b){ return asCost(fact('partnerHireCost')(a,b),'gold'); },  /* GENERATED: partner.slotUnlock.formula */
   formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',
   userNote:'Ten times the previous one, every time — the steepest curve in the game. <b>Whether partners cap at all is unknown</b>; this table stops at 12 for a technical reason, not a game one.',
   devNote:'It stops at 12 because that is where the cost passes what a double-precision number represents exactly. Byte-for-byte the same closed form as the fighter-slot cost, one shared primitive across two unrelated systems; fighter slots are known to cap at 6.',
@@ -3086,7 +3097,7 @@ window.__AWOO_COST_TABLES_FOR_TEST = {
   partnerBoostCost:partnerBoostCost, levelExp:levelExp, houseCost:houseCost,
   caveToolCost:caveToolCost, villageBuildingCost:villageBuildingCost,
   relicBracketSurcharge:relicBracketSurcharge, triangular:triangular,
-  geomCost:geomCost, base10Series:base10Series,
+  geomCost:geomCost,
   fmtNum:function(n, mode, localeKey){
     NUM._set(mode || 'letters', localeKey);
     try { return fmtNum(n); } finally { NUM._set(null, null); }
