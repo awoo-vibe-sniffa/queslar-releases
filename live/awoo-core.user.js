@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.8
+// @version      7.0.9
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -18,7 +18,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.8",
+    "version": "7.0.9",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -10326,8 +10326,9 @@
       lastRefresh: num(rawActions.lastRefresh),
     } : null;
 
-    // The last party action's outcome, a reading. Gain is before tax; the tax
-    // share is tax / gain (the capture: 972,436,655 of 31,442,118,515). Which
+    // The last party action's outcome, a reading. Gain is AFTER tax (the game's
+    // "kept"); before tax is gain + tax, so the tax share is tax / (gain + tax)
+    // (the capture: 972,436,655 on top of 31,442,118,515 kept). Which
     // reading is the RUN's rate is decided at the merge (foldPartyLastAction),
     // the one place that sees the reading before this one.
     const rawLast = q['party.combat.public.getLastActionState'] || null;
@@ -13523,7 +13524,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.8", function (Core) {
+  })("awoo-tools-public", "7.0.9", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //

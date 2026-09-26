@@ -1,10 +1,10 @@
 {
   "channel": "live",
-  "generated": "2026-09-26T14:58:00.915Z",
+  "generated": "2026-09-26T16:43:27.948Z",
   "core": {
-    "version": "7.0.8",
+    "version": "7.0.9",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
-    "notes": "Profile data now stays up to date in the background without you opening each page: only what your loaded modules use, a few reads an hour, from one tab\nTabs now share only what changed, and a tab never undoes something another tab saw more recently\nTools ask for their data once when you open them, and their Sync button asks only for what that tool uses\nProfile Sync shows how each section is kept (Kept) and what the background did in the last hour\nThe Profile Sync light turns amber only for old data a loaded module uses; other old data shows as \"old · unused\"\n\"Background reads\" (Profile Sync › Syncing) replaces \"Keep party data open\"\nFixed: your level was not synced\nFixed: hovering another player's village could overwrite your own village\nModules can share their readings with each other (the Pet Slot Alarm uses Party's), so nothing is read twice\nProfile Sync now keeps all your loadouts: every sculpture preset's grid (not only the one you last looked at), your skill-tree presets, and your item sets"
+    "notes": "Corrected the note on party gold: the synced amount is already after party tax. The fix for gold per action showing about 5% too low is in Party"
   },
   "modules": [
     {
