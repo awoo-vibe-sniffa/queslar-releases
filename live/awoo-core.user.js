@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.7
+// @version      7.0.8
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -18,7 +18,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.7",
+    "version": "7.0.8",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -66,14 +66,21 @@
   // R69): a module that is off is never started, Core.store() for saving, and
   // registry v2 (loaded / order / shown on bar / shown in menu). A module
   // written against 14 declares `needsCore: 14`; one that does not still runs
-  // exactly as it did under 13 (FRAMEWORK.md §3a).
+  // exactly as it did under 13 (FRAMEWORK.md §3a); 15 = named services between
+  // modules, provide() / use() / onProvide() (REGISTER.md R90); 16 = the profile
+  // store notifies on change (REGISTER.md R92): profile.subscribe(fn, { sections })
+  // calls fn(profile, { changed, stamped, initial }), tabs exchange deltas merged
+  // by observedAt, profile.merge, and the `awoo:modules:change` window event;
+  // Profile Sync's side of it: profile.catalogue, profile.request(sections),
+  // profile.syncStatus(), and profile.watch deprecated (modules declare
+  // about.uses and Core fetches).
   //
   // CORRECTED 2026-09-07: this list claimed v5 shipped a "bus". It never did —
   // see the "NOT TAKEN from the AWOO+ Framework" note further down, which
   // is the actual decision. A version history is the first thing a module
   // author reads to decide what exists, so a phantom entry in it is worse than
   // no list at all.
-  const AWOO_CORE_VERSION = 14;
+  const AWOO_CORE_VERSION = 16;
 
   // Exactly one Core per page. Two installed Core scripts is a user
   // misconfiguration, not a state to negotiate — first one wins and the second
@@ -157,11 +164,15 @@
       // module finding no profile must refuse rather than guess (rule 3), so
       // off degrades to "missing", never to wrong.
       profileAutoSync: true,
-      // ON by default: Profile Sync may ask the game's own client to hold open
-      // the few queries only a page would otherwise open (the party overview,
-      // members' levels), while a module needs them (REGISTER.md R88,
-      // profile-sync.js "Tier 3"). OFF closes every such watch; the sections
-      // then refresh only when you open those pages yourself.
+      // "Background reads" (Settings › Profile Sync; the key keeps the name it
+      // had when all it did was keep the party data open, R88, so nobody's
+      // choice is lost). ON by default: Profile Sync may ask the game for the
+      // sections loaded modules use, from one tab, a few reads an hour, each
+      // the one a visit to that page would make, and hold what a shown window
+      // needs (REGISTER.md R92, profile-sync.js THE CATALOGUE). OFF: AWOO+
+      // asks for nothing of its own, Sync now included, and a section updates
+      // only when a page you open shows it. The automatic half also needs
+      // profileAutoSync.
       profileWatch: true,
       // ---- the Control Panel (REGISTER.md R69) ----
       // 'tabs': sections in the sidebar, pages as tabs in the page. 'tree': an
@@ -3941,10 +3952,63 @@
     // Exposes a unified state for the player's active profile across all categories.
     // Downstream modules and tools (Sculpture Stat Optimizer, Fighter Allocator, etc.)
     // consume this rather than scraping DOM or guessing (§9.4).
+    //
+    // THE STORE NOTIFIES ON CHANGE (REGISTER.md R92, API v16). Until v16 every
+    // commit replaced the profile wholesale, called every listener, saved it,
+    // and posted the whole profile to every other tab. A capture runs on every
+    // client transition and every 15 s, so an idle tab re-ran every consumer
+    // and re-wrote the same profile several times a minute; and because a
+    // tab's capture merged onto its OWN last capture, committing it wholesale
+    // threw away sections another tab had just broadcast (R92, item 2). Now a
+    // commit is compared with the current profile section by section:
+    //   changed  sections whose value differs. Compared as stable JSON (keys
+    //            sorted): a merge rebuilds objects old keys first and a fresh
+    //            capture builds them in its own order, and the same data in
+    //            another key order is not news;
+    //   stamped  sections whose meta.observedAt advanced: seen again, perhaps
+    //            with the same value. Only their age moved.
+    // Nothing changed and nothing stamped: no listener, no write, no message.
+    // Otherwise listeners hear about a change at once and about ages at most
+    // once a minute; the tab that OBSERVED it writes storage (read-merge-write)
+    // and posts a delta; other tabs merge that delta section by section by
+    // observedAt, and neither write nor re-post it.
+    //
+    // A real capture always stamps what it saw (profile-sync.js stamps every
+    // observed section with the capture's clock), so an idle capture is an
+    // age-only commit, not a no-op. Age-only is the path the budget turns on,
+    // which is why each of its three outlets is throttled to a minute.
     let activeProfile = null;
+    // Stable JSON of activeProfile's sections, filled as a diff needs them and
+    // handed from one commit to the next, so a commit stringifies the sections
+    // it brought and not also the profile it is compared with.
+    let activeJson = new Map();
+    // One entry per subscription, not per function: { fn, sections (Set, or
+    // null for all), at (last delivery), ageOnly (stamped sections waiting
+    // for their minute) }.
     const profileListeners = new Set();
     const PROFILE_STORAGE_KEY = 'awoo:profile:v1';
-    let profileSaveTimer = null;
+    // The three throttles. Age-only news waits up to a minute on every outlet:
+    // a consumer that renders "3m ago" from its copy is then never more than a
+    // minute behind, which is the resolution those labels have anyway. A value
+    // change reaches listeners at once, other tabs within a second (the burst
+    // of captures a page change causes becomes one message), and storage
+    // within ten seconds: INSTRUMENTATION.md §4.4's "≤ 1 storage write per
+    // 10 s", with the forced flush on leaving the page that §5 S1 established.
+    const PROFILE_AGE_MS = 60 * 1000;
+    const PROFILE_WRITE_MS = 10 * 1000;
+    const PROFILE_POST_MS = 1000;
+    // Top-level keys that are not sections.
+    const PROFILE_NOT_SECTIONS = new Set(['meta', 'schemaVersion']);
+    // Meta keys that say WHEN and WHERE, not WHO, and so never count as a
+    // change: timestamp and source move with every capture, observedAt and
+    // observedOn travel with their section, and queryAt (the per-query stamps
+    // of R92's scheduler) merges by the latest stamp per query.
+    const PROFILE_META_CLOCKS = new Set(['observedAt', 'observedOn', 'queryAt', 'timestamp', 'source']);
+    // Identity fields where null means "this capture could not tell"
+    // (normalizeProfile says so of characterId), so a null never erases a
+    // known value. Not every meta field: a party id of null can be an
+    // observation (no party), and must be able to replace an old id.
+    const PROFILE_META_KEEP = new Set(['characterId', 'characterName', 'characterLevel']);
     let profileBc = null;
 
     try {
@@ -3953,21 +4017,40 @@
         profileBc.onmessage = (event) => {
           const data = event && event.data;
           if (!data || typeof data !== 'object') return;
-          if (data.type === 'PROFILE_UPDATED' && data.profile) {
+          if (data.type === 'PROFILE_DELTA' && data.v === 1) {
+            receiveProfileDelta(data);
+          } else if (data.type === 'PROFILE_UPDATED' && data.profile) {
+            // A whole profile from a tab running an older AWOO+ (v15 or
+            // before). Merged section by section like a delta, never adopted
+            // wholesale: that tab's copy is only as fresh as its own captures.
             setProfile(data.profile, true /* fromBc */);
           } else if (data.type === 'REQUEST_PROFILE_SYNC') {
             resyncProfile(true /* fromBc */);
+            answerProfileRequest();
           }
         };
       }
     } catch (e) { /* ignore */ }
 
+    // THE ANSWER TO A TOOL PAGE'S "Sync now". A tool's tab (tools/tool-sync.js)
+    // asks with REQUEST_PROFILE_SYNC and, up to v15, heard back through the
+    // PROFILE_UPDATED every capture posted. v16 posts deltas instead, which a
+    // tool built before v16 does not read, so a request is answered with one
+    // whole profile: the old contract, kept for exactly the case that asks.
+    // One message per click; a v16 tab that hears it merges it like any other.
+    function answerProfileRequest() {
+      if (!profileBc || !activeProfile) return;
+      try { profileBc.postMessage({ type: 'PROFILE_UPDATED', profile: activeProfile, timestamp: Date.now() }); } catch (e) { /* ignore */ }
+    }
+
     function loadCachedProfile() {
       if (activeProfile) return activeProfile;
       try {
         const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
-        if (raw) {
-          activeProfile = JSON.parse(raw);
+        const stored = raw ? JSON.parse(raw) : null;
+        if (stored && typeof stored === 'object') {
+          activeProfile = stored;
+          activeJson = new Map();
         }
       } catch (e) {
         // refuse corrupted data
@@ -3975,31 +4058,394 @@
       return activeProfile;
     }
 
-    function saveProfileDebounced(profile) {
-      if (profileSaveTimer) clearTimeout(profileSaveTimer);
-      profileSaveTimer = setTimeout(() => {
-        profileSaveTimer = null;
-        try {
-          if (profile) {
-            localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
-          }
-        } catch (e) { /* ignore quota errors */ }
-      }, 300);
+    // Stable JSON: object keys sorted, so two readings of the same data
+    // compare equal whatever order their keys were built in. Otherwise as
+    // JSON.stringify (undefined dropped from objects, null in arrays).
+    function stableJson(v) {
+      if (v === undefined || typeof v === 'function') return 'null';
+      if (v === null || typeof v !== 'object') return JSON.stringify(v);
+      if (typeof v.toJSON === 'function') return stableJson(v.toJSON());
+      if (Array.isArray(v)) return '[' + v.map((x) => stableJson(x)).join(',') + ']';
+      const keys = Object.keys(v).filter((k) => v[k] !== undefined && typeof v[k] !== 'function').sort();
+      return '{' + keys.map((k) => JSON.stringify(k) + ':' + stableJson(v[k])).join(',') + '}';
+    }
+    // A section that cannot be serialised (a cycle, a BigInt from some future
+    // caller) never compares equal to anything, so it always counts as changed:
+    // a missed change is the failure worth avoiding, a spare notification is not.
+    let unreadableSeq = 0;
+    function sectionJson(p, k) {
+      try { return stableJson(p ? p[k] : undefined); } catch (e) { return '\u0000unreadable ' + (++unreadableSeq); }
+    }
+    function metaIdentityJson(p) {
+      const m = p && p.meta && typeof p.meta === 'object' ? p.meta : null;
+      if (!m) return 'null';
+      const who = {};
+      for (const k of Object.keys(m)) if (!PROFILE_META_CLOCKS.has(k)) who[k] = m[k];
+      try { return stableJson(who); } catch (e) { return '\u0000unreadable ' + (++unreadableSeq); }
+    }
+    function stampOf(map, k) {
+      const v = map && typeof map === 'object' ? map[k] : undefined;
+      return typeof v === 'number' && Number.isFinite(v) ? v : null;
+    }
+    function latestStamps(a, b) {
+      const x = a && typeof a === 'object' ? a : null;
+      const y = b && typeof b === 'object' ? b : null;
+      if (!x && !y) return null;
+      const out = Object.assign({}, x);
+      if (y) {
+        for (const k of Object.keys(y)) {
+          const v = stampOf(y, k);
+          const cur = stampOf(out, k);
+          if (v !== null && (cur === null || v > cur)) out[k] = v;
+        }
+      }
+      return out;
     }
 
-    function setProfile(data, fromBc) {
-      if (!data || typeof data !== 'object') return;
-      activeProfile = data;
-      saveProfileDebounced(data);
-      if (!fromBc && profileBc) {
-        try {
-          profileBc.postMessage({ type: 'PROFILE_UPDATED', profile: data, timestamp: Date.now() });
-        } catch (e) { /* ignore */ }
+    // WHOSE profile. The ids when both sides carry one, else the names when
+    // both carry one, else "the same": a capture that could not read the
+    // character is no evidence of another character.
+    function sameCharacter(a, b) {
+      const who = (p, k) => { const v = p && p.meta ? p.meta[k] : null; return typeof v === 'string' && v ? v : null; };
+      const ia = who(a, 'characterId'), ib = who(b, 'characterId');
+      if (ia && ib) return ia === ib;
+      const na = who(a, 'characterName'), nb = who(b, 'characterName');
+      if (na && nb) return na === nb;
+      return true;
+    }
+
+    // MERGE TWO PROFILES SECTION BY SECTION, BY observedAt. Pure: returns a new
+    // profile and changes neither input. Also Core.profile.merge.
+    //
+    // For each section the newer reading wins, and its stamp and page come
+    // with it, so a stamp only ever moves forward. "Newer":
+    //   both stamped      the later stamp; a tie keeps `base`, the copy
+    //                     already held (unless opts.local, below);
+    //   one stamped       the stamped one: a reading of unknown age never
+    //                     displaces one whose age is known;
+    //   neither stamped   `base`, except that a hole in `base` is filled;
+    //   absent, or null without a stamp, in `incoming`: never taken. That is
+    //                     what "not observed" looks like, and taking it would
+    //                     erase a reading (R92 item 2 was exactly that).
+    // opts.local: `incoming` is this tab's own commit (Core.profile.set), which
+    // wins ties and unstamped values: a caller of set() is saying "this is the
+    // profile now", as it always has, EXCEPT where the store provably holds a
+    // newer reading, which it keeps.
+    //
+    // Another character (sameCharacter): `base` comes back untouched, or, when
+    // local, `incoming` whole: this tab has just seen the switch, and nothing
+    // of the old character may leak into the new one (the rule profile-sync.js
+    // mergeObservedProfile already keeps).
+    //
+    // Meta: queryAt merges by the latest stamp per query; timestamp is the
+    // later of the two; every other field (name, level, ids) comes from the
+    // newer capture by meta.timestamp (always from `incoming` when local),
+    // except that undefined never overwrites and a null never erases a known
+    // identity (PROFILE_META_KEEP).
+    function mergeBySection(base, incoming, opts) {
+      const local = !!(opts && opts.local);
+      if (!incoming || typeof incoming !== 'object') return base && typeof base === 'object' ? base : null;
+      if (!base || typeof base !== 'object') return incoming;
+      if (!sameCharacter(base, incoming)) return local ? incoming : base;
+      const bm = base.meta && typeof base.meta === 'object' ? base.meta : {};
+      const im = incoming.meta && typeof incoming.meta === 'object' ? incoming.meta : {};
+      const bSeen = bm.observedAt || {};
+      const iSeen = im.observedAt || {};
+      const bOn = bm.observedOn || {};
+      const iOn = im.observedOn || {};
+      const owns = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+
+      const out = {};
+      const schema = local
+        ? (incoming.schemaVersion !== undefined ? incoming.schemaVersion : base.schemaVersion)
+        : (base.schemaVersion !== undefined ? base.schemaVersion : incoming.schemaVersion);
+      if (schema !== undefined) out.schemaVersion = schema;
+      out.meta = null; // placed here so the key order reads schemaVersion, meta, sections
+      const seen = {};
+      const on = {};
+      const keys = new Set([...Object.keys(base), ...Object.keys(incoming)]);
+      for (const k of keys) {
+        if (PROFILE_NOT_SECTIONS.has(k)) continue;
+        const b = base[k];
+        const v = incoming[k];
+        const bs = stampOf(bSeen, k);
+        const is = stampOf(iSeen, k);
+        let take;
+        if (v === undefined || (v === null && is === null)) take = false;
+        else if (is !== null && bs !== null) take = local ? is >= bs : is > bs;
+        else if (is !== null || bs !== null) take = is !== null;
+        else take = local || b === undefined || b === null;
+        if (take) out[k] = v;
+        else if (owns(base, k)) out[k] = b;
+        else out[k] = v === undefined ? null : v;
+        const stamp = take ? is : bs;
+        if (stamp !== null) seen[k] = stamp;
+        const page = take && iOn[k] != null ? iOn[k] : bOn[k];
+        if (page != null) on[k] = page;
       }
-      for (const fn of profileListeners) {
-        try { fn(activeProfile); } catch (e) { console.error('[AwooCore:Profile] Listener error:', e); }
+      // Stamps with no section beside them are kept as they were in `base`;
+      // one arriving without its section is ignored, like any hole.
+      for (const k of Object.keys(bSeen)) if (!keys.has(k) && stampOf(bSeen, k) !== null) seen[k] = bSeen[k];
+
+      const meta = Object.assign({}, bm);
+      const newer = local || (stampOf(im, 'timestamp') || 0) > (stampOf(bm, 'timestamp') || 0);
+      for (const k of Object.keys(im)) {
+        if (k === 'observedAt' || k === 'observedOn' || k === 'queryAt' || k === 'timestamp') continue;
+        const v = im[k];
+        if (v === undefined) continue;
+        if (v === null && PROFILE_META_KEEP.has(k) && meta[k] != null) continue;
+        const hole = meta[k] === undefined || (meta[k] === null && PROFILE_META_KEEP.has(k));
+        if (newer || hole) meta[k] = v;
       }
+      const ts = Math.max(stampOf(bm, 'timestamp') || 0, stampOf(im, 'timestamp') || 0);
+      if (ts) meta.timestamp = ts;
+      meta.observedAt = seen;
+      meta.observedOn = on;
+      const queryAt = latestStamps(bm.queryAt, im.queryAt);
+      if (queryAt) meta.queryAt = queryAt;
+      else delete meta.queryAt;
+      out.meta = meta;
+      return out;
+    }
+
+    // What a commit changes (see the header above). `json` is next's section
+    // JSON, handed on as activeJson. `clocksMoved`: only queryAt moved, which
+    // no listener hears about but storage and other tabs must still get.
+    function diffProfiles(cur, next) {
+      const json = new Map();
+      const changed = [];
+      const stamped = [];
+      const cSeen = cur && cur.meta ? cur.meta.observedAt : null;
+      const nSeen = next.meta ? next.meta.observedAt : null;
+      const keys = new Set([...(cur ? Object.keys(cur) : []), ...Object.keys(next)]);
+      for (const k of keys) {
+        if (PROFILE_NOT_SECTIONS.has(k)) continue;
+        if (cur && next[k] === cur[k]) {
+          // The merge kept our own object: unchanged by construction.
+          if (activeJson.has(k)) json.set(k, activeJson.get(k));
+        } else {
+          const a = sectionJson(next, k);
+          json.set(k, a);
+          const b = !cur ? 'null' : activeJson.has(k) ? activeJson.get(k) : sectionJson(cur, k);
+          if (a !== b) changed.push(k);
+        }
+        const ns = stampOf(nSeen, k);
+        const cs = stampOf(cSeen, k);
+        if (ns !== null && (cs === null || ns > cs)) stamped.push(k);
+      }
+      if (metaIdentityJson(cur) !== metaIdentityJson(next)) changed.push('meta');
+      const clocksMoved = sectionJson(cur && cur.meta, 'queryAt') !== sectionJson(next.meta, 'queryAt');
+      return { changed, stamped, clocksMoved, json };
+    }
+
+    // Every commit goes through here: a local one (Core.profile.set, which is
+    // a capture in this tab) or a receipt from another tab. Returns what it
+    // changed, { changed, stamped } (both empty when nothing did), or null
+    // when it refused: a receipt about another character.
+    function commitProfile(incoming, local) {
+      const cur = getProfile();
+      let next;
+      if (!cur) next = incoming;
+      else if (!sameCharacter(cur, incoming)) {
+        // Another tab on another character: none of its sections are ours.
+        // This tab switching character: the new one replaces the old whole.
+        if (!local) return null;
+        next = incoming;
+      } else next = mergeBySection(cur, incoming, { local });
+      const d = diffProfiles(cur, next);
+      if (!d.changed.length && !d.stamped.length && !d.clocksMoved) return { changed: [], stamped: [] };
+      activeProfile = next;
+      activeJson = d.json;
+      if (local) {
+        queueProfileWrite(d.changed.length > 0);
+        queueProfilePost(d.changed, d.stamped);
+      }
+      if (d.changed.length || d.stamped.length) notifyProfile(d.changed, d.stamped);
       renderProfileRow();
+      return { changed: d.changed.slice(), stamped: d.stamped.slice() };
+    }
+
+    // Core.profile.set(profile). The second argument is the channel's own
+    // (a receipt from another tab), never a caller's.
+    function setProfile(data, fromBc) {
+      if (!data || typeof data !== 'object') return null;
+      return commitProfile(data, !fromBc);
+    }
+
+    // A delta from another tab (postProfileNow's shape), rebuilt as a partial
+    // profile and merged as a receipt.
+    function receiveProfileDelta(d) {
+      const sections = d.sections && typeof d.sections === 'object' ? d.sections : {};
+      const meta = Object.assign({}, d.meta && typeof d.meta === 'object' ? d.meta : {});
+      meta.characterId = typeof d.characterId === 'string' && d.characterId ? d.characterId : (meta.characterId || null);
+      meta.characterName = typeof d.characterName === 'string' && d.characterName ? d.characterName : (meta.characterName || null);
+      meta.observedAt = d.observedAt && typeof d.observedAt === 'object' ? d.observedAt : {};
+      meta.observedOn = d.observedOn && typeof d.observedOn === 'object' ? d.observedOn : {};
+      if (d.queryAt && typeof d.queryAt === 'object') meta.queryAt = d.queryAt;
+      const incoming = { meta };
+      if (d.schemaVersion !== undefined) incoming.schemaVersion = d.schemaVersion;
+      for (const k of Object.keys(sections)) if (!PROFILE_NOT_SECTIONS.has(k)) incoming[k] = sections[k];
+      return commitProfile(incoming, false);
+    }
+
+    // ---- listeners ----
+    function notifyProfile(changed, stamped) {
+      const now = Date.now();
+      for (const l of [...profileListeners]) {
+        if (!profileListeners.has(l)) continue; // unsubscribed by an earlier listener in this round
+        const ch = l.sections ? changed.filter((s) => l.sections.has(s)) : changed;
+        const st = l.sections ? stamped.filter((s) => l.sections.has(s)) : stamped;
+        if (ch.length) { deliverProfile(l, ch, st); continue; }
+        if (!st.length) continue;
+        for (const s of st) l.ageOnly.add(s);
+        if (now - l.at >= PROFILE_AGE_MS) deliverProfile(l, [], []);
+      }
+      armProfileAgeTimer();
+    }
+    // A delivery hands over the whole current profile, so it settles every age
+    // the listener was waiting for as well.
+    function deliverProfile(l, changed, stamped) {
+      const st = new Set([...l.ageOnly, ...stamped]);
+      l.ageOnly.clear();
+      l.at = Date.now();
+      try { l.fn(activeProfile, { changed: changed.slice(), stamped: [...st], initial: false }); } catch (e) { console.error('[AwooCore:Profile] Listener error:', e); }
+    }
+    // One timer for every listener's waiting ages, set for the earliest one
+    // due and re-armed from the clock when it fires (AGENTS.md rule 5: a
+    // hidden tab fires it late, and the delivery is then late, never wrong).
+    let profileAgeTimer = null;
+    let profileAgeDue = 0;
+    function armProfileAgeTimer() {
+      let due = Infinity;
+      for (const l of profileListeners) if (l.ageOnly.size) due = Math.min(due, l.at + PROFILE_AGE_MS);
+      if (due === Infinity) return;
+      if (profileAgeTimer !== null) {
+        if (due >= profileAgeDue) return;
+        clearTimeout(profileAgeTimer);
+      }
+      profileAgeDue = due;
+      profileAgeTimer = setTimeout(() => {
+        profileAgeTimer = null;
+        const now = Date.now();
+        for (const l of [...profileListeners]) {
+          if (profileListeners.has(l) && l.ageOnly.size && now - l.at >= PROFILE_AGE_MS) deliverProfile(l, [], []);
+        }
+        armProfileAgeTimer();
+      }, Math.max(0, due - Date.now()));
+    }
+
+    // ---- storage: written by the tab that observed ----
+    //
+    // Trailing: a write lands PROFILE_WRITE_MS after the first unsaved change
+    // (PROFILE_AGE_MS when only ages moved) and takes whatever the profile is
+    // by then, so a burst of captures is one write.
+    let profileWriteTimer = null;
+    let profileWriteDue = 0;
+    let profileWriteSince = 0;
+    function queueProfileWrite(valueChanged) {
+      const now = Date.now();
+      if (profileWriteTimer === null) profileWriteSince = now;
+      const due = profileWriteSince + (valueChanged ? PROFILE_WRITE_MS : PROFILE_AGE_MS);
+      if (profileWriteTimer !== null) {
+        if (due >= profileWriteDue) return;
+        clearTimeout(profileWriteTimer);
+      }
+      profileWriteDue = due;
+      profileWriteTimer = setTimeout(writeProfileNow, Math.max(0, due - now));
+    }
+    // READ-MERGE-WRITE. Another tab may have written a newer section since
+    // this one loaded (a tab on an older AWOO+ writes its whole copy on every
+    // capture), and a plain write would put this tab's older reading back over
+    // it. Stored under another character: this tab's profile replaces it, as
+    // the last tab to observe has always done.
+    function writeProfileNow() {
+      if (profileWriteTimer !== null) { clearTimeout(profileWriteTimer); profileWriteTimer = null; }
+      const mine = activeProfile;
+      if (!mine) return;
+      let out = mine;
+      try {
+        const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+        const stored = raw ? JSON.parse(raw) : null;
+        if (stored && typeof stored === 'object' && sameCharacter(stored, mine)) out = mergeBySection(stored, mine, { local: true });
+      } catch (e) { /* unreadable: this tab's copy replaces it */ }
+      try { localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(out)); } catch (e) { /* ignore quota errors */ }
+    }
+
+    // ---- other tabs: a delta, from the tab that observed ----
+    //
+    // PROFILE_DELTA v1:
+    //   { type: 'PROFILE_DELTA', v: 1, characterId, characterName,
+    //     sections: { <name>: value },   every section changed OR stamped since
+    //                                    the last post, with its value
+    //     observedAt: { <name>: ms }, observedOn: { <name>: path },
+    //     meta: { the sender's meta minus the three stamp maps },
+    //     queryAt?: { <query key>: ms }, schemaVersion?, at: ms }
+    // A stamped section travels WITH its value, not as a bare stamp. A bare
+    // stamp would tell a tab that missed the change (opened after it, say)
+    // that its older value is fresh; with the value, a receiver that already
+    // has it sees no change and hears only the age. The cost is one clone of
+    // the page-held sections a minute.
+    let profilePostTimer = null;
+    let profilePostDue = 0;
+    let profilePostSince = 0;
+    let profilePostedAt = 0;
+    let profilePostValue = false;
+    const profilePostNames = new Set();
+    function queueProfilePost(changed, stamped) {
+      if (!profileBc) return;
+      for (const s of changed) profilePostNames.add(s);
+      for (const s of stamped) profilePostNames.add(s);
+      if (changed.length) profilePostValue = true;
+      const now = Date.now();
+      if (profilePostTimer === null) profilePostSince = now;
+      const due = profilePostValue ? profilePostSince + PROFILE_POST_MS : Math.max(now, profilePostedAt + PROFILE_AGE_MS);
+      if (profilePostTimer !== null) {
+        if (due >= profilePostDue) return;
+        clearTimeout(profilePostTimer);
+      }
+      profilePostDue = due;
+      profilePostTimer = setTimeout(postProfileNow, Math.max(0, due - now));
+    }
+    function postProfileNow() {
+      if (profilePostTimer !== null) { clearTimeout(profilePostTimer); profilePostTimer = null; }
+      const names = [...profilePostNames];
+      profilePostNames.clear();
+      profilePostValue = false;
+      const p = activeProfile;
+      if (!p || !profileBc) return;
+      const m = p.meta && typeof p.meta === 'object' ? p.meta : {};
+      const sections = {};
+      const observedAt = {};
+      const observedOn = {};
+      for (const s of names) {
+        if (PROFILE_NOT_SECTIONS.has(s) || p[s] === undefined) continue;
+        sections[s] = p[s];
+        if (stampOf(m.observedAt, s) !== null) observedAt[s] = m.observedAt[s];
+        if (m.observedOn && m.observedOn[s] != null) observedOn[s] = m.observedOn[s];
+      }
+      const meta = {};
+      for (const k of Object.keys(m)) if (k !== 'observedAt' && k !== 'observedOn' && k !== 'queryAt') meta[k] = m[k];
+      const msg = {
+        type: 'PROFILE_DELTA', v: 1,
+        characterId: typeof m.characterId === 'string' ? m.characterId : null,
+        characterName: typeof m.characterName === 'string' ? m.characterName : null,
+        sections, observedAt, observedOn, meta, at: Date.now(),
+      };
+      if (m.queryAt && typeof m.queryAt === 'object') msg.queryAt = m.queryAt;
+      if (p.schemaVersion !== undefined) msg.schemaVersion = p.schemaVersion;
+      try { profileBc.postMessage(msg); } catch (e) { console.warn('[AwooCore:Profile] could not post a profile delta:', e); }
+      profilePostedAt = Date.now();
+    }
+
+    // Leaving the page is the last chance for both (pagehide, wired with the
+    // other flushes further down). Going hidden flushes storage only: the tab
+    // lives on, and its throttled post still goes within the minute.
+    function flushProfileStorage() {
+      if (profileWriteTimer !== null) writeProfileNow();
+    }
+    function flushProfileWrites() {
+      flushProfileStorage();
+      if (profilePostTimer !== null) postProfileNow();
     }
 
     function getProfile() {
@@ -4007,14 +4453,28 @@
       return activeProfile;
     }
 
-    function subscribeProfile(fn) {
+    // subscribe(fn, { sections }) returns an unsubscribe. fn(profile, info),
+    // info = { changed, stamped, initial }: of the sections asked for, those
+    // whose value changed and those whose age alone moved. `sections` omitted
+    // means all of them; 'meta' names the identity fields (name, level, ids).
+    // Called at once with the current profile (initial: true, every section
+    // present counted as changed), then on each change to a section asked for,
+    // and at most once a minute when only ages moved. A listener written
+    // before v16, fn(profile), runs unchanged: it is called less often and
+    // never misses a change.
+    function subscribeProfile(fn, opts) {
       if (typeof fn !== 'function') return () => {};
-      profileListeners.add(fn);
+      const asked = opts && Array.isArray(opts.sections)
+        ? new Set(opts.sections.filter((s) => typeof s === 'string')) : null;
+      const l = { fn, sections: asked, at: 0, ageOnly: new Set() };
+      profileListeners.add(l);
       const cur = getProfile();
       if (cur) {
-        try { fn(cur); } catch (e) { /* ignore */ }
+        l.at = Date.now();
+        const present = Object.keys(cur).filter((k) => k !== 'schemaVersion' && cur[k] != null && (!asked || asked.has(k)));
+        try { fn(cur, { changed: present, stamped: [], initial: true }); } catch (e) { console.error('[AwooCore:Profile] Listener error:', e); }
       }
-      return () => { profileListeners.delete(fn); };
+      return () => { profileListeners.delete(l); };
     }
 
     function resyncProfile(fromBc) {
@@ -4039,34 +4499,39 @@
       return hr + 'h ago';
     }
 
-    // `what` is the player's answer to "what is in this?"; `queries` are the
-    // game's own data calls it is read from (userscripts/src/core/profile-sync.js),
-    // shown only as developer info.
+    // `what` is the player's answer to "what is in this?". Which game queries
+    // feed a section, and how each is kept, is NOT here: that is Profile
+    // Sync's catalogue (src/core/profile-sync.js, Core.profile.catalogue), the
+    // one home. A copy of the query names lived here until R92 and had
+    // already drifted from what the normalizer reads.
     const PROFILE_CATEGORIES = [
-      { id: 'core', label: 'Core & VIP', what: 'Your name, level, VIP level, gold and credits', queries: ['character.public.getActiveCharacter'] },
-      { id: 'levels', label: 'Levels', what: 'Skill levels: battling, crafting, sanctum and the rest', queries: ['character.levels.public.getLevels'] },
-      { id: 'relicBoosts', label: 'Relic Boosts', what: 'Relic shop levels from the Boosts page: crit, multistrike, healing, defense', queries: ['character.boosts.public.getBoosts'] },
-      { id: 'baseStats', label: 'Base Stats', what: 'Strength, health, dexterity and agility', queries: ['character.stats.public.getStats'] },
-      { id: 'statBoosts', label: 'Stat Boosts', what: 'Percent boosts to each stat, from every source', queries: ['character.boosts.public.getMergedBoosts'] },
-      { id: 'incomeBoosts', label: 'Income Multipliers', what: 'Percent boosts to gold and resources, from every source', queries: ['character.boosts.public.getMergedBoosts'] },
-      { id: 'mergedMultipliers', label: 'All Multipliers', what: 'The game\'s own merged multipliers (gold, experience and the rest)', queries: ['character.queries.getMergedMultipliers'] },
-      { id: 'pets', label: 'Pets & Slots', what: 'Pet slot levels (combat, gathering, utility) and your equipped pets', queries: ['pets.queries.getPetSlots', 'pets.queries.getEquippedPets'] },
-      { id: 'partner', label: 'Partner', what: 'Every partner: speed, intelligence, stats, skills and drops', queries: ['partner.public.getPartner'] },
-      { id: 'sanctum', label: 'Sanctum Maps', what: 'Your active sanctum maps and skill-tree points', queries: ['sanctum.public.getActiveSanctums', 'sanctum.skilltree.public.getActiveSkillTreePoints'] },
-      { id: 'sculpture', label: 'Sculptures', what: 'The sculpture grid and its multipliers', queries: ['fighters.sculptures.public.getSculptureMultipliers', 'fighters.sculptures.public.getSculptureGrid'] },
-      { id: 'fighters', label: 'Fighters', what: 'The fighters in your active preset', queries: ['fighters.public.getCharacterFightersRaw', 'fighters.public.getActivePresetFighters'] },
-      { id: 'equipment', label: 'Equipment & Gems', what: 'Equipped fighter gear and gems, per slot', queries: ['equipment.queries.getEquipmentSlots', 'character.gems.queries.getEquippedGems'] },
-      { id: 'village', label: 'Village & PvP', what: 'Your village\'s name, buildings and strengths (PvP tiles are not read yet)', queries: ['village.queries.getVillage', 'village.queries.getBuildings', 'village.queries.getStrengths'] },
+      { id: 'core', label: 'Core & VIP', what: 'Your name, level, VIP level, gold and credits' },
+      { id: 'levels', label: 'Levels', what: 'Skill levels: battling, crafting, sanctum and the rest' },
+      { id: 'relicBoosts', label: 'Relic Boosts', what: 'Relic shop levels from the Boosts page: crit, multistrike, healing, defense' },
+      { id: 'baseStats', label: 'Base Stats', what: 'Strength, health, dexterity and agility' },
+      { id: 'statBoosts', label: 'Stat Boosts', what: 'Percent boosts to each stat, from every source' },
+      { id: 'incomeBoosts', label: 'Income Multipliers', what: 'Percent boosts to gold and resources, from every source' },
+      { id: 'mergedMultipliers', label: 'All Multipliers', what: 'The game\'s own merged multipliers (gold, experience and the rest)' },
+      { id: 'pets', label: 'Pets & Slots', what: 'Pet slot levels (combat, gathering, utility) and your equipped pets' },
+      { id: 'partner', label: 'Partner', what: 'Every partner: speed, intelligence, stats, skills and drops' },
+      { id: 'sanctum', label: 'Sanctum Maps', what: 'Your active sanctum maps and skill-tree points' },
+      { id: 'sculpture', label: 'Sculptures', what: 'The sculpture grid and its multipliers' },
+      { id: 'fighters', label: 'Fighters', what: 'The fighters in your active preset' },
+      { id: 'equipment', label: 'Equipment & Gems', what: 'Equipped fighter gear and gems, per slot' },
+      { id: 'village', label: 'Village & PvP', what: 'Your village\'s name, buildings and strengths (PvP tiles are not read yet)' },
+      // Loadouts change only when the player edits one, and the page where
+      // they do is captured then; a day is how long one is worth without.
+      { id: 'loadouts', label: 'Loadouts', what: 'Your sculpture presets and each grid, skill-tree presets, and item sets', staleMs: 24 * 60 * 60 * 1000 },
       // The party sections carry their own age limit (REGISTER.md R88): the
       // actions count moves every 10 s during a run and is only worth 10
       // minutes; members change rarely and are worth a day. The last-action
       // reading never goes old by time: a run's rate stays the rate until a
       // new run replaces it, and Party marks it when its conditions change.
-      { id: 'party', label: 'Party', what: 'Your party: members, their actions, monsters and multipliers', queries: ['party.public.getOverview'], staleMs: 24 * 60 * 60 * 1000 },
-      { id: 'partyActions', label: 'Party Actions', what: 'Party actions left, max actions, and the last daily reset', queries: ['party.combat.public.getActions'], staleMs: 10 * 60 * 1000 },
-      { id: 'partyLastAction', label: 'Party Last Action', what: 'Gold and EXP from the last party action, and from the last run', queries: ['party.combat.public.getLastActionState'], staleMs: Infinity },
-      { id: 'partyMonster', label: 'Party Monster', what: "Your party monster's level", queries: ['party.combat.public.getActionsMonster'], staleMs: 24 * 60 * 60 * 1000 },
-      { id: 'partyLevels', label: 'Party Levels', what: "Each party member's levels and EXP", queries: ['character.levels.public.getLevels'], staleMs: 24 * 60 * 60 * 1000 },
+      { id: 'party', label: 'Party', what: 'Your party: members, their actions, monsters and multipliers', staleMs: 24 * 60 * 60 * 1000 },
+      { id: 'partyActions', label: 'Party Actions', what: 'Party actions left, max actions, and the last daily reset', staleMs: 10 * 60 * 1000 },
+      { id: 'partyLastAction', label: 'Party Last Action', what: 'Gold and EXP from the last party action, and from the last run', staleMs: Infinity },
+      { id: 'partyMonster', label: 'Party Monster', what: "Your party monster's level", staleMs: 24 * 60 * 60 * 1000 },
+      { id: 'partyLevels', label: 'Party Levels', what: "Each party member's levels and EXP", staleMs: 24 * 60 * 60 * 1000 },
     ];
 
     // HOW FRESH ONE PROFILE SYNC SECTION IS. Six hours is the window the tools
@@ -4083,16 +4548,162 @@
       const limit = cat && cat.staleMs ? cat.staleMs : PROFILE_STALE_MS;
       return { state: Date.now() - at > limit ? 'stale' : 'ok', age: formatTimeAgo(at), at };
     }
+    // OLD MATTERS ONLY WHERE SOMETHING USES IT (REGISTER.md R92). The sections
+    // a STARTED module declares (about.uses) are what Profile Sync keeps
+    // fresh, so they are the only ones whose age is news: an old section no
+    // loaded module reads is state 'unused' ("old · unused", drawn muted), and
+    // it never turns the top-bar light amber. Before R92 any old section did,
+    // so a player with only Party loaded saw amber for a village nothing
+    // reads, and the light meant nothing. Tools do not count: a tool asks for
+    // its sections when it opens (openTool). The started rule is moduleInfo's.
+    function usedProfileSections() {
+      const out = new Set();
+      for (const m of Object.values(modules)) {
+        const started = m.lifecycle >= 2 ? !!m.started : !!m.enabled;
+        if (started) for (const s of (m.uses || [])) out.add(s);
+      }
+      return out;
+    }
+    // profileFreshness plus that rule: state ok | stale | unused | miss.
+    function profileSectionState(key, profile, used) {
+      const f = profileFreshness(key, profile);
+      return f.state === 'stale' && !(used || usedProfileSections()).has(key) ? Object.assign({}, f, { state: 'unused' }) : f;
+    }
+    // counts.stale / byState.stale: old AND used, the only amber there is.
     function profileSummary() {
       const p = getProfile();
-      const counts = { ok: 0, stale: 0, miss: 0 };
-      const byState = { ok: [], stale: [], miss: [] };
+      const used = usedProfileSections();
+      const counts = { ok: 0, stale: 0, unused: 0, miss: 0 };
+      const byState = { ok: [], stale: [], unused: [], miss: [] };
       for (const c of PROFILE_CATEGORIES) {
-        const f = profileFreshness(c.id, p);
+        const f = profileSectionState(c.id, p, used);
         counts[f.state]++;
         byState[f.state].push(c.label);
       }
-      return { profile: p, counts, byState, at: p && p.meta ? p.meta.timestamp : null };
+      return { profile: p, used, counts, byState, at: p && p.meta ? p.meta.timestamp : null };
+    }
+
+    // ---- how each section is KEPT, for Control Panel › Profile Sync (R92) ----
+    //
+    // Derived, never stored: from Profile Sync's catalogue (Core.profile
+    // .catalogue, the one home for which query feeds which section and how
+    // often it may be read), what the started modules and the tools use, and
+    // what the sync layer is doing now (Core.profile.syncStatus). One word or
+    // two for the player, one sentence on hover, the queries and their clocks
+    // for the developer tier:
+    //   Page      the game sends it with every page (the character provider;
+    //             the sidebar's party actions when nothing holds them);
+    //   Every N   read in the background every N (the section's shortest
+    //             interval) while a started module uses it;
+    //   Live      held open: by the leading tab for a `hold` row a module
+    //             uses, or in this tab now for a window that shows it;
+    //   On open   only a tool uses it: read when that tool opens;
+    //   —         nothing asks for it, or background reads are off / cannot
+    //             run here; it updates when a game page shows it.
+    function profileSyncStatus() {
+      try { return typeof profileApi.syncStatus === 'function' ? profileApi.syncStatus() : null; } catch (e) { return null; }
+    }
+    function profileCatalogue() {
+      return Array.isArray(profileApi.catalogue) ? profileApi.catalogue : [];
+    }
+    const everyText = (ms) => (ms < 60 * 60 * 1000 ? `Every ${Math.round(ms / 60000)} min` : `Every ${Math.round(ms / 3600000)} h`);
+    const everyWords = (ms) => (ms < 60 * 60 * 1000 ? `${Math.round(ms / 60000)} minutes` : ms === 3600000 ? 'hour' : `${Math.round(ms / 3600000)} hours`);
+    function formatTimeUntil(ts) {
+      const sec = Math.round((ts - Date.now()) / 1000);
+      if (sec <= 5) return 'due now';
+      if (sec < 60) return `in ${sec}s`;
+      const min = Math.round(sec / 60);
+      if (min < 60) return `in ${min}m`;
+      return `in ${Math.floor(min / 60)}h ${min % 60}m`;
+    }
+    // { label, tip, dev }. ctx = { used, toolUsed, status, catalogue, partyId }
+    // (partyId: meta.partyId, null when the character document said "none").
+    function profileKept(id, ctx) {
+      const rows = ctx.catalogue.filter((r) => r.section === id);
+      const st = ctx.status;
+      const bg = st ? st.background : 'unsupported';
+      const used = ctx.used.has(id);
+      const byTool = ctx.toolUsed.has(id);
+      const every = rows.filter((r) => r.every).map((r) => r.every);
+      const shortest = every.length ? Math.min(...every) : null;
+      const allPage = rows.length > 0 && rows.every((r) => r.kept === 'page');
+      const hasPage = rows.some((r) => r.kept === 'page');
+      const hasHold = rows.some((r) => r.hold);
+      const hasLive = rows.some((r) => r.live);
+      const statusRows = st && Array.isArray(st.rows) ? st.rows.filter((r) => r.section === id) : [];
+      const heldNow = !!(st && Array.isArray(st.holds) && statusRows.some((r) => st.holds.includes(r.key)));
+      const dev = profileKeptDev(rows, statusRows);
+      const out = (label, tip) => ({ label, tip, dev });
+      if (!rows.length) return out('—', 'AWOO+ never asks for this; it updates when a game page shows it.');
+      if (allPage) return out('Page', 'The game sends this with every page, so it is always current.');
+      // The party rows are asked only while the character document names a
+      // party (the catalogue's when: 'party'); null there is an observation.
+      const gated = rows.filter((r) => r.kept !== 'page');
+      if (ctx.partyId === null && gated.length && gated.every((r) => r.when === 'party')) return out('—', 'You are not in a party, so AWOO+ asks for none of this.');
+      if (heldNow) return out('Live', 'Kept open in this tab while a window that shows it is open, as the game\'s own page does.');
+      if (used && hasHold && bg === 'on') return out('Live', 'Kept open by one tab while a loaded module uses it, as the game\'s sidebar does.');
+      if (used && shortest !== null && bg === 'on') {
+        return out(everyText(shortest), `Read once every ${everyWords(shortest)} while a loaded module uses it, from one tab, as opening its page would`
+          + (hasLive ? ', and kept open while a window that shows it is open.' : '.'));
+      }
+      if (hasHold) return out('Page', 'The game\'s sidebar keeps this current on every page.');
+      if (byTool && shortest !== null && bg !== 'off') {
+        return out('On open', 'Read when a tool that uses it opens' + (hasPage ? '; part of it also comes with every page.' : '.'));
+      }
+      if (hasPage) return out('Page', 'Part of this comes with every page; the rest when a game page shows it.');
+      if (bg === 'off' && (used || byTool)) return out('—', 'Background reads are off, so this updates only when a game page shows it.');
+      if (bg === 'unsupported' && used) {
+        return out('—', 'This browser cannot pick one tab to read from, so AWOO+ reads nothing in the background: this updates when a game page shows it, or on Sync now.');
+      }
+      return out('—', 'Nothing loaded uses it, so AWOO+ never asks; it updates when a game page shows it.');
+    }
+    // The developer half: each catalogue query of the section, how it is
+    // kept, and its clocks here (members' levels summed over the members).
+    function profileKeptDev(rows, statusRows) {
+      if (!rows.length) return 'No query in Profile Sync\'s catalogue (src/core/profile-sync.js).';
+      const parts = [];
+      const seenNames = new Set();
+      for (const r of rows) {
+        if (seenNames.has(r.name)) continue;
+        seenNames.add(r.name);
+        const how = r.kept === 'page' ? 'held by the game on every page' : r.kept === 'held' ? 'held by the leading tab while used'
+          : `background, ${everyText(r.every).toLowerCase()}`;
+        let line = `${r.name} {${r.argKeys.join(', ')}}${r.perMember ? ' per member' : ''}: ${how}${r.live ? ', live while shown' : ''}${r.when === 'party' ? ', only in a party' : ''}`;
+        const mine = statusRows.filter((s) => s.name === r.name && (!r.perMember || s.key.includes('#')) && (r.perMember || !s.key.includes('#')));
+        if (mine.length) {
+          const last = mine.map((s) => s.lastAt).filter(Number.isFinite);
+          const next = mine.map((s) => s.nextAt).filter(Number.isFinite);
+          const fails = mine.reduce((a, s) => a + (s.fails || 0), 0);
+          const err = mine.map((s) => s.lastError).filter(Boolean)[0];
+          line += `; last ${last.length === mine.length && last.length ? formatTimeAgo(Math.min(...last)).toLowerCase() : 'never'}`;
+          if (next.length) line += `, next ${formatTimeUntil(Math.min(...next))}`;
+          if (mine.some((s) => s.inFlight)) line += ', reading now';
+          if (fails) line += `, ${fails} failure${fails === 1 ? '' : 's'}${err ? ` (${err})` : ''}`;
+          if (r.perMember) line += ` (${mine.filter((s) => s.asked).length} member${mine.filter((s) => s.asked).length === 1 ? '' : 's'})`;
+        }
+        parts.push(line + '.');
+      }
+      return parts.join(' ');
+    }
+    // The background line on the Profile Sync banner: { text, tip, dev }.
+    function profileBackgroundLine(st) {
+      if (!st) return { text: 'Background reads: unavailable', tip: 'Profile Sync did not start, so AWOO+ reads nothing in the background.', dev: 'Core.profile.syncStatus is missing.' };
+      const dev = `leader ${st.leader}, other tab leads ${st.otherLeader}; in flight ${st.inFlight}, queued ${st.queued}; `
+        + `holds: ${(st.holds || []).join(', ') || 'none'}; capped: ${(st.capped || []).join(', ') || 'none'}; `
+        + `refused: ceiling ${st.refused ? st.refused.ceiling : 0}, offline ${st.refused ? st.refused.offline : 0}`
+        + (st.refused && st.refused.lastAt ? `, last ${st.refused.lastWhy} ${formatTimeAgo(st.refused.lastAt).toLowerCase()}` : '') + '.';
+      if (st.background === 'unsupported') {
+        return { text: 'Background reads: needs a newer browser', dev,
+          tip: 'This browser has no Web Locks, which AWOO+ needs to pick one tab to read from, so it reads nothing in the background. Pages you open, tools and Sync now still work.' };
+      }
+      if (st.background === 'off') {
+        return { text: 'Background reads: off', dev,
+          tip: 'AWOO+ asks the game for nothing of its own; data updates when a game page shows it. Background reads and automatic sync are the switches below.' };
+      }
+      const n = `${st.readsLastHour} in the last hour`;
+      if (st.leader) return { text: `Background reads: ${n} · this tab`, dev, tip: 'AWOO+ asks the game for what your loaded modules use, a few reads an hour, from one tab: this one. Each read is what opening that page would ask.' };
+      if (st.otherLeader) return { text: `Background reads: ${n} · another tab`, dev, tip: 'Another Queslar tab reads for all of them, so this one adds nothing; what it reads arrives here too.' };
+      return { text: 'Background reads: starting', dev, tip: 'No tab reads for the others yet: one starts once the game has loaded in a tab.' };
     }
 
     // ---- the Profile Sync button on the top bar (REGISTER.md R69) ----
@@ -4129,9 +4740,11 @@
       card.appendChild(head);
       const grid = mk('div', 'awoo-core-pc-grid');
       for (const c of PROFILE_CATEGORIES) {
-        const f = profileFreshness(c.id, sum.profile);
+        const f = profileSectionState(c.id, sum.profile, sum.used);
         grid.appendChild(mk('span', null, c.label));
-        grid.appendChild(mk('span', 'awoo-m-' + f.state, f.state === 'miss' ? 'not seen' : f.state === 'stale' ? `${f.age} · old` : f.age));
+        // Old but unused: the muted ink of "not seen", not the warning colour.
+        grid.appendChild(mk('span', 'awoo-m-' + (f.state === 'unused' ? 'miss' : f.state), f.state === 'miss' ? 'not seen'
+          : f.state === 'stale' ? `${f.age} · old` : f.state === 'unused' ? `${f.age} · old · unused` : f.age));
       }
       card.appendChild(grid);
       card.appendChild(mk('div', 'awoo-core-pc-foot', (getSetting('profileAutoSync') ? '' : 'Automatic sync is off. ')
@@ -4158,6 +4771,9 @@
       set: setProfile,
       subscribe: subscribeProfile,
       resync: resyncProfile,
+      // v16: the store's own section merge (observedAt wins; see
+      // mergeBySection), for a caller holding two copies of a profile.
+      merge: mergeBySection,
       probeConvexClient,
     };
 
@@ -4712,21 +5328,31 @@
       const profileToggle = Core_ui_toggleRow({
         label: 'Sync profile automatically',
         info: 'ON (default): your character profile is kept up to date in the background, so every '
-          + 'module and tool has current stats. OFF: it only updates when you press "Resync now" in '
-          + 'the AWOO+ menu.',
+          + 'module and tool has current stats. OFF: it only updates when you press Sync now '
+          + '(Profile Sync, or right-click its top-bar icon).',
         checked: !!getSetting('profileAutoSync'),
         onChange: (v) => setSetting('profileAutoSync', v),
       });
       profileGroup.appendChild(profileToggle);
+      // "Background reads" since R92; it was "Keep party data open" while all
+      // it governed was Party's watches. The key stays profileWatch.
       const watchToggle = Core_ui_toggleRow({
-        label: 'Keep party data open',
-        info: 'ON (default): while a module needs them, AWOO+ asks the game to keep your party overview '
-          + 'and your members\' levels loaded, as its own Party page does. OFF: they update only '
-          + 'when you open those pages.',
+        label: 'Background reads',
+        info: 'ON (default): AWOO+ asks the game for what your loaded modules use, a few reads an hour, '
+          + 'from one tab, the way opening those pages would. OFF: AWOO+ adds no request of its own, '
+          + 'and only reads what the pages you open show.',
         checked: getSetting('profileWatch') !== false,
         onChange: (v) => setSetting('profileWatch', v),
       });
       watchToggle.style.marginTop = '6px';
+      {
+        // The developer half, on the same info icon (the row's last child).
+        const icon = watchToggle.children[watchToggle.children.length - 1];
+        if (icon && icon.setAttribute) {
+          icon.setAttribute('data-tooltip-dev', 'Setting profileWatch. Off: no Web Lock is taken, and no background read, hold, '
+            + 'tool request or Sync now read is made (profile-sync.js). The automatic ones also need "Sync profile automatically".');
+        }
+      }
       profileGroup.appendChild(watchToggle);
       onReset(() => {
         const pt = profileToggle.querySelector('input[type="checkbox"]');
@@ -5722,17 +6348,28 @@
         const p = getProfile();
         const ts = p && p.meta && p.meta.timestamp;
         const banner = h('div', 'awoo-cp-banner ' + (p ? 'ok' : ''));
-        const counts = { ok: 0, stale: 0, miss: 0 };
-        for (const c of PROFILE_CATEGORIES) counts[freshness(c.id).state]++;
+        // One rule for "old" everywhere (profileSummary): only what a loaded
+        // module uses; old data nothing loaded reads is counted apart.
+        const sum = profileSummary();
+        const counts = sum.counts;
+        const status = profileSyncStatus();
         banner.appendChild(statusDot(p ? 'running' : 'off'));
         const bt = h('div');
         bt.appendChild(h('b', null, p ? `Synced ${formatTimeAgo(ts)}` : 'Not synced yet'));
         bt.appendChild(h('div', 'awoo-cp-desc', `${counts.ok} of ${PROFILE_CATEGORIES.length} sections fresh`
-          + (counts.stale ? `, ${counts.stale} old` : '') + (counts.miss ? `, ${counts.miss} not seen yet` : '')
+          + (counts.stale ? `, ${counts.stale} old` : '') + (counts.unused ? `, ${counts.unused} old but unused` : '')
+          + (counts.miss ? `, ${counts.miss} not seen yet` : '')
           + (getSetting('profileAutoSync') ? '' : ' · automatic sync is off')));
+        // What the sync layer itself did (R92): short, the why on hover.
+        const bg = profileBackgroundLine(status);
+        const bgLine = h('div', 'awoo-cp-desc', bg.text);
+        bgLine.setAttribute('data-tooltip', bg.tip);
+        if (bg.dev) bgLine.setAttribute('data-tooltip-dev', bg.dev);
+        bt.appendChild(bgLine);
         banner.appendChild(bt);
         const acts = h('span', 'awoo-cp-bannerright');
-        acts.appendChild(btn('Sync now', () => { resyncProfile(); toast('Requested profile sync…', { type: 'info', duration: 2500 }); }, { primary: true, small: true }));
+        acts.appendChild(btn('Sync now', () => { resyncProfile(); toast('Requested profile sync…', { type: 'info', duration: 2500 }); },
+          { primary: true, small: true, title: 'Asks the game for every section now, as opening each page would (not with Background reads off).' }));
         acts.appendChild(btn('Copy JSON', async () => {
           const ok = await copyTextToClipboard(JSON.stringify(getProfile(), null, 2));
           toast(ok ? 'Profile copied.' : 'Could not copy automatically.', { type: ok ? 'success' : 'warn', duration: 2500 });
@@ -5743,26 +6380,40 @@
         const table = h('table', 'awoo-cp-table');
         const thead = h('thead');
         const hr = h('tr');
-        for (const [t, c] of [['Section', ''], ['Last seen', 'n'], ['Used by', '']]) hr.appendChild(h('th', c, t));
+        for (const [t, c] of [['Section', ''], ['Last seen', 'n'], ['Kept', ''], ['Used by', '']]) hr.appendChild(h('th', c, t));
         thead.appendChild(hr);
         table.appendChild(thead);
         const body = h('tbody');
         const seenOn = (p && p.meta && p.meta.observedOn) || {};
+        const keptCtx = {
+          used: sum.used,
+          toolUsed: new Set(Object.values(tools).flatMap((t) => t.uses || [])),
+          status,
+          catalogue: profileCatalogue(),
+          partyId: p && p.meta ? p.meta.partyId : undefined,
+        };
         for (const c of PROFILE_CATEGORIES) {
-          const f = freshness(c.id);
+          const f = profileSectionState(c.id, p, sum.used);
           const row = h('tr');
+          row.dataset.section = c.id;
           const name = h('td', 'awoo-cp-label', c.label);
-          // What the section holds, and where it was last read; the game
-          // queries behind it are the developer half.
+          // What the section holds, and where it was last read. How it is
+          // kept, and the game queries behind it, are the Kept cell's.
           name.setAttribute('data-tooltip', `${c.what || c.label}.`
-            + (seenOn[c.id] ? ` Last read on ${seenOn[c.id]}.` : f.state === 'miss' ? ' Not read yet: open the page in the game that shows it.' : ''));
-          if (c.queries) name.setAttribute('data-tooltip-dev', `Read from the game's ${c.queries.join(', ')}, whichever page loads it.`);
+            + (seenOn[c.id] ? ` Last read on ${seenOn[c.id]}.` : f.state === 'miss' ? ' Not read yet.' : ''));
           row.appendChild(name);
           // An unknown age is not an alarm: it is data kept from before AWOO+
-          // stamped each section. Plain muted text, not a warning colour.
-          const unknown = f.state === 'stale' && !f.at;
+          // stamped each section. Plain muted text, not a warning colour. Nor
+          // is old data no loaded module uses (R92): muted, "old · unused".
+          const unknown = (f.state === 'stale' || f.state === 'unused') && !f.at;
           row.appendChild(h('td', 'n ' + (f.state === 'ok' ? 'good' : unknown ? 'dimtext' : f.state === 'stale' ? 'warn' : 'dimtext'),
-            f.state === 'miss' ? 'never seen' : unknown ? 'seen, age unknown' : f.age + (f.state === 'stale' ? ' · old' : '')));
+            f.state === 'miss' ? 'never seen' : unknown ? 'seen, age unknown'
+              : f.age + (f.state === 'stale' ? ' · old' : f.state === 'unused' ? ' · old · unused' : '')));
+          const kept = profileKept(c.id, keptCtx);
+          const kc = h('td', null, kept.label);
+          kc.setAttribute('data-tooltip', kept.tip);
+          kc.setAttribute('data-tooltip-dev', kept.dev);
+          row.appendChild(kc);
           const users = [
             ...Object.values(modules).filter((m) => (m.uses || []).includes(c.id)).map((m) => m.label),
             ...Object.values(tools).filter((t) => (t.uses || []).includes(c.id)).map((t) => t.label),
@@ -5774,12 +6425,22 @@
         const wrap = h('div', 'awoo-cp-tablewrap');
         wrap.appendChild(table);
         host.appendChild(wrap);
+        // The old footer told the player to open each page to bring a section
+        // up to date, which R92 made untrue for everything a module uses.
         host.appendChild(sub('A section counts as old after 6 hours, the same window the tools use. '
-          + 'Each one refreshes whenever the game shows it: open that page in the game to bring it up to date.'));
+          + 'Kept says how each one stays current without you opening its page. '
+          + 'Old data that no loaded module uses is dimmed, and does not turn the top-bar light amber.'));
         host.appendChild(labelledTick('Show Profile Sync on the top bar', registry.profileOnBar !== false, (v) => setProfileOnBar(v)));
       }
-      refreshWhen(paneSync, () => JSON.stringify([(getProfile() || { meta: {} }).meta.timestamp, getSetting('profileAutoSync'), registry.profileOnBar,
-        Object.keys(tools), Object.values(modules).map((m) => m.enabled)]), renderSyncPage);
+      // Redrawn when what it shows moved: the profile, the switches, what is
+      // loaded, open or started, and what the sync layer did (not its clocks,
+      // which would redraw it on every refresh).
+      refreshWhen(paneSync, () => {
+        const st = profileSyncStatus();
+        return JSON.stringify([(getProfile() || { meta: {} }).meta.timestamp, getSetting('profileAutoSync'), getSetting('profileWatch'),
+          registry.profileOnBar, Object.keys(tools), Object.values(modules).map((m) => [m.enabled, !!m.started, !!m.open]),
+          st ? [st.background, st.leader, st.otherLeader, st.readsLastHour, st.holds] : null]);
+      }, renderSyncPage);
 
       // ---- General › Updates (R56: say whether updates exist, and that a check ran) ----
       const notesOpen = new Set();
@@ -6386,6 +7047,18 @@
         a.click();
         a.remove();
 
+        // A TOOL ASKS ONCE WHEN IT OPENS (REGISTER.md R92): the sections it
+        // declares (`uses`), each read now if older than fifteen minutes, as
+        // opening their game pages would. The answers reach the tool's tab as
+        // deltas (tools/tool-sync.js). Here, the one path every tool opens by
+        // (a shelf's, or one a module carries, such as Party's Pet Slot ROI),
+        // so no opener has to remember it; after the open, so a tool that
+        // failed to build costs no read. Refused inside request() when
+        // background reads are off.
+        if (Array.isArray(tool.uses) && tool.uses.length && typeof profileApi.request === 'function') {
+          try { Promise.resolve(profileApi.request(tool.uses.slice())).catch(() => { /* a read refused is not an open failed */ }); } catch (e) { /* ditto */ }
+        }
+
         // Belt and braces: if it was still blocked, put a clickable way out in
         // front of the user rather than only in the console, which nobody has
         // open at the moment they click a menu item.
@@ -6763,7 +7436,7 @@
           const f = profileFreshness(k);
           if (f.state !== 'ok') old = true;
           const c = pmk('span', 'awoo-cp-chip ' + f.state, ((PROFILE_CATEGORIES.find((x) => x.id === k) || {}).label) || k);
-          c.title = f.state === 'miss' ? 'Never seen: open that page in the game once.' : `${f.state === 'ok' ? 'Fresh' : 'Old'}, ${f.age}`;
+          c.title = f.state === 'miss' ? 'Never seen yet: a loaded module asks for it in the background, a tool when it opens, or open its page in the game.' : `${f.state === 'ok' ? 'Fresh' : 'Old'}, ${f.age}`;
           w.appendChild(c);
         }
         return { el: w, old };
@@ -6848,11 +7521,13 @@
       card.appendChild(head);
       const grid = pmk('div', 'awoo-pal-secgrid');
       for (const c of PROFILE_CATEGORIES) {
-        const f = profileFreshness(c.id, sum.profile);
+        // Old but unused (R92, profileSummary): the cell stays muted and its
+        // mark uncoloured; only old data a loaded module reads is warned of.
+        const f = profileSectionState(c.id, sum.profile, sum.used);
         const cell = pmk('span', 'awoo-pal-sec ' + f.state);
         cell.appendChild(pmk('span', null, c.label));
-        cell.appendChild(pmk('span', 'mark', f.state === 'ok' ? '✓' : f.state === 'stale' ? 'old' : '—'));
-        cell.title = f.state === 'miss' ? 'Never seen' : f.age;
+        cell.appendChild(pmk('span', 'mark', f.state === 'ok' ? '✓' : f.state === 'stale' || f.state === 'unused' ? 'old' : '—'));
+        cell.title = f.state === 'miss' ? 'Never seen' : f.state === 'unused' ? `${f.age}, not used by a loaded module` : f.age;
         grid.appendChild(cell);
       }
       card.appendChild(grid);
@@ -7075,6 +7750,8 @@
         createScope: { value: (name, opts) => track('scope', createScope(name, opts)) },
         createWindow: { value: (spec) => track('window', createWindow(spec)) },
         onNavigate: { value: (fn) => track('unsub', onNavigate(fn)) },
+        provide: { value: (name, api) => track('unsub', provideService(id, name, api)) },
+        onProvide: { value: (name, fn) => track('unsub', onProvide(name, fn)) },
         registerLink: { value: (tool) => { registerLink(tool); if (tool && tool.id && tools[tool.id]) track('tool', tool.id); } },
         store: { value: (key, opts) => track('store', makeStore(id, key, opts)) },
       });
@@ -7139,6 +7816,7 @@
         mod.ctx = null;
       }
       mod.startMs = Math.round((perfNow() - t0) * 10) / 10;
+      if (mod.started) signalModules(id, 'start');
       // Loading from the menu shows the window, exactly as enabling always has.
       // A load at page start does not: reopening windows on reload is the
       // player's autoShowOnReload setting, which each module already honours.
@@ -7163,6 +7841,7 @@
       if (entry) entry.descriptor = null;
       forgetModuleSettingsPane(id);
       updateTitleBadge();
+      signalModules(id, 'stop');
     }
 
     // A module seen for the FIRST time joins the menu only while the menu has
@@ -7252,6 +7931,9 @@
         // Before v14, and still for a module that has not opted in: the code is
         // running either way, and off only closes the window.
         safely(id, 'onToggle', enabled);
+        // moduleInfo() reports such a module started exactly while it is
+        // loaded, so to Profile Sync this is a start or a stop.
+        signalModules(id, enabled ? 'start' : 'stop');
       }
       renderQuickRow();
       renderDropdown();
@@ -7345,6 +8027,7 @@
       // returns, and the factory is what calls this). A replaced record left
       // that mark on an orphaned copy, so the module could never be unloaded.
       const existing = modules[mod.id];
+      const wasStarted = effectivelyStarted(existing);
       modules[mod.id] = Object.assign(
         existing || { enabled: isIn('loaded', mod.id), badge: false, open: false },
         mod,
@@ -7364,6 +8047,10 @@
       renderQuickRow();
       renderDropdown();
       renderUpdateRow();
+      // A module from before the lifecycle is running from the moment it
+      // registers. One that declares the lifecycle registers from inside its
+      // factory, before startModule marks it started, and signals from there.
+      if (!wasStarted && effectivelyStarted(modules[mod.id])) signalModules(mod.id, 'start');
       return modules[mod.id];
     }
 
@@ -7437,7 +8124,24 @@
       if (isOpen) diagnostics.opened(id);
       renderQuickRow();
       notifyPanel();
+      signalModules(id, isOpen ? 'open' : 'close');
     }
+
+    // WHICH MODULES RUN AND WHICH WINDOWS ARE OPEN, as an event (REGISTER.md
+    // R92, API v16). Profile Sync keeps fresh what a started module uses, and
+    // holds live data while that module's window is shown; it hears about a
+    // change here instead of polling listModules(). Fired after the change,
+    // so listModules() already agrees with it.
+    //   window 'awoo:modules:change', detail { id, reason }, reason one of
+    //   'open' | 'close' | 'start' | 'stop'
+    // A stop closes the window without a separate 'close': a stopped module's
+    // window counts as closed whatever its last report said.
+    function signalModules(id, reason) {
+      try { window.dispatchEvent(new CustomEvent('awoo:modules:change', { detail: { id, reason } })); } catch (e) { /* ignore */ }
+    }
+    // "Started" as moduleInfo() reports it: before the v14 lifecycle, a
+    // module's code runs whenever it is loaded.
+    function effectivelyStarted(m) { return !!m && (m.lifecycle >= 2 ? !!m.started : !!m.enabled); }
 
     // ---- module intake ----
     //
@@ -7541,6 +8245,53 @@
     // (`onNavigate`, v9) rather than a generic bus. A named channel that
     // removes a duplicated global side effect is a different thing from a bus
     // built on the guess that messaging will be wanted eventually.
+    //
+    // THE DAY ONE DID (v15, REGISTER.md R90): the Pet Slot Alarm keeps its own
+    // window and top-bar button but must not read the party itself, because
+    // Party already does and two readers of one card can disagree (R87). What
+    // it needs is not messages but Party's CURRENT answers, so what shipped is
+    // still not a bus: a module PROVIDES a named object of accessors, another
+    // USES it, and onProvide says when it appears or goes. Pull, not push; no
+    // events, no payloads, nothing queued.
+    //
+    //   provide(name, api) -> release   one owner per name; released with the
+    //                                    module's run, so an unloaded provider
+    //                                    is never used
+    //   use(name)          -> api | null
+    //   onProvide(name, fn)-> unsub      fn(api | null) now and on each change
+    //
+    // A consumer must treat null as "not available" and say so (rule 3): the
+    // provider may be off, not installed, or not started yet.
+    const services = {};           // name -> { owner, api }
+    const serviceWatchers = {};    // name -> Set(fn)
+    function notifyService(name) {
+      const api = services[name] ? services[name].api : null;
+      for (const fn of [...(serviceWatchers[name] || [])]) {
+        try { fn(api); } catch (err) { console.error(`[AwooCore] a watcher of the "${name}" service threw:`, err); }
+      }
+    }
+    function provideService(owner, name, api) {
+      if (typeof name !== 'string' || !name || !api || typeof api !== 'object') {
+        console.error('[AwooCore] provide(name, api) needs a name and an object');
+        return () => {};
+      }
+      if (services[name] && services[name].owner !== owner) {
+        console.error(`[AwooCore] "${owner}" cannot provide "${name}": "${services[name].owner}" already does`);
+        return () => {};
+      }
+      services[name] = { owner, api };
+      notifyService(name);
+      return () => {
+        if (services[name] && services[name].api === api) { delete services[name]; notifyService(name); }
+      };
+    }
+    function useService(name) { return services[name] ? services[name].api : null; }
+    function onProvide(name, fn) {
+      if (typeof fn !== 'function') return () => {};
+      (serviceWatchers[name] = serviceWatchers[name] || new Set()).add(fn);
+      try { fn(useService(name)); } catch (err) { console.error(`[AwooCore] a watcher of the "${name}" service threw:`, err); }
+      return () => { if (serviceWatchers[name]) serviceWatchers[name].delete(fn); };
+    }
 
     // ================================================================
     // ---- THE JOB HOST CLIENT (v11) — the browser as an interface ----
@@ -8317,6 +9068,8 @@
     // throttled timer has not fired. Costs nothing while hidden.
     // Closing or leaving the tab: the last chance to save anything pending.
     coreScope.on(window, 'pagehide', flushAllStores);
+    // The profile store's pending write and cross-tab delta (R92).
+    coreScope.on(window, 'pagehide', flushProfileWrites);
     coreScope.on(document, 'visibilitychange', () => {
       if (document.visibilityState !== 'visible') {
         // GOING hidden, not coming back — the one moment a pending resize
@@ -8326,6 +9079,8 @@
         flushAllPendingWindowResizes();
         // Same moment, same reason, for every module's saves (Core.store).
         flushAllStores();
+        // And the profile's (storage only: see flushProfileWrites).
+        flushProfileStorage();
         return;
       }
       reanchorNow();
@@ -8456,6 +9211,10 @@
       // SPA route changes, detected once by Core and shared (v9). A module
       // must not wrap history itself — see notifyNavigation above.
       onNavigate,
+      // v15: named services between modules (see "THE DAY ONE DID" above).
+      provide: (name, api) => provideService('core', name, api),
+      use: useService,
+      onProvide,
       // ---- the framework layer (v10) — userscripts/FRAMEWORK.md ----
       // A module should own exactly one scope and register EVERYTHING with a
       // lifetime through it. That is what makes "cannot leak" a structural
@@ -8474,6 +9233,13 @@
       // live-state probes. All refuse (return null / false) rather than guess.
       walkFiber, walkFiberAll, probeCharacter, probeMergedMultipliers, probeConvexClient,
       profile: profileApi,
+      // The profile store's pure parts and its pending work, for
+      // tests/profile-store.mjs (R92).
+      __profileStoreForTest: {
+        mergeBySection, stableJson, sameCharacter, flush: flushProfileWrites,
+        pending: () => ({ write: profileWriteTimer !== null, post: profilePostTimer !== null, age: profileAgeTimer !== null }),
+        limits: { AGE_MS: PROFILE_AGE_MS, WRITE_MS: PROFILE_WRITE_MS, POST_MS: PROFILE_POST_MS },
+      },
       getNumberConvention: getConvention,
       numberProvenance,
       setNumberLocaleOverride,
@@ -8835,14 +9601,35 @@
   //
   // Storage is Core's `awoo:profile:v1` via Core.profile.set(), never written
   // directly here.
+  //
+  // WHAT ASKS THE GAME FOR DATA, AND HOW OFTEN (REGISTER.md R92). A capture
+  // reads the game client's own query cache and asks nothing. Everything that
+  // does ask is below THE CATALOGUE, reads only from it, and is bounded in
+  // code: background reads run in one tab (the Web Lock leader), one-shot, at
+  // most one per query per interval, a minute apart at the least, a few at a
+  // time, under an hourly ceiling, never while the socket is down and never
+  // with Settings › Profile's switches off; holds are kept for what a player
+  // is looking at, capped per tab.
+  //
+  // The ambient capture: every 15 s until the game's client is attached, then
+  // every 60 s, because the client's own transitions drive captures from then
+  // on and the poll only keeps the stamps of held queries moving.
   const AMBIENT_POLL_MS = 15_000;
+  const AMBIENT_ATTACHED_MS = 60_000;
+
+  const MIN_MS = 60_000;
+  const HOUR_MS = 60 * MIN_MS;
 
   // Canonical base stat order as required by CONVENTIONS.md and optimizer tools
   const BASE_STAT_KEYS = ['strength', 'health', 'dexterity', 'agility'];
 
+  // The last profile this tab committed. NOT the merge base any more: a capture
+  // merges onto Core.profile.get(), which also holds what other tabs broadcast
+  // (R92). Kept for the test seam only.
   let activeProfile = null;
   let attachedClient = null;
   let captureScheduled = false;
+  let captureTimer = null;
 
   // ---- Query Extraction Helper ----
   // Convex stores active queries in a Map: token ->
@@ -8896,15 +9683,52 @@
     return a && typeof a === 'object' && typeof a.characterId === 'string' ? a.characterId : null;
   }
 
-  function extractConvexQueries(client, ownIdHint) {
-    return splitQueries(queryEntries(client), ownIdHint).own;
+  function extractConvexQueries(client, ownIdHint, ownVillageHint) {
+    return splitQueries(queryEntries(client), ownIdHint, ownVillageHint).own;
   }
 
-  function splitQueries(entries, ownIdHint) {
+  // WHOSE VILLAGE IS IT (R92, found by part B). The village queries name a
+  // village, not a character: getVillage is asked with { id }, getBuildings
+  // and getStrengths with { villageId } (the catalogue's VILLAGE role, which
+  // VILLAGE_ARG below is derived from). Decided by characterId alone, every
+  // one of them looked like yours, so hovering another player's village (the
+  // game opens getVillage with THEIR village id) wrote their village over
+  // yours. The village id in the arguments: a string, null when a village
+  // query carries none (not a shape the game uses: unattributable), or
+  // undefined for a query that is not a village one.
+  function argVillageId(e) {
+    const key = VILLAGE_ARG[e.name];
+    if (!key) return undefined;
+    const a = Array.isArray(e.args) ? e.args[0] : e.args;
+    return a && typeof a === 'object' && typeof a[key] === 'string' && a[key] ? a[key] : null;
+  }
+
+  // WHICH LOADOUT IS IT. The loadout id in the arguments of a query the
+  // catalogue asks once per loadout (LOADOUT_ARG, derived from its rows): a
+  // string, null when the arguments carry none, undefined for any other query.
+  function argLoadoutId(e) {
+    const key = LOADOUT_ARG[e.name];
+    if (!key) return undefined;
+    const a = Array.isArray(e.args) ? e.args[0] : e.args;
+    return a && typeof a === 'object' && typeof a[key] === 'string' && a[key] ? a[key] : null;
+  }
+
+  // ownVillageHint: your villageId when getActiveCharacter is not in the
+  // cache (the provider's character document, or the profile's
+  // meta.villageId); null there means "you have no village", undefined "not
+  // known".
+  function splitQueries(entries, ownIdHint, ownVillageHint) {
     const own = {};
     const others = {};
     const active = entries.find((e) => e.name === 'character.public.getActiveCharacter');
     const ownId = (active && active.value && typeof active.value._id === 'string' && active.value._id) || ownIdHint || null;
+    // The character document names your village, and a document without one
+    // says you have none (Convex omits an unset field; normalizeProfile reads
+    // it the same way). Without the document, the hint.
+    const activeDoc = active && active.value && typeof active.value === 'object' ? active.value : null;
+    const ownVillage = activeDoc
+      ? (typeof activeDoc.villageId === 'string' && activeDoc.villageId ? activeDoc.villageId : null)
+      : (typeof ownVillageHint === 'string' && ownVillageHint ? ownVillageHint : ownVillageHint === null ? null : undefined);
     for (const e of entries) {
       const cid = argCharacterId(e.args);
       if (cid && ownId && cid !== ownId) {
@@ -8915,6 +9739,25 @@
       // is the one such entry. Two means another player's is among them, and
       // refusing (rule 3) beats picking one.
       if (cid && !ownId && entries.some((o) => o !== e && o.name === e.name && argCharacterId(o.args) && argCharacterId(o.args) !== cid)) continue;
+      // A village query is yours only when it names YOUR village. Yours not
+      // known: the same rule as above, ours only as the one such entry. No
+      // village of your own, or no village id in the arguments: someone
+      // else's, or nobody can tell; either way not taken (rule 3).
+      const vid = argVillageId(e);
+      if (vid !== undefined) {
+        if (vid === null || ownVillage === null) continue;
+        if (ownVillage !== undefined && vid !== ownVillage) continue;
+        if (ownVillage === undefined && entries.some((o) => o !== e && o.name === e.name && argVillageId(o) && argVillageId(o) !== vid)) continue;
+      }
+      // A query asked once per loadout (a sculpture preset's grid, a skill
+      // tree's points) is open for several ids at once while the game or the
+      // catalogue reads them, so it is kept per id: own[name] = { [id]: value }.
+      // No id in the arguments: nobody can tell which loadout, so not taken.
+      const kid = argLoadoutId(e);
+      if (kid !== undefined) {
+        if (kid) (own[e.name] = own[e.name] || {})[kid] = e.value;
+        continue;
+      }
       own[e.name] = e.value;
     }
     return { own, others, ownId };
@@ -8975,13 +9818,22 @@
   }
 
   // ---- Tier 2: Fiber / provider fallback ----
-  function scanFiberForProfileData(liveContext) {
+  // `generic: false` skips the Core.walkFiber sweep below (capture cost, R92):
+  // once the client is attached the query cache and the provider carry
+  // everything it could find. The provider read at the top always runs.
+  function scanFiberForProfileData(liveContext, { generic = true } = {}) {
     const data = {};
     const context = liveContext || scanReactProvidersForProfileData().context;
 
     // Live-verified provider context. These are raw observations only.
     if (context && typeof context === 'object') {
       if (context.characterData && typeof context.characterData === 'object') {
+        // The provider's characterData IS getActiveCharacter's document
+        // (CharacterDataProvider opens that query and hands its answer down,
+        // 2026-09-23 bundle). Kept as found, so normalizeProfile can tell a
+        // real character document from a profile-shaped bag the generic
+        // sweep below turned up: only a real one may say "no party".
+        data.characterDoc = context.characterData;
         data.character = Object.assign({}, context.characterData);
         if (context.characterLevels && typeof context.characterLevels.battling === 'number') {
           data.character.level = context.characterLevels.battling;
@@ -9006,7 +9858,7 @@
 
     // Older/generic fallback remains useful for pages whose component already
     // exposes a profile-shaped bag directly.
-    if (!Core || !Core.walkFiber) return data;
+    if (!generic || !Core || !Core.walkFiber) return data;
     Core.walkFiber((cand) => {
       if (!cand || typeof cand !== 'object') return false;
 
@@ -9073,13 +9925,32 @@
     return Object.keys(out).length ? out : null;
   }
 
+  // A loadout list (sculpture presets, skill-tree presets): the game's
+  // documents are { _id, name, isActive, ... } (the schema's
+  // characterSculpturePreset and characterSanctumSkillTreePreset, 2026-09-23
+  // bundle), and its pages show name and "Active" from exactly these fields.
+  // null when the answer is not a list; a document without an id is dropped.
+  function loadoutList(raw) {
+    if (!Array.isArray(raw)) return null;
+    return raw.filter((d) => d && typeof d === 'object' && typeof d._id === 'string' && d._id)
+      .map((d) => ({
+        id: d._id,
+        name: typeof d.name === 'string' ? d.name : null,
+        active: typeof d.isActive === 'boolean' ? d.isActive : null,
+      }));
+  }
+
   // ---- Normalization Engine: schema awoo:profile:v1 ----
   // Pure function: takes extracted queries and fiber data, produces canonical profile.
   // INVARIANT (§9.4): refuse rather than guess. Unobserved values MUST be null, never 0.
-  function normalizeProfile(q = {}, fiber = {}, dom = {}, others = {}, ownId = null) {
+  // known.skillTrees: your skill-tree ids from earlier captures (the profile's
+  // loadouts.skillTreePresets), for telling your trees' points from a stranger's.
+  function normalizeProfile(q = {}, fiber = {}, dom = {}, others = {}, ownId = null, known = {}) {
     // 1. Character & Core
-    const rawChar = q['character.public.getActiveCharacter'] ||
-                    fiber.character ||
+    const queryChar = q['character.public.getActiveCharacter'] || null;
+    const providerChar = fiber.character && typeof fiber.character === 'object' ? fiber.character : null;
+    const rawChar = queryChar ||
+                    providerChar ||
                     (Core.probeCharacter ? Core.probeCharacter() : null) || {};
     const rawCurrency = fiber.currency && typeof fiber.currency === 'object' ? fiber.currency : {};
     const currencyValue = (key) => {
@@ -9088,7 +9959,18 @@
     };
 
     const charName = typeof rawChar.name === 'string' ? rawChar.name : null;
-    const charLevel = typeof rawChar.level === 'number' ? Math.round(rawChar.level) : null;
+    // THE LEVEL WAS NULL ON EVERY CAPTURE WITH THE CLIENT ATTACHED (found by
+    // checking, R92). getActiveCharacter carries no level (the captured
+    // document, capture/api/convex-2026-09-25/party-capture.json, has only
+    // _id, name, partyId, villageId, userId and gameMode), and the query
+    // document wins over the provider's above, so the provider's level was
+    // never read once the query cache was reachable, which is always. The
+    // level is the provider's characterLevels.battling (scanFiberForProfileData
+    // puts it on fiber.character.level), taken only when both documents name
+    // the same character; a query document that ever carries a level wins.
+    const sameChar = !queryChar || !providerChar || !queryChar._id || !providerChar._id || queryChar._id === providerChar._id;
+    const charLevel = typeof rawChar.level === 'number' ? Math.round(rawChar.level)
+      : (sameChar && providerChar && typeof providerChar.level === 'number' ? Math.round(providerChar.level) : null);
     const vipLevel = typeof rawChar.vip === 'number' ? rawChar.vip : (typeof rawChar.vipLevel === 'number' ? rawChar.vipLevel : null);
     const gold = typeof rawChar.gold === 'number' ? rawChar.gold :
                  (typeof rawChar.gold === 'string' ? Core.parseNumber(rawChar.gold) : currencyValue('gold'));
@@ -9265,12 +10147,9 @@
     // 7. Sculpture
     const rawSculptMultipliers = q['fighters.sculptures.public.getSculptureMultipliers'] ||
                                  (fiber.sculpture && fiber.sculpture.sculptureMultipliers) || null;
-    const rawSculptGrid = q['fighters.sculptures.public.getSculptureGrid'] ||
-                          (fiber.sculpture && fiber.sculpture.grid) || null;
     let sculpture = null;
-    if (rawSculptMultipliers || rawSculptGrid) {
+    if (rawSculptMultipliers) {
       sculpture = {
-        grid: Array.isArray(rawSculptGrid) ? rawSculptGrid : null,
         multipliers: rawSculptMultipliers && typeof rawSculptMultipliers === 'object' ? {
           strength: typeof rawSculptMultipliers.strength === 'number' ? rawSculptMultipliers.strength : null,
           health: typeof rawSculptMultipliers.health === 'number' ? rawSculptMultipliers.health : null,
@@ -9299,6 +10178,86 @@
         slots: rawEquipSlots && typeof rawEquipSlots === 'object' && !Array.isArray(rawEquipSlots) ? rawEquipSlots : null,
         gems: Array.isArray(rawGems) ? rawGems : null,
       };
+    }
+
+    // 9b. Loadouts: the game's saved setups, each kind listed by one query
+    // and some opened one loadout at a time. Their own section, so reading
+    // them is paid only by a module that declares it uses them (the catalogue
+    // reads by section): Party reads the sanctum section and has no use for
+    // skill-tree presets.
+
+    // Sculpture presets. The Sculptures page lists them with
+    // getPresets({ characterId }) and opens one grid at a time with
+    // getSculptureGrid({ characterId, presetId }), the active one first
+    // (SculpturesPage, 2026-09-23 bundle). So a grid is kept per preset, by
+    // the presetId it was asked with. CAPTURE: every placed sculpture's
+    // `grid.presetId` names its preset (capture/api/LIVE-sculpture-grid.json);
+    // a grid holding one that disagrees with its key is not taken (rule 3).
+    // An empty grid is an observation: that preset has nothing placed.
+    const sculpturePresets = loadoutList(q['fighters.sculptures.presets.getPresets']);
+    let sculptureGrids = null;
+    const rawGrids = q['fighters.sculptures.public.getSculptureGrid'];
+    if (rawGrids && typeof rawGrids === 'object' && !Array.isArray(rawGrids)) {
+      for (const [presetId, rows] of Object.entries(rawGrids)) {
+        if (!Array.isArray(rows)) continue;
+        if (rows.some((r) => !r || (r.grid && r.grid.presetId !== undefined && r.grid.presetId !== presetId))) continue;
+        (sculptureGrids = sculptureGrids || {})[presetId] = rows;
+      }
+    }
+
+    // Skill-tree presets. The Skill Tree page lists them with
+    // getSkillTrees({ characterId }) and opens one preset's bought nodes with
+    // getSkillTreePoints({ skillTreeId }): rows of the schema's
+    // characterSanctumSkillTreePresetPoints, the page reading `.skillNodeId`
+    // off each (ProfileSkillTree, 2026-09-23 bundle). No live document
+    // captured yet. The points query names no character, and the public
+    // profile page opens it for a STRANGER's trees too, so a tree's nodes are
+    // taken only when the tree is yours: in this capture's own list, or the
+    // one seen before (known.skillTrees).
+    const skillTreePresets = loadoutList(q['sanctum.skilltree.public.getSkillTrees']);
+    const ownTrees = new Set([...(skillTreePresets || []).map((t) => t.id),
+      ...(Array.isArray(known.skillTrees) ? known.skillTrees : [])]);
+    let skillTreeNodes = null;
+    const rawTreePoints = q['sanctum.skilltree.public.getSkillTreePoints'];
+    if (rawTreePoints && typeof rawTreePoints === 'object') {
+      for (const [treeId, rows] of Object.entries(rawTreePoints)) {
+        if (!ownTrees.has(treeId) || !Array.isArray(rows)) continue;
+        const nodes = rows.map((r) => (r && typeof r.skillNodeId === 'string' ? r.skillNodeId : null));
+        if (nodes.includes(null)) continue;
+        (skillTreeNodes = skillTreeNodes || {})[treeId] = nodes;
+      }
+    }
+
+    // Item sets: the game's swappable sets, each naming the gear,
+    // gem and enchant per slot, three pets, a skill-tree preset and a
+    // sculpture preset. BUNDLE: the schema's characterItemSets, every field
+    // but characterId and name optional; the equipment sidebar holds
+    // getCharacterItemSets({ characterId }) on every game page (page-wqOaeWAP,
+    // "Sets (n)"). No live document captured yet. Ids only: what an id's item
+    // is comes from elsewhere. A field the set leaves unset is null (Convex
+    // omits it): nothing in that place.
+    const rawSets = q['sets.public.getCharacterItemSets'];
+    const idOf = (v) => (typeof v === 'string' && v ? v : null);
+    const itemSets = Array.isArray(rawSets)
+      ? rawSets.filter((d) => d && typeof d === 'object' && idOf(d._id)).map((d) => {
+        const slots = {};
+        for (const slot of ['leftHand', 'rightHand', 'head', 'body', 'hands', 'legs', 'feet']) {
+          slots[slot] = { item: idOf(d[slot]), gem: idOf(d[`${slot}Gem`]), enchant: idOf(d[`${slot}Enchant`]) };
+        }
+        return {
+          id: d._id,
+          name: typeof d.name === 'string' ? d.name : null,
+          assignment: Array.isArray(d.assignment) ? d.assignment : null,
+          skillTree: idOf(d.skillTree),
+          sculpturePreset: idOf(d.sculptureSet),
+          slots,
+          pets: { combat: idOf(d.combat), utility: idOf(d.utility), gathering: idOf(d.gathering) },
+        };
+      })
+      : null;
+    let loadouts = null;
+    if (sculpturePresets || sculptureGrids || skillTreePresets || skillTreeNodes || itemSets) {
+      loadouts = { sculpturePresets, sculptureGrids, skillTreePresets, skillTreeNodes, itemSets };
     }
 
     // 10. Village. PvP remains null until capture-verified.
@@ -9331,8 +10290,8 @@
     const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
     const str = (v) => (typeof v === 'string' && v ? v : null);
 
-    // The overview is opened by the Party page, or by Core.profile.watch
-    // (tier 3) while a consumer holds it. It carries no levels (partyLevels).
+    // The overview is opened by the Party page, or by Core itself while a
+    // module uses it (the catalogue, R92). It carries no levels (partyLevels).
     // It replaces party.public.getParty, whose shape was never traced.
     const rawOverview = q['party.public.getOverview'] || null;
     let party = null;
@@ -9429,6 +10388,7 @@
       sculpture,
       fighters,
       equipment,
+      loadouts,
       village,
       party,
       partyActions,
@@ -9452,6 +10412,18 @@
       if (seen) { observedAt[key] = now; if (here) observedOn[key] = here; }
     }
 
+    // WHICH VILLAGE AND PARTY YOU ARE IN (R92), from the character document
+    // itself: getActiveCharacter, or the provider's characterData, which is
+    // the same document. The catalogue asks the village queries with this
+    // villageId, as the game's village pages do, and asks the party queries
+    // only while it names a party. A field the document lacks is an
+    // observation ("none": Convex omits an unset optional field), so it is
+    // null; no document at all is no observation, so it is undefined and the
+    // merge keeps the last one seen. The two must not be confused: a player
+    // who leaves the party has to stop the party reads.
+    const charDoc = queryChar || (fiber.characterDoc && typeof fiber.characterDoc === 'object' ? fiber.characterDoc : null);
+    const docId = (k) => (charDoc ? (typeof charDoc[k] === 'string' && charDoc[k] ? charDoc[k] : null) : undefined);
+
     return Object.assign({
       schemaVersion: 1,
       meta: {
@@ -9459,13 +10431,20 @@
         source,
         characterName: charName,
         characterLevel: charLevel,
-        // The player's own characterId, as splitQueries resolved it. A
-        // consumer needs it to ask Core.profile.watch for a query the game
-        // keys by character (the party overview, REGISTER.md R89); null when
-        // this capture could not tell, and the merge keeps the last one seen.
+        // The player's own characterId, as splitQueries resolved it: what the
+        // catalogue asks with for a query the game keys by character, and how
+        // a module tells your row of the party from the others' (REGISTER.md
+        // R89, R92); null when this capture could not tell, and the merge
+        // keeps the last one seen.
         characterId: typeof ownId === 'string' && ownId ? ownId : null,
+        villageId: docId('villageId'),
+        partyId: docId('partyId'),
         observedAt,
         observedOn,
+        // When each catalogue query was last seen answered in the client's
+        // cache, by catalogue key. Stamped by captureNow (it needs the args
+        // the catalogue would ask with), merged by the latest stamp.
+        queryAt: {},
       },
     }, sections);
   }
@@ -9488,7 +10467,22 @@
   //   depth 2: pets.<type>.field  (pets nests one level per slot type)
   //   depth 0: mergedMultipliers  (one observation, replaced whole: a key the
   //            game stops sending is a modifier that went away)
-  const MERGE_DEPTH = { pets: 2, mergedMultipliers: 0, relicBoosts: 0 };
+  //   depth 2: loadouts.sculptureGrids.<presetId>, loadouts.skillTreeNodes.<treeId>
+  //            (a capture sees one loadout's grid or nodes, rarely all; each
+  //            is kept until its own next reading, and a loadout the game's
+  //            list no longer has is dropped: pruneLoadouts)
+  const MERGE_DEPTH = { pets: 2, mergedMultipliers: 0, relicBoosts: 0, loadouts: 2 };
+
+  // A per-loadout map keeps only the ids the section's loadout list still
+  // names: a deleted preset's grid must not outlive it. No list seen yet:
+  // kept as is (nothing says which ids are gone).
+  function pruneLoadouts(section, listKey, mapKey) {
+    if (!section || !Array.isArray(section[listKey]) || !section[mapKey] || typeof section[mapKey] !== 'object') return section;
+    const ids = new Set(section[listKey].map((l) => l.id));
+    const kept = {};
+    for (const [id, v] of Object.entries(section[mapKey])) if (ids.has(id)) kept[id] = v;
+    return Object.assign({}, section, { [mapKey]: Object.keys(kept).length ? kept : null });
+  }
 
   // WHICH LAST-ACTION READING IS THE RUN'S RATE (REGISTER.md R88). The gold
   // per action depends on the set in use: 31.44b from last week's party run,
@@ -9542,6 +10536,10 @@
         ? foldPartyLastAction(previous[key], current[key])
         : mergeValue(previous[key], current[key], key in MERGE_DEPTH ? MERGE_DEPTH[key] : 1);
     }
+    if (merged.loadouts) {
+      merged.loadouts = pruneLoadouts(merged.loadouts, 'sculpturePresets', 'sculptureGrids');
+      merged.loadouts = pruneLoadouts(merged.loadouts, 'skillTreePresets', 'skillTreeNodes');
+    }
     // Capture metadata describes this capture, never the page where an older
     // section happened to be observed. The one exception is observedAt, which
     // exists to remember exactly that: each section keeps the stamp of the
@@ -9551,90 +10549,194 @@
     const curSeen = (current.meta && current.meta.observedAt) || {};
     const prevOn = (previous.meta && previous.meta.observedOn) || {};
     const curOn = (current.meta && current.meta.observedOn) || {};
+    // villageId/partyId: this capture's when it saw the character document
+    // (null included: "none" is an observation), else the last one seen.
+    const lastSeen = (k) => {
+      if (current.meta && current.meta[k] !== undefined) return current.meta[k];
+      return previous.meta && previous.meta[k] !== undefined ? previous.meta[k] : undefined;
+    };
+    // queryAt keeps the LATEST stamp per query, never the newer capture's
+    // whole map: a query this capture did not see was still seen earlier.
+    const queryAt = Object.assign({}, (previous.meta && previous.meta.queryAt) || {});
+    for (const [k, t] of Object.entries((current.meta && current.meta.queryAt) || {})) {
+      if (Number.isFinite(t) && !(queryAt[k] >= t)) queryAt[k] = t;
+    }
     merged.meta = Object.assign({}, current.meta, {
       characterId: (current.meta && current.meta.characterId) || (previous.meta && previous.meta.characterId) || null,
+      villageId: lastSeen('villageId'),
+      partyId: lastSeen('partyId'),
       observedAt: Object.assign({}, prevSeen, curSeen),
       observedOn: Object.assign({}, prevOn, curOn),
+      queryAt,
     });
     return merged;
   }
 
-  // ---- Capture & Orchestration ----
-  function captureNow() {
-    captureScheduled = false;
-
-    // The provider scan is the path the live page proved (2026-09-22, and the
-    // R88 tier-3 test found the client there again); Core.probeConvexClient
-    // returned null on the same page, so it is only the fallback now.
-    const providers = scanReactProvidersForProfileData();
-    const client = providers.client || (Core.probeConvexClient ? Core.probeConvexClient() : null) || null;
-
-    if (client && client !== attachedClient) {
-      attachedClient = client;
-      if (typeof client.addOnTransitionHandler === 'function') {
-        try {
-          client.addOnTransitionHandler(() => { scheduleCapture(); });
-        } catch (e) {
-          console.warn('[AwooCore:ProfileSync] Failed hooking Convex transition handler:', e);
-        }
-      }
-      // A new client (a reload of the game's own) has none of our watches.
-      for (const w of watches.values()) w.unsubscribe = null;
-    }
-    openWatches();
-
-    const ownHint = providers.context && providers.context.characterData && providers.context.characterData._id;
-    const split = splitQueries(queryEntries(client), typeof ownHint === 'string' ? ownHint : null);
-    const q = split.own;
-    const fiber = scanFiberForProfileData(providers.context);
-    const dom = scanDomForProfileData();
-
-    const hasData = Object.keys(q).length > 0 || Object.keys(fiber).length > 0 || Object.keys(dom).length > 0;
-    if (!hasData) return null;
-
-    const observed = normalizeProfile(q, fiber, dom, split.others, split.ownId);
-    const saved = activeProfile || (Core.profile && typeof Core.profile.get === 'function' ? Core.profile.get() : null);
-    const profile = mergeObservedProfile(saved, observed);
-    activeProfile = profile;
-    if (Core.profile && typeof Core.profile.set === 'function') Core.profile.set(profile);
-    return profile;
-  }
-
-  function scheduleCapture() {
-    if (captureScheduled) return;
-    captureScheduled = true;
-    setTimeout(() => { captureNow(); }, 250);
-  }
-
-  // ---- Tier 3: Core.profile.watch (REGISTER.md R88 step 5) ----
+  // ---- THE CATALOGUE (REGISTER.md R92) ----
   //
-  // Some data exists only while its game page is open: the party overview
-  // (members, their multipliers and monsters) and other members' levels. A
-  // watch asks the game's OWN Convex client to hold that query open, through
-  // the same `subscribe` its pages use, for as long as a consumer holds the
-  // watch. The answer lands in the query cache, the transition handler above
-  // fires, and the ordinary capture reads it; nothing here reads a result.
+  // THE ONE HOME for which game query feeds which profile section, with which
+  // arguments, how often Core may read it in the background, and whether it
+  // is held open while shown. Everything below that asks the game for data
+  // reads this list and nothing else: the background schedule, the holds,
+  // Sync now, a tool's request, and the deprecated Core.profile.watch. It is
+  // the ALLOWLIST too: tests/profile-sync-catalogue.mjs checks every row
+  // against the newest captured bundle (the game itself opens that query with
+  // exactly these argument keys) and the captured API surface, so "only what
+  // a game page asks for" (INSTRUMENTATION.md §10a) is checked, not promised.
   //
-  // Tested live 2026-09-25 (capture/api/convex-2026-09-25/README.md,
-  // INSTRUMENTATION.md §10a): getOverview arrived within 5 s with no page
-  // holding it, and the maintainer's other sessions stayed logged in.
+  // A READ IS A PAGE VISIT, NOT A SUBSCRIPTION: subscribe through the game's
+  // own client, take the first answer, unsubscribe. One execution on the
+  // server, on the socket the tab already has. Holding a query open, which the
+  // server re-runs on every change, is kept for what a player is looking at.
   //
-  // THE LOAD LIMIT. The maintainer approved this on the condition that the
-  // game's developer would not mind the load, so only queries the game itself
-  // opens when a page is visited are allowed, with the argument shape that
-  // page uses, and at most MAX_WATCHES at once. Asking for a query the game
-  // already holds adds a subscriber to it, not a request. A read, never an
-  // action (AGENTS.md rule 4). Off in Settings › Profile closes every watch.
-  const WATCHABLE = {
-    // the Party page (/game/party/*)
-    'party.public.getOverview': ['characterId'],
-    'party.combat.public.getActionsMonster': ['characterId'],
-    // a player's public profile page, asked with THAT player's id
-    'character.levels.public.getLevels': ['characterId'],
-  };
+  //   args   the argument object, by role: OWN = your characterId, MEMBER =
+  //          each other party member's (one read each), VILLAGE = your
+  //          villageId. SCULPTURE_PRESET / SKILL_TREE = each of your
+  //          sculpture presets / skill-tree presets the profile's own list
+  //          names (one read each, like MEMBER). A role the profile cannot
+  //          resolve means the row is not asked at all, never asked with a
+  //          guess (rule 3).
+  //   every  the background interval; null = never read in the background
+  //          (the character provider holds it on every page, or it is held).
+  //   live   held in the tab whose module window shows it, while visible.
+  //   hold   held by the leading tab while a started module uses it.
+  //   when   'party': only while the character document names a party.
+  //
+  // THE INTERVAL RULE (audited): every * 1.1 + 10 min is shorter than the
+  // section's stale window (Core's PROFILE_CATEGORIES, 6 h by default), so a
+  // section Core keeps never shows "old" while background reads work. That is
+  // why the slow sections are 5 h rather than a day: the difference is about
+  // one read an hour in all. The audit also pins the steady-state rate, with
+  // every section in use and a full party, at no more than half the hourly
+  // ceiling, so Sync now always has room.
+  const OWN = 'own';
+  const MEMBER = 'member';
+  const VILLAGE = 'village';
+  const SCULPTURE_PRESET = 'sculpturePreset';
+  const SKILL_TREE = 'skillTree';
+  // The roles asked once per id, and where ctxFrom keeps each role's ids.
+  const EACH = { [MEMBER]: 'members', [SCULPTURE_PRESET]: 'sculpturePresets', [SKILL_TREE]: 'skillTrees' };
+
+  const CATALOGUE = [
+    // PAGE. The character provider holds these on every game page
+    // (CharacterDataProvider, 2026-09-23 bundle: getActiveCharacter with {},
+    // getEquipmentSlots with { characterId }, and the levels as its
+    // characterLevels), so a capture always finds them and Core never asks.
+    { section: 'core', name: 'character.public.getActiveCharacter', args: {}, every: null },
+    { section: 'levels', name: 'character.levels.public.getLevels', args: { characterId: OWN }, every: null },
+    { section: 'equipment', name: 'equipment.queries.getEquipmentSlots', args: { characterId: OWN }, every: null },
+    // BACKGROUND. Each is a query the game's own pages open with
+    // { characterId }; the income hover card alone (IncomeHoverCardWrapper)
+    // opens most of them on one hover. The interval is how stale the section
+    // may grow while a module uses it.
+    { section: 'equipment', name: 'character.gems.queries.getEquippedGems', args: { characterId: OWN }, every: 5 * HOUR_MS },
+    { section: 'relicBoosts', name: 'character.boosts.public.getBoosts', args: { characterId: OWN }, every: HOUR_MS },
+    { section: 'baseStats', name: 'character.stats.public.getStats', args: { characterId: OWN }, every: HOUR_MS },
+    { section: 'mergedMultipliers', name: 'character.queries.getMergedMultipliers', args: { characterId: OWN }, every: 30 * MIN_MS },
+    { section: 'pets', name: 'pets.queries.getPetSlots', args: { characterId: OWN }, every: 3 * HOUR_MS },
+    { section: 'pets', name: 'pets.queries.getEquippedPets', args: { characterId: OWN }, every: 3 * HOUR_MS },
+    { section: 'partner', name: 'partner.public.getPartner', args: { characterId: OWN }, every: 5 * HOUR_MS },
+    { section: 'sanctum', name: 'sanctum.public.getActiveSanctums', args: { characterId: OWN }, every: 5 * HOUR_MS },
+    { section: 'sanctum', name: 'sanctum.skilltree.public.getActiveSkillTreePoints', args: { characterId: OWN }, every: 5 * HOUR_MS },
+    { section: 'sanctum', name: 'sanctum.public.getSanctumCore', args: { characterId: OWN }, every: 5 * HOUR_MS },
+    { section: 'sculpture', name: 'fighters.sculptures.public.getSculptureMultipliers', args: { characterId: OWN }, every: 5 * HOUR_MS },
+    // LOADOUTS. The list of each kind, then one read per loadout in it, with
+    // exactly the arguments the game's page opens it with: the Sculptures
+    // page (getPresets, then getSculptureGrid per preset shown) and the Skill
+    // Tree page (getSkillTrees, then getSkillTreePoints per preset shown).
+    // A loadout appears in the schedule once its list has been read (the
+    // follow-up below), and drops out when the list stops naming it. The item
+    // sets name no per-set query: the list is the whole answer, and the
+    // equipment sidebar holds it on every page, so this row is rarely due.
+    { section: 'loadouts', name: 'fighters.sculptures.presets.getPresets', args: { characterId: OWN }, every: 12 * HOUR_MS },
+    { section: 'loadouts', name: 'fighters.sculptures.public.getSculptureGrid', args: { characterId: OWN, presetId: SCULPTURE_PRESET }, every: 12 * HOUR_MS },
+    { section: 'loadouts', name: 'sanctum.skilltree.public.getSkillTrees', args: { characterId: OWN }, every: 12 * HOUR_MS },
+    { section: 'loadouts', name: 'sanctum.skilltree.public.getSkillTreePoints', args: { skillTreeId: SKILL_TREE }, every: 12 * HOUR_MS },
+    { section: 'loadouts', name: 'sets.public.getCharacterItemSets', args: { characterId: OWN }, every: 12 * HOUR_MS },
+    { section: 'fighters', name: 'fighters.public.getCharacterFightersRaw', args: { characterId: OWN }, every: 5 * HOUR_MS },
+    // The village pages ask by village: getVillage with { id }, the other two
+    // with { villageId }, both from the character document's villageId
+    // (page-wqOaeWAP). No villageId observed: not asked.
+    { section: 'village', name: 'village.queries.getVillage', args: { id: VILLAGE }, every: 5 * HOUR_MS },
+    { section: 'village', name: 'village.queries.getBuildings', args: { villageId: VILLAGE }, every: 5 * HOUR_MS },
+    { section: 'village', name: 'village.queries.getStrengths', args: { villageId: VILLAGE }, every: 5 * HOUR_MS },
+    // THE PARTY. Read hourly in the background, held while a module window
+    // that uses them is on screen, as the Party page holds them.
+    { section: 'party', name: 'party.public.getOverview', args: { characterId: OWN }, every: HOUR_MS, live: true, when: 'party' },
+    { section: 'partyMonster', name: 'party.combat.public.getActionsMonster', args: { characterId: OWN }, every: HOUR_MS, live: true, when: 'party' },
+    // Other members' levels: the query the game's public profile page opens
+    // with THAT player's id (live test: capture/api/convex-2026-09-25/
+    // member-levels-test.json). Before R92 each was held around the clock in
+    // every tab; now one read an hour each, from one tab.
+    { section: 'partyLevels', name: 'character.levels.public.getLevels', args: { characterId: MEMBER }, every: HOUR_MS, live: true, when: 'party' },
+    // HOLD. The game's sidebar holds both on every page for a signed-in player
+    // (page-wqOaeWAP, the Party Actions widget), so the leader holding them
+    // too adds a subscriber, not a request. While no party action happens the
+    // server never re-runs them; during a run it re-runs them per action, as
+    // it does for the sidebar, and a run needs a reading every 10 s anyway
+    // (foldPartyLastAction). Cheaper than reading them every few minutes.
+    { section: 'partyActions', name: 'party.combat.public.getActions', args: { characterId: OWN }, every: null, hold: true, live: true },
+    { section: 'partyLastAction', name: 'party.combat.public.getLastActionState', args: { characterId: OWN }, every: null, hold: true, live: true },
+  ];
+
+  // Queries normalizeProfile reads that the catalogue deliberately never asks
+  // for: taken when a game page happens to hold them. The catalogue audit
+  // fails on a name read above that is in neither list.
+  const PAGE_ONLY = [
+    // statBoosts is null on the live page (no per-source breakdown comes from
+    // it); nothing uses it, so nothing is worth a request.
+    { section: 'statBoosts', name: 'character.boosts.public.getMergedBoosts' },
+    // An alternative feed of the fighters section; the catalogue reads
+    // getCharacterFightersRaw.
+    { section: 'fighters', name: 'fighters.public.getActivePresetFighters' },
+  ];
+
+  // The legacy watch's allowlist, derived: every catalogue query, with its
+  // argument keys (rows sharing a name share a shape; the audit checks).
+  const WATCHABLE = {};
+  for (const row of CATALOGUE) WATCHABLE[row.name] = Object.keys(row.args);
+  // Which argument names the village, per village query (splitQueries).
+  const VILLAGE_ARG = {};
+  for (const row of CATALOGUE) for (const [k, role] of Object.entries(row.args)) if (role === VILLAGE) VILLAGE_ARG[row.name] = k;
+  // Which argument names the loadout, per per-loadout query (splitQueries).
+  const LOADOUT_ARG = {};
+  for (const row of CATALOGUE) for (const [k, role] of Object.entries(row.args)) if (role === SCULPTURE_PRESET || role === SKILL_TREE) LOADOUT_ARG[row.name] = k;
+  const CATALOGUE_SECTIONS = [...new Set(CATALOGUE.map((r) => r.section))];
+
+  // For the UI and the audit: a frozen copy, no functions, nothing to resolve.
+  // `kept` is how the section stays fresh: 'page' (the game holds it),
+  // 'background' (read every `every` ms while used), 'held' (the leader holds
+  // it while used).
+  const PUBLIC_CATALOGUE = Object.freeze(CATALOGUE.map((r) => Object.freeze({
+    section: r.section,
+    name: r.name,
+    argKeys: Object.freeze(Object.keys(r.args)),
+    every: r.every,
+    live: !!r.live,
+    hold: !!r.hold,
+    perMember: Object.values(r.args).includes(MEMBER),
+    // The role asked once per id ('member', 'sculpturePreset', 'skillTree'), or null.
+    each: Object.values(r.args).find((role) => role in EACH) || null,
+    when: r.when || null,
+    kept: r.hold ? 'held' : r.every === null ? 'page' : 'background',
+  })));
+
+  const READ_FLOOR_MS = MIN_MS;
+  const READ_TIMEOUT_MS = 20_000;
+  const MAX_IN_FLIGHT = 3;
+  const READ_SPACING_MS = 250;
+  const MAX_BACKGROUND_READS_PER_HOUR = 60;
+  const BACKOFF_BASE_MS = 5 * MIN_MS;
+  const BACKOFF_MAX_MS = 24 * HOUR_MS;
+  const JITTER = 0.1;
+  const ARM_MIN_MS = 5_000;
+  const ARM_MAX_MS = 10 * MIN_MS;
+  const OFFLINE_RETRY_MS = MIN_MS;
+  const REQUEST_MAX_AGE_MS = 15 * MIN_MS;
+  const SYNC_NOW_MAX_AGE_MS = MIN_MS;
+  const SYNC_NOW_SETTLE_MS = 400;
   const MAX_WATCHES = 8;
-  const watches = new Map(); // key -> { name, args, holders, unsubscribe }
-  const watchOn = () => !(Core.profile && Core.profile.watchEnabled === false);
+  const LEADER_LOCK = 'awoo:profile:leader';
 
   // "party.combat.public.getActions" -> "party/combat/public:getActions", the
   // canonical form Convex's subscribe takes (dottedQueryName's inverse).
@@ -9644,66 +10746,980 @@
     return `${parts.join('/')}:${exp}`;
   }
 
-  function openWatches() {
-    if (!attachedClient || typeof attachedClient.subscribe !== 'function' || !watchOn()) return;
-    for (const w of watches.values()) {
-      if (w.unsubscribe) continue;
+  function currentProfile() {
+    try { return Core.profile && typeof Core.profile.get === 'function' ? Core.profile.get() : null; } catch (e) { return null; }
+  }
+
+  // Whose ids the catalogue asks with, from the merged profile. Members come
+  // from the party overview, and only when it is the party the character
+  // document names (an overview of the party you left lists the wrong
+  // people); without your own id none are taken, since yours could not be
+  // left out. partyStale: the overview is of another party, so it is due now.
+  function ctxFrom(profile) {
+    const meta = (profile && profile.meta) || {};
+    const id = (v) => (typeof v === 'string' && v ? v : null);
+    const ownId = id(meta.characterId);
+    const partyId = id(meta.partyId);
+    const party = profile && profile.party && typeof profile.party === 'object' ? profile.party : null;
+    const partyIdSeen = party ? id(party.id) : null;
+    const sameParty = !!(party && partyId && (!partyIdSeen || partyIdSeen === partyId));
+    const members = [];
+    if (sameParty && ownId && Array.isArray(party.members)) {
+      for (const m of party.members) {
+        const cid = m && id(m.characterId);
+        if (cid && cid !== ownId && !members.includes(cid)) members.push(cid);
+      }
+    }
+    // Your loadouts, from the lists the profile last saw. Without your own id
+    // none are asked: the per-loadout reads are yours only by that id.
+    const ids = (list) => (ownId && Array.isArray(list) ? [...new Set(list.map((l) => l && id(l.id)).filter(Boolean))] : []);
+    const lo = profile && profile.loadouts && typeof profile.loadouts === 'object' ? profile.loadouts : {};
+    const sculpturePresets = ids(lo.sculpturePresets);
+    const skillTrees = ids(lo.skillTreePresets);
+    return { ownId, villageId: id(meta.villageId), partyId, members, sculpturePresets, skillTrees,
+      partyStale: !!(partyIdSeen && partyId && partyIdSeen !== partyId) };
+  }
+
+  // A row's concrete asks: { name, section, args, key, row }. `key` is the
+  // row's name, plus #<id> for a per-id row's (a member's characterId, a
+  // loadout's id); it keys meta.queryAt and every per-query record here.
+  // [] = not asked (a role unresolved, or `when`).
+  function instancesOf(row, ctx) {
+    if (row.when === 'party' && !ctx.partyId) return [];
+    const each = Object.values(row.args).find((role) => role in EACH);
+    const resolve = (one) => {
+      const args = {};
+      for (const [k, role] of Object.entries(row.args)) {
+        const v = role === OWN ? ctx.ownId : role === VILLAGE ? ctx.villageId : role === each ? one : null;
+        if (!v) return null;
+        args[k] = v;
+      }
+      return args;
+    };
+    if (each) {
+      return (ctx[EACH[each]] || []).map((one) => ({ row, name: row.name, section: row.section, args: resolve(one), key: `${row.name}#${one}`, stale: false }))
+        .filter((inst) => inst.args);
+    }
+    const args = resolve(null);
+    return args ? [{ row, name: row.name, section: row.section, args, key: row.name, stale: row.section === 'party' && ctx.partyStale }] : [];
+  }
+
+  function sameArgs(a, b) {
+    const x = Array.isArray(a) ? a[0] : a;
+    if (!x || typeof x !== 'object' || !b) return false;
+    const kx = Object.keys(x);
+    return kx.length === Object.keys(b).length && kx.every((k) => x[k] === b[k]);
+  }
+
+  // Stamp meta.queryAt for every catalogue ask whose answer is in the cache
+  // right now, with exactly the args the catalogue would ask with (so a
+  // hovered stranger's getVillage stamps nothing of yours). Mutates `profile`,
+  // which is always a fresh object from mergeObservedProfile/normalizeProfile.
+  //
+  // knownQueryAt is this tab's own memory of the same stamps: what its
+  // captures saw, and what the leading tab reported reading (SYNC_READS). The
+  // schedule reads it beside the profile's, because the profile is not only
+  // this tab's to write: a store that takes another tab's profile whole (the
+  // one before R92 part A did) can hand back stamps older than this tab's,
+  // and the leader then re-read queries it was itself holding open (found by
+  // the two-tab test). Every commit carries it, so a tab that takes the lead
+  // over knows what was read.
+  //
+  // Keys name no character (the profile is one character's), so both
+  // memories are dropped when the player switches character: the new one's
+  // sections were never read, whatever the old one's stamps say.
+  const knownQueryAt = {};
+  let knownFor = null;
+  const noteQueryAt = (k, t) => { if (Number.isFinite(t) && !(knownQueryAt[k] >= t)) knownQueryAt[k] = t; };
+  function forgetIfOtherCharacter(ownId) {
+    if (!ownId) return;
+    if (knownFor && knownFor !== ownId) {
+      for (const k of Object.keys(knownQueryAt)) delete knownQueryAt[k];
+      rowState.clear();
+    }
+    knownFor = ownId;
+  }
+  function stampQueries(profile, entries, now) {
+    if (!profile || !profile.meta) return;
+    const queryAt = Object.assign({}, profile.meta.queryAt || {});
+    const ctx = ctxFrom(profile);
+    forgetIfOtherCharacter(ctx.ownId);
+    for (const row of CATALOGUE) {
+      for (const inst of instancesOf(row, ctx)) {
+        if (entries.some((e) => e.name === inst.name && sameArgs(e.args, inst.args))) noteQueryAt(inst.key, now);
+      }
+    }
+    for (const [k, t] of Object.entries(knownQueryAt)) if (!(queryAt[k] >= t)) queryAt[k] = t;
+    profile.meta.queryAt = queryAt;
+  }
+
+  // ---- Capture & Orchestration ----
+  function captureNow() {
+    captureScheduled = false;
+    if (captureTimer !== null) { clearTimeout(captureTimer); captureTimer = null; }
+
+    // The provider scan is the path the live page proved (2026-09-22, and the
+    // R88 tier-3 test found the client there again); Core.probeConvexClient
+    // returned null on the same page, so it is only the fallback now.
+    const providers = scanReactProvidersForProfileData();
+    const found = providers.client || (Core.probeConvexClient ? Core.probeConvexClient() : null) || null;
+    if (found && found !== attachedClient) attachClient(found);
+    // A scan that misses the client once (the tree mid-render) reads the one
+    // already attached, which the game has not replaced.
+    const client = found || attachedClient;
+
+    // The reads whose answer is in the cache NOW, taken in the same turn as
+    // the cache read below: this capture records them, and only once it is
+    // committed may they unsubscribe (settleReads). The other order loses the
+    // answer: unsubscribing the last subscriber drops it from the cache.
+    const ready = readsWithAnswers();
+
+    const ownHint = providers.context && providers.context.characterData && providers.context.characterData._id;
+    // Your village, for telling your village queries from a stranger's: the
+    // provider's character document (a document without one says none),
+    // else the last one the profile saw.
+    const provDoc = providers.context && providers.context.characterData && typeof providers.context.characterData === 'object' ? providers.context.characterData : null;
+    const lastVillage = ((currentProfile() || {}).meta || {}).villageId;
+    const villageHint = provDoc ? (typeof provDoc.villageId === 'string' && provDoc.villageId ? provDoc.villageId : null) : lastVillage;
+    const entries = queryEntries(client);
+    const split = splitQueries(entries, typeof ownHint === 'string' ? ownHint : null, villageHint);
+    const q = split.own;
+    // CAPTURE COST (R92). Once the client is attached and its cache holds the
+    // character, the cache and the provider carry everything the generic
+    // fiber sweep and the DOM scan could find (the stats text the DOM scan
+    // reads is drawn from getStats, which the page holding it puts in the
+    // cache). Both are skipped; the provider read stays: gold, levels and the
+    // equipment slots come from it.
+    const lean = !!client && !!q['character.public.getActiveCharacter'];
+    const fiber = scanFiberForProfileData(providers.context, { generic: !lean });
+    const dom = lean ? {} : scanDomForProfileData();
+
+    const hasData = Object.keys(q).length > 0 || Object.keys(fiber).length > 0 || Object.keys(dom).length > 0;
+    if (!hasData) { settleReads(ready); return null; }
+
+    const before = currentProfile();
+    const knownTrees = before && before.loadouts && Array.isArray(before.loadouts.skillTreePresets)
+      && (!split.ownId || !before.meta || !before.meta.characterId || before.meta.characterId === split.ownId)
+      ? before.loadouts.skillTreePresets.map((t) => t && t.id).filter(Boolean) : [];
+    const observed = normalizeProfile(q, fiber, dom, split.others, split.ownId, { skillTrees: knownTrees });
+    // Onto Core's profile, NOT this tab's last capture: Core's also holds what
+    // other tabs broadcast. Merged onto its own last capture, a follower tab
+    // dropped a section another tab had just seen whenever its own cache
+    // lacked it (REGISTER.md R92, point 2).
+    const profile = mergeObservedProfile(currentProfile(), observed);
+    stampQueries(profile, entries, observed.meta.timestamp);
+    activeProfile = profile;
+    if (Core.profile && typeof Core.profile.set === 'function') Core.profile.set(profile);
+    settleReads(ready);
+    return profile;
+  }
+
+  function scheduleCapture() {
+    if (captureScheduled) return;
+    captureScheduled = true;
+    captureTimer = setTimeout(() => { captureTimer = null; captureNow(); }, 250);
+  }
+
+  const soon = (fn) => {
+    if (typeof queueMicrotask === 'function') queueMicrotask(fn);
+    else Promise.resolve().then(fn);
+  };
+
+  // The client's transitions drive captures. A read waiting for its answer
+  // does not wait for the 250 ms debounce: a hidden tab clamps that timer to
+  // about a minute (INSTRUMENTATION.md §4.4), and the answer is here now. A
+  // microtask rather than inside the handler, so no subscribe or unsubscribe
+  // runs in the middle of the client's own transition.
+  function onTransition() {
+    if (inFlight.size) soon(completeReads);
+    scheduleCapture();
+  }
+
+  function attachClient(client) {
+    const previous = attachedClient;
+    attachedClient = client;
+    if (typeof client.addOnTransitionHandler === 'function') {
       try {
-        const sub = attachedClient.subscribe(canonicalUdfPath(w.name), w.args);
-        w.unsubscribe = sub && typeof sub.unsubscribe === 'function' ? sub.unsubscribe : () => {};
+        client.addOnTransitionHandler(() => { onTransition(); });
       } catch (e) {
-        console.warn('[AwooCore:ProfileSync] watch failed:', w.name, e);
+        console.warn('[AwooCore:ProfileSync] Failed hooking Convex transition handler:', e);
+      }
+    }
+    // A new client (a reload of the game's own) has none of our holds, and a
+    // read in flight on the old one will never answer here.
+    for (const h of holds.values()) h.unsubscribe = null;
+    if (previous) dropReads();
+    if (ambientTimer !== null) startAmbient();
+    seekLeadership();
+    syncHolds();
+  }
+
+  const watchOn = () => !(Core.profile && Core.profile.watchEnabled === false);
+  const autoSyncOn = () => !(Core.profile && Core.profile.autoSync === false);
+  // Automatic asks (the schedule, the holds) need both switches; the player's
+  // own Sync now needs only the background switch, as "Resync now" has
+  // always worked with automatic sync off.
+  const backgroundOn = () => watchOn() && autoSyncOn();
+  const pageVisible = () => typeof document === 'undefined' || document.visibilityState === 'visible';
+
+  // Nothing is asked while the socket is down: the read would only time out.
+  // A client with no connectionState cannot say, and is taken as connected.
+  function connected() {
+    const c = attachedClient;
+    if (!c || typeof c.connectionState !== 'function') return true;
+    try {
+      const s = c.connectionState();
+      return !(s && s.isWebSocketConnected === false);
+    } catch (e) { return true; }
+  }
+
+  // Started modules and what they read (about.uses, Core v14). A tool's uses
+  // arrive through request() when it opens.
+  function startedModules() {
+    let list = [];
+    try { list = Core && typeof Core.listModules === 'function' ? Core.listModules() : []; } catch (e) { list = []; }
+    return (Array.isArray(list) ? list : []).filter((m) => m && m.started)
+      .map((m) => ({ id: m.id, uses: Array.isArray(m.uses) ? m.uses : [], open: !!m.open }));
+  }
+  function demandOf(mods) {
+    const out = new Set();
+    for (const m of mods) for (const s of m.uses) out.add(s);
+    return out;
+  }
+
+  // ---- One tab leads (R92) ----
+  //
+  // Background reads and the `hold` rows run only in the tab holding this Web
+  // Lock. It is requested once the tab has the game's client and background
+  // reads are allowed; the callback returns a promise that settles only when
+  // this tab gives the lead up (the background switch turned off), so the
+  // browser hands the lock to the next tab in line when this one closes.
+  // Without navigator.locks there is no leader and no background read at all:
+  // only captures, and what the player asks for.
+  const locksApi = () => (typeof navigator !== 'undefined' && navigator && navigator.locks &&
+    typeof navigator.locks.request === 'function' ? navigator.locks : null);
+  let isLeader = false;
+  let leaderReq = null;
+  let otherLeader = null; // another tab leads: true / false, null = not known
+
+  function seekLeadership() {
+    const locks = locksApi();
+    if (!locks || leaderReq || !attachedClient || !watchOn()) return;
+    const req = { ctl: typeof AbortController === 'function' ? new AbortController() : null, release: null };
+    const held = new Promise((resolve) => { req.release = resolve; });
+    leaderReq = req;
+    let pending;
+    try {
+      pending = locks.request(LEADER_LOCK, req.ctl ? { signal: req.ctl.signal } : {}, () => {
+        // Given up while waiting, and the abort lost the race: hand it on.
+        if (leaderReq !== req) return null;
+        isLeader = true;
+        otherLeader = false;
+        leadershipChanged();
+        return held;
+      });
+    } catch (e) {
+      leaderReq = null;
+      return;
+    }
+    // Settles when this tab gave the lead up (yieldLeadership already said so)
+    // or gave up waiting. Anything else (the lock taken away) ends the lead
+    // here too, rather than leaving a tab that believes it still leads.
+    Promise.resolve(pending).catch(() => { /* aborted while waiting: this tab gave up */ })
+      .then(() => {
+        if (leaderReq !== req) return;
+        leaderReq = null;
+        if (isLeader) { isLeader = false; leadershipChanged(); }
+      });
+    refreshLeaderView();
+  }
+
+  function yieldLeadership() {
+    const req = leaderReq;
+    if (!req) return;
+    leaderReq = null;
+    if (isLeader) {
+      isLeader = false;
+      req.release();
+      leadershipChanged();
+    } else if (req.ctl) {
+      try { req.ctl.abort(); } catch (e) { /* already settled */ }
+    }
+  }
+
+  // Whether ANOTHER tab leads, for the status line and request()'s routing.
+  function refreshLeaderView() {
+    const locks = locksApi();
+    if (!locks || typeof locks.query !== 'function') return Promise.resolve(null);
+    let p;
+    try { p = locks.query(); } catch (e) { return Promise.resolve(null); }
+    return Promise.resolve(p).then((s) => {
+      const held = !!(s && Array.isArray(s.held) && s.held.some((l) => l && l.name === LEADER_LOCK));
+      otherLeader = !isLeader && held;
+      return otherLeader;
+    }, () => null);
+  }
+
+  function leadershipChanged() {
+    if (!isLeader) for (const [k, job] of queue) if (job.kind === 'background') queue.delete(k);
+    syncHolds();
+    armTimer();
+  }
+
+  // ---- Holds: what stays open (REGISTER.md R88 step 5, R92) ----
+  //
+  // Some data exists only while its game page is open: the party overview
+  // (members, their multipliers and monsters) and other members' levels. A
+  // hold asks the game's OWN Convex client to keep that query open, through
+  // the same `subscribe` its pages use; the answer lands in the query cache,
+  // the transition handler fires, and the ordinary capture reads it.
+  //
+  // Tested live 2026-09-25 (capture/api/convex-2026-09-25/README.md,
+  // INSTRUMENTATION.md §10a): getOverview arrived within 5 s with no page
+  // holding it, and the maintainer's other sessions stayed logged in.
+  //
+  // THE LOAD LIMIT. The maintainer approved this on the condition that the
+  // game's developer would not mind the load, so only catalogue queries are
+  // held, with the argument shape the game's page uses, and at most
+  // MAX_WATCHES at once in a tab. Asking for a query the game already holds
+  // adds a subscriber to it, not a request. A read, never an action (AGENTS.md
+  // rule 4). Three kinds of holder share one refcounted table, so no query is
+  // opened twice in a tab:
+  //   lead    the leading tab, for the `hold` rows a started module uses;
+  //   shown   any tab, for the `live` rows a module whose window is open uses,
+  //           while the page is visible (the player is looking at it);
+  //   legacy  Core.profile.watch (deprecated, below).
+  // lead and shown need both Settings › Profile switches; legacy needs the
+  // background one, as the watch always did.
+  const holds = new Map(); // hold key -> { name, args, key, lead, shown:Set, legacy, unsubscribe }
+  const capped = new Set(); // catalogue keys refused by the cap in the last pass
+  const holdKeyOf = (name, args) => `${name} ${JSON.stringify(args, Object.keys(args).sort())}`;
+  const holdHeld = (h) => h.lead || h.shown.size > 0 || h.legacy > 0;
+  // A legacy hold opens only where one tab can answer for all: the leader,
+  // or every tab when the browser has no Web Locks (there is no leader).
+  const legacyMayOpen = () => watchOn() && (isLeader || !locksApi());
+  const holdWanted = (h) => h.lead || h.shown.size > 0 || (h.legacy > 0 && legacyMayOpen());
+
+  function newHold(name, args, key) {
+    return { name, args: Object.assign({}, args), key, lead: false, shown: new Set(), legacy: 0, unsubscribe: null };
+  }
+
+  function syncHolds() {
+    const wants = [];
+    if (backgroundOn() && attachedClient) {
+      const ctx = ctxFrom(currentProfile());
+      const mods = startedModules();
+      if (isLeader) {
+        const demand = demandOf(mods);
+        for (const row of CATALOGUE) {
+          if (row.hold && demand.has(row.section)) for (const inst of instancesOf(row, ctx)) wants.push({ inst, by: null });
+        }
+      }
+      if (pageVisible()) {
+        for (const m of mods) {
+          if (!m.open) continue;
+          for (const row of CATALOGUE) {
+            if (row.live && m.uses.includes(row.section)) for (const inst of instancesOf(row, ctx)) wants.push({ inst, by: m.id });
+          }
+        }
+      }
+    }
+    for (const h of holds.values()) { h.lead = false; h.shown.clear(); }
+    capped.clear();
+    // Mark what is already open first, drop what nobody holds, and only then
+    // add new ones against the cap: closing and reopening a kept query would
+    // cost the server an unsubscribe and a subscribe for nothing.
+    const fresh = [];
+    for (const w of wants) {
+      const h = holds.get(holdKeyOf(w.inst.name, w.inst.args));
+      if (!h) { fresh.push(w); continue; }
+      if (w.by === null) h.lead = true; else h.shown.add(w.by);
+    }
+    for (const [hk, h] of holds) if (!holdHeld(h)) { closeHold(h); holds.delete(hk); }
+    for (const w of fresh) {
+      const hk = holdKeyOf(w.inst.name, w.inst.args);
+      let h = holds.get(hk);
+      if (!h) {
+        if (holds.size >= MAX_WATCHES) { capped.add(w.inst.key); continue; }
+        h = newHold(w.inst.name, w.inst.args, w.inst.key);
+        holds.set(hk, h);
+      }
+      if (w.by === null) h.lead = true; else h.shown.add(w.by);
+    }
+    openHolds();
+  }
+
+  // Nothing new opens while the socket is down (what is open stays open: the
+  // client re-sends it on reconnect, and closing it would only churn). The
+  // next commit after the reconnect opens the rest.
+  function openHolds() {
+    const client = attachedClient;
+    const online = connected();
+    for (const h of holds.values()) {
+      const want = holdWanted(h);
+      if (want && !h.unsubscribe && online && client && typeof client.subscribe === 'function') {
+        try {
+          const sub = client.subscribe(canonicalUdfPath(h.name), h.args);
+          h.unsubscribe = sub && typeof sub.unsubscribe === 'function' ? sub.unsubscribe : () => {};
+        } catch (e) {
+          console.warn('[AwooCore:ProfileSync] hold failed:', h.name, e);
+        }
+      } else if (!want && h.unsubscribe) {
+        closeHold(h);
       }
     }
   }
 
-  function closeWatch(w) {
-    if (w.unsubscribe) { try { w.unsubscribe(); } catch (e) { /* the client may be gone */ } }
-    w.unsubscribe = null;
+  function closeHold(h) {
+    if (h.unsubscribe) { try { h.unsubscribe(); } catch (e) { /* the client may be gone */ } }
+    h.unsubscribe = null;
   }
 
+  // ---- Core.profile.watch: DEPRECATED (R92) ----
+  //
+  // Party before needsCore 16 asked for its party data with this: a watch per
+  // query, opened in EVERY tab it was loaded in and held around the clock, so
+  // three tabs held three copies of each member's levels. Modules now declare
+  // what they read (about.uses) and Core fetches. This stays only so an older
+  // Party keeps working under this AWOO+: same allowlist (every catalogue
+  // query with its argument keys), same cap, same null on refusal, same
+  // release function. What changed is WHERE it opens: in the leading tab
+  // only, which answers for every tab through the store's broadcast. The
+  // design (REGISTER.md R92) said "a local hold"; opening it in every tab is
+  // the very duplication R92 removes, and "a second tab adds no subscription"
+  // is tested with that older Party loaded
+  // (tests/profile-sync-scheduler.mjs). Without Web Locks it opens locally,
+  // exactly as before.
+  //
   // Returns a release function, or null when refused: a query not on the
-  // list, arguments of another shape, the cap reached, or watching off. A
-  // consumer given null reads the section as unobserved (rule 3).
+  // list, arguments of another shape, the cap reached, or background reads
+  // off. A consumer given null reads the section as unobserved (rule 3).
   function watchQuery(name, args) {
     const shape = WATCHABLE[name];
     if (!shape || !watchOn()) return null;
     const a = args && typeof args === 'object' ? args : {};
     const keys = Object.keys(a).sort();
     if (keys.join(',') !== shape.slice().sort().join(',') || keys.some((k) => typeof a[k] !== 'string' || !a[k])) return null;
-    const key = name + ' ' + JSON.stringify(a, keys);
-    let w = watches.get(key);
-    if (!w) {
-      if (watches.size >= MAX_WATCHES) return null;
-      w = { name, args: Object.assign({}, a), holders: 0, unsubscribe: null };
-      watches.set(key, w);
+    const hk = holdKeyOf(name, a);
+    let h = holds.get(hk);
+    if (!h) {
+      if (holds.size >= MAX_WATCHES) return null;
+      const ownId = ctxFrom(currentProfile()).ownId;
+      const key = a.characterId && ownId && a.characterId !== ownId ? `${name}#${a.characterId}` : name;
+      h = newHold(name, a, key);
+      holds.set(hk, h);
     }
-    w.holders++;
-    openWatches();
+    h.legacy++;
+    openHolds();
     let released = false;
     return () => {
       if (released) return;
       released = true;
-      w.holders--;
-      if (w.holders <= 0) { closeWatch(w); watches.delete(key); }
+      h.legacy--;
+      if (!holdHeld(h)) { closeHold(h); if (holds.get(hk) === h) holds.delete(hk); } else openHolds();
     };
   }
 
-  if (Core.profile) Core.profile.watch = watchQuery;
-  window.addEventListener('awoo:profile:watch', (e) => {
-    if (e && e.detail) openWatches();
-    else for (const w of watches.values()) closeWatch(w);
-  });
+  // ---- Background reads: a read is a page visit (R92) ----
+  //
+  // subscribe -> the first answer is in the cache -> captureNow() records it
+  // -> THEN unsubscribe. One execution on the server, like opening the page
+  // and leaving; no standing re-runs.
+  //
+  // THE BOUNDS, all enforced here and in dueAtOf:
+  //   leader only       one tab reads for all; no Web Locks, no background.
+  //   one per interval  due = last answer + every * (1 + jitter up to 10%), the
+  //                     jitter so rows that start together drift apart.
+  //   floor             no query read twice within READ_FLOOR_MS, whoever asks.
+  //   in flight         at most MAX_IN_FLIGHT, each start READ_SPACING_MS after
+  //                     the last.
+  //   timeout           READ_TIMEOUT_MS, then unsubscribe and count a failure.
+  //   back-off          after a failure the next try waits min(24 h, max(every,
+  //                     5 min * 2^fails)); a success resets it.
+  //   hourly ceiling    MAX_BACKGROUND_READS_PER_HOUR started in any rolling
+  //                     hour, whoever asked; beyond it, refused and recorded.
+  //   socket down       nothing is asked.
+  //   switches off      nothing: with Settings › Profile's background switch
+  //                     off, AWOO+ adds no subscription of its own.
+  // Due-ness is derived from the clock and meta.queryAt (rule 5), never from a
+  // per-tick counter, and never from a section's observedAt: a section fed by
+  // three queries can be half fresh.
+  const rowState = new Map(); // key -> { lastOkAt, lastStartAt, fails, failAt, lastError, jitter }
+  const queue = new Map();    // key -> job, in arrival order
+  const inFlight = new Map(); // key -> read
+  const readLog = [];         // start times, the last hour
+  const peerReads = [];       // what the leader reported, the last hour
+  const refused = { ceiling: 0, offline: 0, lastAt: null, lastWhy: null };
+  let lastReadStartAt = -Infinity;
+  let pumpTimer = null;
+
+  function stateOf(key) {
+    let s = rowState.get(key);
+    if (!s) {
+      s = { lastOkAt: null, lastStartAt: null, fails: 0, failAt: null, lastError: null, jitter: Math.random() * JITTER };
+      rowState.set(key, s);
+    }
+    return s;
+  }
+  const pruneLog = (log, now) => { while (log.length && log[0] <= now - HOUR_MS) log.shift(); };
+  function refuse(why, n = 1) {
+    refused[why] = (refused[why] || 0) + n;
+    refused.lastAt = Date.now();
+    refused.lastWhy = why;
+  }
+
+  function lastAtOf(key, profile) {
+    const stamped = profile && profile.meta && profile.meta.queryAt ? profile.meta.queryAt[key] : null;
+    const st = rowState.get(key);
+    let best = null;
+    for (const t of [stamped, knownQueryAt[key], st && st.lastOkAt]) if (Number.isFinite(t) && (best === null || t > best)) best = t;
+    return best;
+  }
+
+  // A query this tab holds open is kept fresh by the server already: reading
+  // it once more would add a subscriber and take it away again, for nothing.
+  function heldHere(key) {
+    for (const h of holds.values()) if (h.key === key && h.unsubscribe) return true;
+    return false;
+  }
+
+  // When a background row is next due, from the clock (rule 5).
+  function dueAtOf(inst, profile) {
+    const st = rowState.get(inst.key) || { jitter: 0, fails: 0, failAt: null, lastStartAt: null };
+    const last = inst.stale ? null : lastAtOf(inst.key, profile);
+    let at = last === null ? 0 : last + inst.row.every * (1 + st.jitter);
+    if (st.fails > 0 && st.failAt !== null) {
+      at = Math.max(at, st.failAt + Math.min(BACKOFF_MAX_MS, Math.max(inst.row.every, BACKOFF_BASE_MS * Math.pow(2, st.fails))));
+    }
+    if (st.lastStartAt !== null) at = Math.max(at, st.lastStartAt + READ_FLOOR_MS);
+    return at;
+  }
+
+  function enqueue(inst, kind, manual) {
+    if (inFlight.has(inst.key) || queue.has(inst.key)) return false;
+    queue.set(inst.key, { key: inst.key, name: inst.name, args: inst.args, kind, manual: !!manual });
+    return true;
+  }
+
+  function mayRead(job) {
+    if (!attachedClient || typeof attachedClient.subscribe !== 'function' || !watchOn()) return false;
+    if (!job.manual && !autoSyncOn()) return false;
+    if (job.kind === 'background' && !isLeader) return false;
+    return true;
+  }
+
+  function pump() {
+    if (pumpTimer !== null) return;
+    while (queue.size && inFlight.size < MAX_IN_FLIGHT) {
+      const now = Date.now();
+      const [key, job] = queue.entries().next().value;
+      if (!mayRead(job)) { queue.delete(key); continue; }
+      if (!connected()) { refuse('offline', queue.size); queue.clear(); return; }
+      const wait = lastReadStartAt + READ_SPACING_MS - now;
+      if (wait > 0) {
+        pumpTimer = setTimeout(() => { pumpTimer = null; pump(); }, wait);
+        return;
+      }
+      pruneLog(readLog, now);
+      if (readLog.length >= MAX_BACKGROUND_READS_PER_HOUR) {
+        refuse('ceiling', queue.size);
+        queue.clear();
+        return;
+      }
+      queue.delete(key);
+      const st = stateOf(key);
+      if (st.lastStartAt !== null && now - st.lastStartAt < READ_FLOOR_MS) continue;
+      startRead(job, now);
+    }
+  }
+
+  function startRead(job, now) {
+    const client = attachedClient;
+    const st = stateOf(job.key);
+    let sub = null;
+    try {
+      sub = client.subscribe(canonicalUdfPath(job.name), job.args);
+    } catch (e) {
+      console.warn('[AwooCore:ProfileSync] read failed:', job.name, e);
+    }
+    readLog.push(now);
+    lastReadStartAt = now;
+    st.lastStartAt = now;
+    const read = {
+      job, client, startedAt: now, timer: null,
+      token: sub ? sub.queryToken : undefined,
+      unsubscribe: sub && typeof sub.unsubscribe === 'function' ? sub.unsubscribe : () => {},
+    };
+    // Recorded, not finished: finishReads would pump, and this runs inside
+    // pump's own loop.
+    if (!sub) { recordOutcome(job.key, 'subscribe failed', now); return; }
+    inFlight.set(job.key, read);
+    read.timer = setTimeout(() => readTimedOut(job.key), READ_TIMEOUT_MS);
+    // Already answered (a page holds it): record it in a moment, no wait.
+    if (answerOf(read)) soon(completeReads);
+  }
+
+  // 'ok' | 'error' | null (no answer yet). By token through the client's own
+  // cache; a client whose subscribe returned no token is matched by query
+  // name and arguments instead.
+  function answerOf(read) {
+    const c = read.client;
+    if (!c) return null;
+    const optimistic = c.optimisticQueryResults || (c.client && c.client.optimisticQueryResults);
+    const map = optimistic && optimistic.queryResults;
+    let entry;
+    if (map && typeof map.get === 'function') {
+      if (read.token !== undefined) entry = map.get(read.token);
+      else if (typeof map.forEach === 'function') {
+        map.forEach((e) => {
+          if (!entry && e && e.udfPath && dottedQueryName(e.udfPath) === read.job.name && sameArgs(e.args, read.job.args)) entry = e;
+        });
+      }
+      if (entry && entry.result) return entry.result.success ? 'ok' : 'error';
+      if (map.size !== undefined || entry !== undefined) return null;
+    }
+    if (read.token !== undefined && typeof c.hasLocalQueryResultByToken === 'function') {
+      try { if (!c.hasLocalQueryResultByToken(read.token)) return null; } catch (e) { return null; }
+      if (typeof c.localQueryResultByToken !== 'function') return 'ok';
+      try { c.localQueryResultByToken(read.token); return 'ok'; } catch (e) { return 'error'; }
+    }
+    return null;
+  }
+
+  function readsWithAnswers() {
+    const out = [];
+    for (const r of inFlight.values()) if (r.client === attachedClient && answerOf(r)) out.push(r);
+    return out;
+  }
+  function completeReads() {
+    if (readsWithAnswers().length) captureNow();
+  }
+  function readTimedOut(key) {
+    const r = inFlight.get(key);
+    if (!r) return;
+    r.timer = null;
+    // A hidden tab can run this late, after the answer came: record it.
+    if (answerOf(r)) { captureNow(); return; }
+    finishReads([[r, 'timeout']]);
+  }
+
+  // Called by captureNow AFTER its commit, with the reads it saw answered.
+  function settleReads(ready) {
+    const done = [];
+    for (const r of ready) if (inFlight.get(r.job.key) === r) done.push([r, answerOf(r) === 'ok' ? null : 'error']);
+    if (done.length) finishReads(done);
+  }
+
+  function recordOutcome(key, error, now) {
+    const st = stateOf(key);
+    if (error) {
+      st.fails++;
+      st.failAt = now;
+      st.lastError = error;
+    } else {
+      st.fails = 0;
+      st.failAt = null;
+      st.lastError = null;
+      st.lastOkAt = now;
+      st.jitter = Math.random() * JITTER;
+    }
+  }
+
+  function finishReads(done) {
+    const now = Date.now();
+    const report = [];
+    for (const [r, error] of done) {
+      if (inFlight.get(r.job.key) === r) inFlight.delete(r.job.key);
+      if (r.timer) { clearTimeout(r.timer); r.timer = null; }
+      try { r.unsubscribe(); } catch (e) { /* the client may be gone */ }
+      recordOutcome(r.job.key, error, now);
+      report.push({ key: r.job.key, at: now, ok: !error });
+    }
+    postBc({ type: 'SYNC_READS', v: 1, characterId: ctxFrom(currentProfile()).ownId, reads: report, at: now });
+    pump();
+    armTimer();
+  }
+
+  // The game replaced its client: reads on the old one will never answer.
+  // Neither a success nor a failure; the schedule asks again.
+  function dropReads() {
+    for (const r of inFlight.values()) {
+      if (r.timer) clearTimeout(r.timer);
+      try { r.unsubscribe(); } catch (e) { /* gone with its client */ }
+    }
+    inFlight.clear();
+  }
+
+  // ---- The schedule (leader only) ----
+  //
+  // ONE timer, set to the earliest due time (clamped ARM_MIN_MS..ARM_MAX_MS),
+  // re-armed on each commit, module change, settings change and leadership
+  // change; it only ever moves EARLIER when re-armed, so a busy page
+  // committing every few seconds cannot keep pushing it back.
+  let schedTimer = null;
+  let schedAt = null;
+  const canBackground = () => isLeader && backgroundOn() && !!attachedClient;
+
+  function backgroundInstances(profile) {
+    const demand = demandOf(startedModules());
+    if (!demand.size) return [];
+    const ctx = ctxFrom(profile);
+    const out = [];
+    for (const row of CATALOGUE) {
+      if (row.every === null || !demand.has(row.section)) continue;
+      for (const inst of instancesOf(row, ctx)) if (!heldHere(inst.key)) out.push(inst);
+    }
+    return out;
+  }
+
+  function clearSched() {
+    if (schedTimer !== null) { clearTimeout(schedTimer); schedTimer = null; }
+    schedAt = null;
+  }
+
+  function armTimer() {
+    if (!canBackground()) { clearSched(); return; }
+    const now = Date.now();
+    let next = null;
+    if (!connected()) next = now + OFFLINE_RETRY_MS;
+    else {
+      const p = currentProfile();
+      for (const inst of backgroundInstances(p)) {
+        if (queue.has(inst.key) || inFlight.has(inst.key)) continue;
+        const d = dueAtOf(inst, p);
+        if (next === null || d < next) next = d;
+      }
+      if (next === null) { clearSched(); return; }
+      pruneLog(readLog, now);
+      if (readLog.length >= MAX_BACKGROUND_READS_PER_HOUR) next = Math.max(next, readLog[0] + HOUR_MS);
+    }
+    const at = now + Math.min(ARM_MAX_MS, Math.max(ARM_MIN_MS, next - now));
+    if (schedTimer !== null && schedAt <= at) return;
+    clearSched();
+    schedAt = at;
+    schedTimer = setTimeout(tick, at - now);
+  }
+
+  function tick() {
+    schedTimer = null;
+    schedAt = null;
+    if (canBackground() && connected()) {
+      const now = Date.now();
+      const p = currentProfile();
+      for (const inst of backgroundInstances(p)) if (dueAtOf(inst, p) <= now) enqueue(inst, 'background', false);
+      pump();
+    }
+    armTimer();
+  }
+
+  // ---- Asking on purpose: request() and Sync now ----
+  function normSections(sections) {
+    const list = sections === null || sections === undefined ? CATALOGUE_SECTIONS
+      : (Array.isArray(sections) ? sections : [sections]);
+    return [...new Set(list.filter((s) => typeof s === 'string' && CATALOGUE_SECTIONS.includes(s)))];
+  }
+
+  // Freshen these sections' rows now: every row that is asked at all (not
+  // page-held) whose last answer is older than maxAgeMs, ignoring the
+  // interval and whether a module uses it, inside every other bound.
+  // Returns the keys queued here.
+  //
+  // FOLLOW-UP. Some asks only exist once another answer is in: the members'
+  // levels need the overview's member list. So a request stays open for
+  // REQUEST_FOLLOW_UP_MS and is run again on each commit in that time; what
+  // was just read is fresh and what was just started is under the floor, so
+  // a re-run queues only asks that are new.
+  let followUp = null;
+  const REQUEST_FOLLOW_UP_MS = MIN_MS;
+  function runRequest(sections, maxAgeMs, manual) {
+    if (!attachedClient || !watchOn() || (!manual && !autoSyncOn())) return [];
+    if (!connected()) { refuse('offline'); return []; }
+    const now = Date.now();
+    if (!followUp || followUp.until < now || followUp.maxAgeMs !== maxAgeMs || followUp.manual !== !!manual) {
+      followUp = { sections: new Set(sections), maxAgeMs, manual: !!manual, until: now + REQUEST_FOLLOW_UP_MS };
+    } else {
+      for (const s of sections) followUp.sections.add(s);
+    }
+    return queueRequest(sections, maxAgeMs, manual, now);
+  }
+  function followUpRequest() {
+    const f = followUp;
+    if (!f) return;
+    if (f.until < Date.now()) { followUp = null; return; }
+    if (!attachedClient || !watchOn() || (!f.manual && !autoSyncOn()) || !connected()) return;
+    queueRequest([...f.sections], f.maxAgeMs, f.manual, Date.now());
+  }
+  function queueRequest(sections, maxAgeMs, manual, now) {
+    const p = currentProfile();
+    const ctx = ctxFrom(p);
+    const want = new Set(sections);
+    const keys = [];
+    for (const row of CATALOGUE) {
+      if (!want.has(row.section) || (row.every === null && !row.hold)) continue;
+      for (const inst of instancesOf(row, ctx)) {
+        if (heldHere(inst.key)) continue;
+        const last = inst.stale ? null : lastAtOf(inst.key, p);
+        if (last !== null && now - last < maxAgeMs) continue;
+        const st = rowState.get(inst.key);
+        if (st && st.lastStartAt !== null && now - st.lastStartAt < READ_FLOOR_MS) continue;
+        if (enqueue(inst, 'request', manual)) keys.push(inst.key);
+      }
+    }
+    pump();
+    return keys;
+  }
+
+  // Core.profile.request(sections, { maxAgeMs }): a one-shot freshen, for a
+  // tool that opens or anything that needs a section now. maxAgeMs defaults to
+  // 15 minutes and is never under the one-minute floor. It runs in the leading
+  // tab: here when this tab leads or no tab does, otherwise it is posted to
+  // the leader (SYNC_REQUEST on awoo-profile). Resolves to { ran: 'here' |
+  // 'leader' | 'off', keys } (keys: what was queued here).
+  function request(sections, opts) {
+    const list = normSections(sections);
+    const o = opts && typeof opts === 'object' ? opts : {};
+    const maxAgeMs = Math.max(READ_FLOOR_MS, Number.isFinite(o.maxAgeMs) ? o.maxAgeMs : REQUEST_MAX_AGE_MS);
+    if (!list.length || !backgroundOn()) return Promise.resolve({ ran: 'off', keys: [] });
+    if (isLeader || !locksApi()) return Promise.resolve({ ran: 'here', keys: runRequest(list, maxAgeMs, false) });
+    return refreshLeaderView().then((elsewhere) => {
+      if (isLeader || !elsewhere) return { ran: 'here', keys: runRequest(list, maxAgeMs, false) };
+      postBc({ type: 'SYNC_REQUEST', v: 1, characterId: ctxFrom(currentProfile()).ownId, sections: list, maxAgeMs, at: Date.now() });
+      return { ran: 'leader', keys: [] };
+    });
+  }
+
+  // SYNC NOW, as clicking through every page would: every tab captures its
+  // own cache (free), and the leader reads every catalogue section older
+  // than a minute. Two signals carry it: Core's awoo:profile:resync event
+  // (the button, in the tab it was pressed in, and in every other tab when
+  // Core hears REQUEST_PROFILE_SYNC) and REQUEST_PROFILE_SYNC itself on this
+  // file's channel. Both arrive for one press, so they are coalesced over
+  // SYNC_NOW_SETTLE_MS. A tool page's REQUEST_PROFILE_SYNC may carry
+  // `sections`: then only those are read. Core dispatches the event for that
+  // message too, unsectioned, so a sectioned message narrows an "everything"
+  // that only the event asked for; one that another tab's own REQUEST (no
+  // sections) asked for stays everything.
+  let syncNow = null;
+  function noteSyncNow(sections, fromBc) {
+    const list = Array.isArray(sections) ? normSections(sections) : null;
+    if (!syncNow) {
+      captureNow();
+      syncNow = { all: false, allFromBc: false, sections: new Set(), timer: setTimeout(flushSyncNow, SYNC_NOW_SETTLE_MS) };
+    }
+    if (list === null) {
+      syncNow.all = true;
+      if (fromBc) syncNow.allFromBc = true;
+    } else {
+      for (const s of list) syncNow.sections.add(s);
+    }
+  }
+  function flushSyncNow() {
+    const s = syncNow;
+    syncNow = null;
+    if (!s || !watchOn()) return;
+    const sections = s.sections.size && !s.allFromBc ? [...s.sections] : (s.all ? CATALOGUE_SECTIONS : [...s.sections]);
+    if (!sections.length) return;
+    // Every tab heard it; one reads. The leader, or, with no Web Locks and so
+    // no leader, the tab the player is looking at.
+    if (isLeader || (!locksApi() && pageVisible())) runRequest(sections, SYNC_NOW_MAX_AGE_MS, true);
+  }
+
+  // ---- Status, for the Control Panel (Part C of R92) ----
+  // A copy. leader: this tab leads (null: no Web Locks, so nobody does).
+  // background: 'on' | 'off' | 'unsupported'. readsLastHour: the reads this
+  // tab started if it leads, else what the leader reported. rows: one per
+  // catalogue ask (members expanded), with when it was last answered, when it
+  // is next due here (null: not scheduled in this tab), and its failures.
+  function syncStatus() {
+    const now = Date.now();
+    const p = currentProfile();
+    const ctx = ctxFrom(p);
+    const locks = !!locksApi();
+    pruneLog(readLog, now);
+    pruneLog(peerReads, now);
+    const demand = demandOf(startedModules());
+    const rows = [];
+    for (const row of CATALOGUE) {
+      const insts = instancesOf(row, ctx);
+      const list = insts.length ? insts : [{ row, name: row.name, section: row.section, args: null, key: row.name, stale: false }];
+      for (const inst of list) {
+        const st = rowState.get(inst.key) || null;
+        const scheduled = canBackground() && row.every !== null && !!inst.args && demand.has(row.section) && !heldHere(inst.key);
+        const flight = inFlight.has(inst.key);
+        rows.push({
+          section: row.section, name: row.name, key: inst.key, every: row.every, live: !!row.live, hold: !!row.hold,
+          asked: !!inst.args, used: demand.has(row.section),
+          lastAt: lastAtOf(inst.key, p),
+          nextAt: scheduled && !flight ? dueAtOf(inst, p) : null,
+          inFlight: flight,
+          fails: st ? st.fails : 0,
+          lastError: st ? st.lastError : null,
+        });
+      }
+    }
+    refreshLeaderView();
+    return {
+      leader: locks ? isLeader : null,
+      otherLeader: locks ? otherLeader : null,
+      background: !locks ? 'unsupported' : (backgroundOn() ? 'on' : 'off'),
+      readsLastHour: isLeader ? readLog.length : peerReads.length,
+      inFlight: inFlight.size,
+      queued: queue.size,
+      holds: [...holds.values()].filter((h) => h.unsubscribe).map((h) => h.key),
+      capped: [...capped],
+      refused: Object.assign({}, refused),
+      rows,
+    };
+  }
+
+  if (Core.profile) {
+    Core.profile.watch = watchQuery;
+    Core.profile.request = request;
+    Core.profile.syncStatus = syncStatus;
+    Core.profile.catalogue = PUBLIC_CATALOGUE;
+  }
 
   // ---- BroadcastChannel Cross-Tab Synchronization ----
+  // Core's own channel (core.js) carries the profile between tabs; this one
+  // carries the sync layer's own messages on the same name:
+  //   REQUEST_PROFILE_SYNC  Sync now, from a tab or a tool page (sections?)
+  //   SYNC_REQUEST          a follower's request(), for the leader to run
+  //   SYNC_READS            the leader's finished reads, so followers know
+  //                         what was read (status, and a new leader's due
+  //                         times after a hand-over)
+  // Other tabs on another character are ignored.
   let profileBc = null;
+  function postBc(msg) {
+    if (!profileBc) return;
+    try { profileBc.postMessage(msg); } catch (e) { /* closed */ }
+  }
+  function sameCharacter(data) {
+    const mine = ctxFrom(currentProfile()).ownId;
+    return !(mine && typeof data.characterId === 'string' && data.characterId && data.characterId !== mine);
+  }
   try {
     if (typeof BroadcastChannel !== 'undefined') {
       profileBc = new BroadcastChannel('awoo-profile');
       profileBc.onmessage = (event) => {
         const data = event && event.data;
         if (!data || typeof data !== 'object') return;
-        if (data.type === 'REQUEST_PROFILE_SYNC') captureNow();
+        if (data.type === 'REQUEST_PROFILE_SYNC') {
+          noteSyncNow(Array.isArray(data.sections) ? data.sections : null, true);
+        } else if (data.type === 'SYNC_REQUEST' && data.v === 1) {
+          if (isLeader && sameCharacter(data)) {
+            const age = Number.isFinite(data.maxAgeMs) ? data.maxAgeMs : REQUEST_MAX_AGE_MS;
+            runRequest(normSections(data.sections), Math.max(READ_FLOOR_MS, age), false);
+          }
+        } else if (data.type === 'SYNC_READS' && data.v === 1 && Array.isArray(data.reads)) {
+          if (!sameCharacter(data)) return;
+          if (!isLeader) otherLeader = true;
+          for (const r of data.reads) {
+            if (!r || typeof r.key !== 'string' || !Number.isFinite(r.at)) continue;
+            peerReads.push(r.at);
+            if (r.ok) noteQueryAt(r.key, r.at);
+          }
+          pruneLog(peerReads, Date.now());
+        }
       };
     }
   } catch (e) { /* ignore */ }
@@ -9722,8 +11738,10 @@
     splitQueries,
     watchQuery,
     canonicalUdfPath,
-    openWatches,
-    watches,
+    openWatches: openHolds,
+    // The legacy watches live in the one hold table now (R92).
+    watches: holds,
+    holds,
     setClientForTest: (c) => { attachedClient = c; },
     scanReactProvidersForProfileData,
     scanFiberForProfileData,
@@ -9731,9 +11749,27 @@
     captureNow,
     getActiveProfile: () => activeProfile,
     BASE_STAT_KEYS,
+    // R92: the catalogue and the scheduler's insides, for the catalogue audit
+    // and tests/profile-sync-scheduler.mjs.
+    CATALOGUE,
+    PAGE_ONLY,
+    WATCHABLE,
+    ctxFrom,
+    instancesOf,
+    limits: {
+      READ_FLOOR_MS, READ_TIMEOUT_MS, MAX_IN_FLIGHT, READ_SPACING_MS, MAX_BACKGROUND_READS_PER_HOUR,
+      BACKOFF_BASE_MS, BACKOFF_MAX_MS, JITTER, ARM_MIN_MS, ARM_MAX_MS, MAX_WATCHES,
+      AMBIENT_POLL_MS, AMBIENT_ATTACHED_MS, REQUEST_MAX_AGE_MS, SYNC_NOW_MAX_AGE_MS, LEADER_LOCK,
+    },
+    scheduler: {
+      get isLeader() { return isLeader; },
+      get schedAt() { return schedAt; },
+      queue, inFlight, rowState, readLog,
+      tick, armTimer, pump, syncHolds,
+    },
   };
 
-  window.addEventListener('awoo:profile:resync', () => { captureNow(); });
+  window.addEventListener('awoo:profile:resync', () => { noteSyncNow(null, false); });
 
   // ---- Automatic captures, governed by Settings › Profile ----
   //
@@ -9742,27 +11778,55 @@
   // when off rather than left ticking and returning early: a timer that fires
   // only to do nothing still wakes a hidden tab, which is the cost §4.4 of
   // INSTRUMENTATION.md exists to avoid.
-  const autoSyncOn = () => !(Core.profile && Core.profile.autoSync === false);
   let ambientTimer = null;
+  let ambientMs = null;
   function startAmbient() {
-    if (ambientTimer === null) ambientTimer = setInterval(() => { captureNow(); }, AMBIENT_POLL_MS);
+    const ms = attachedClient ? AMBIENT_ATTACHED_MS : AMBIENT_POLL_MS;
+    if (ambientTimer !== null && ambientMs === ms) return;
+    if (ambientTimer !== null) clearInterval(ambientTimer);
+    ambientMs = ms;
+    ambientTimer = setInterval(() => { captureNow(); }, ms);
   }
   function stopAmbient() {
-    if (ambientTimer !== null) { clearInterval(ambientTimer); ambientTimer = null; }
+    if (ambientTimer !== null) { clearInterval(ambientTimer); ambientTimer = null; ambientMs = null; }
   }
+  // The switches: every automatic ask re-reads them, and these re-evaluate
+  // at once, so turning one off closes what it opened now, not at the next
+  // tick.
   window.addEventListener('awoo:profile:auto-sync', (e) => {
     if (e && e.detail) { startAmbient(); captureNow(); } else { stopAmbient(); }
+    if (!autoSyncOn()) for (const [k, job] of queue) if (!job.manual) queue.delete(k);
+    syncHolds();
+    armTimer();
   });
+  window.addEventListener('awoo:profile:watch', (e) => {
+    if (e && e.detail) seekLeadership();
+    else { yieldLeadership(); queue.clear(); }
+    syncHolds();
+    armTimer();
+  });
+  // A module started, stopped, opened or closed its window (Core fires this,
+  // R92): what is held and what is due follow what is in use.
+  window.addEventListener('awoo:modules:change', () => { syncHolds(); armTimer(); });
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && autoSyncOn()) captureNow();
+    // Live holds follow what the player can see.
+    syncHolds();
   });
+
+  // Every commit (this tab's captures, another tab's broadcast): the members,
+  // ids and stamps the holds and the schedule are computed from may have moved.
+  if (Core.profile && typeof Core.profile.subscribe === 'function') {
+    Core.profile.subscribe(() => { syncHolds(); followUpRequest(); armTimer(); });
+  }
 
   if (autoSyncOn()) {
     startAmbient();
     setTimeout(() => { captureNow(); }, 1000);
   }
   Core.__profileSyncForTest.isAmbientRunning = () => ambientTimer !== null;
+  Core.__profileSyncForTest.ambientMs = () => ambientMs;
   })();
 
 })();
@@ -11447,7 +13511,7 @@ if (document.body) {
 
   // ==== GENERATED TOOL PAYLOADS — DO NOT EDIT ====
   // Tool payload: userscripts/src/tools/cost-tables.html (generated facts inlined)
-  const AWOO_TOOL_COST_TABLES = "<!doctype html>\n<meta charset=\"utf-8\">\n<title>Cost Tables</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Azeret+Mono:wght@400;500;600&display=swap\">\n\n<meta name=\"awoo-tool\" content=\"cost-tables\">\n<style>\n/* ===========================================================================\n   AWOO+ THEME TOKENS — GENERATED, DO NOT EDIT BY HAND.\n\n   Source: the AWOO+ Design System (projects/ARTIFACT_STYLE_GUIDE.md Part II,\n   live at https://claude.ai/artifact/3Xv8kdGSd6Lth8MhQEtBrS). Injected into\n   every tool page by userscripts/build.mjs at the <!-- @AWOO_THEME_TOKENS@ -->\n   marker, so one palette correction reaches every tool on the next build.\n\n   SEVEN THEMES, FOUR FAMILIES. A family name carries no mode; the variant\n   does, and only where more than one exists — which is why Slate and Claude\n   Code have no suffix.\n\n     Beach        light · dimmed\n     Slate        (was \"war room\" before the merge)\n     Claude       light · medium · dark\n     Claude Code  (RECONSTRUCTED from the brand register, not sampled)\n\n   ONE CONTRACT. Every theme defines the same 25 tokens and no component ever\n   names a colour, which is what makes an eighth theme a block of properties\n   rather than a rewrite. Two of those tokens exist for specific reasons:\n     --accent-edge     the soft edge of a tinted row. A full-strength accent\n                       ring reads as a frame around a table row, not emphasis\n                       on it.\n     --border-control  inputs, selects and buttons only, clearing WCAG\n                       1.4.11's 3:1 against surface. Table hairlines stay soft\n                       on --border.\n\n   Every text pair in every theme clears WCAG AA; tertiary \"muted\" text is\n   AA-large by design across the whole family.\n   =========================================================================== */\n:root{\n  /* Beach (light) is the base layer, so an un-stamped page is always legible. */\n  --ground:#EFE7D7;\n  --surface:#FAF5EC;\n  --surface-2:#F1E8D8;\n  --surface-3:#E7DCC7;\n  --border:#D8CBB2;\n  --border-strong:#C3B193;\n  --border-control:#8C7D64;\n  --ink:#33291D;\n  --ink-soft:#6B5C48;\n  --ink-mute:#94836C;\n  --accent:#8A4322;\n  --accent-fill:#A8552C;\n  --accent-edge:#D4AB93;\n  --bg-accent:#F3E2D8;\n  --on-accent:#FBF0E6;\n  --success:#3F5C33;\n  --success-fill:#4A6741;\n  --bg-success:#E4EBDC;\n  --danger:#8C2F2A;\n  --danger-fill:#A83A33;\n  --bg-danger:#F5E0DD;\n  --info:#41528A;\n  --bg-info:#E2E5F2;\n  --neutral:#6E5F49;\n  --bg-neutral:#EDE4D3;\n  --dev:#2E6B5C;\n  --bg-dev:#DCEBE6;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n\n  /* TYPE, corrected 2026-09-21 after MEASURING the glyphs rather than\n     recalling them.\n\n     NUMBERS ARE PUBLIC SANS, NOT A MONO FACE. The requirement was a clear,\n     unmarked zero. Measured by rendering each zero at 200px and sampling the\n     centre of its counter (capital O as the control, which reads 0% ink in\n     every face, proving the method): Noto Sans Mono 83%, DM Mono 80%, Roboto\n     Mono 69%, IBM Plex Mono 93%, JetBrains Mono 95%, Space Mono 95%, Cousine\n     100%. Every one of them marks the zero. So does the earlier \"fix\":\n     font-feature-settings \"zero\" 0 changes NOTHING in any of them, because\n     the mark is the default glyph, not an optional feature.\n\n     Public Sans's own zero measures 0% — genuinely open — and\n     font-variant-numeric: tabular-nums makes every digit exactly the same\n     width (measured: all ten at 70px against 40.7-64.75 proportional). Fixed\n     width is what a column needs; a monospaced FACE was never the\n     requirement. So the number face is the text face, with tabular figures.\n\n     --font-mono stays a real mono for identifiers and formula text, where\n     letter alignment matters: Azeret Mono, the only mono of the eight tested\n     whose zero measured 0%. */\n  --font-display:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-body:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-num:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-mono:'Azeret Mono',ui-monospace,'Cascadia Mono',monospace;\n  --display-tracking:-.005em; --display-caps:none;\n  --radius:6px;\n\n  /* DENSITY, 2026-09-21. These are read as data, not prose: a table row and a\n     nav row both want to be tighter than a paragraph. Tokens rather than\n     literals so \"slightly more condensed\" is one edit, everywhere. */\n  --row-y:2px;        /* table cell vertical padding */\n  --row-x:12px;       /* table cell horizontal padding */\n  --nav-y:3px;        /* sidebar nav row */\n  --ctl-y:2px;        /* input and select vertical padding */\n  --ctl-x:6px;\n  --ctl-w:78px;       /* a number input's default width - subtle, not a field */\n  --pad-panel:11px;\n}\n\n/* No explicit choice and a dark OS: Slate. */\n@media (prefers-color-scheme: dark){\n  :root:not([data-theme]){\n    --ground:#14181D;\n    --surface:#1B2027;\n    --surface-2:#20262D;\n    --surface-3:#272F37;\n    --border:#2B323A;\n    --border-strong:#3A434C;\n    --border-control:#6A7684;\n    --ink:#E8EAEB;\n    --ink-soft:#A9B0B6;\n    --ink-mute:#78828B;\n    --accent:#E3B36B;\n    --accent-fill:#C4923F;\n    --accent-edge:#5A4522;\n    --bg-accent:#2E2412;\n    --on-accent:#241300;\n    --success:#84C4AA;\n    --success-fill:#4F8C74;\n    --bg-success:#172E25;\n    --danger:#E28270;\n    --danger-fill:#C1503C;\n    --bg-danger:#351F1A;\n    --info:#B4A4E0;\n    --bg-info:#241F36;\n    --neutral:#9AA6B2;\n    --bg-neutral:#222A32;\n    --dev:#78C8BC;\n    --bg-dev:#14302C;\n    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n  }\n}\n\n/* Beach (light) */\n:root[data-theme=\"beach\"]{\n  --ground:#EFE7D7;\n  --surface:#FAF5EC;\n  --surface-2:#F1E8D8;\n  --surface-3:#E7DCC7;\n  --border:#D8CBB2;\n  --border-strong:#C3B193;\n  --border-control:#8C7D64;\n  --ink:#33291D;\n  --ink-soft:#6B5C48;\n  --ink-mute:#94836C;\n  --accent:#8A4322;\n  --accent-fill:#A8552C;\n  --accent-edge:#D4AB93;\n  --bg-accent:#F3E2D8;\n  --on-accent:#FBF0E6;\n  --success:#3F5C33;\n  --success-fill:#4A6741;\n  --bg-success:#E4EBDC;\n  --danger:#8C2F2A;\n  --danger-fill:#A83A33;\n  --bg-danger:#F5E0DD;\n  --info:#41528A;\n  --bg-info:#E2E5F2;\n  --neutral:#6E5F49;\n  --bg-neutral:#EDE4D3;\n  --dev:#2E6B5C;\n  --bg-dev:#DCEBE6;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n}\n\n/* Beach (dimmed) */\n:root[data-theme=\"beach-dim\"]{\n  --ground:#17181A;\n  --surface:#1E2022;\n  --surface-2:#25282A;\n  --surface-3:#2E3134;\n  --border:#33373A;\n  --border-strong:#4A4F53;\n  --border-control:#6D7378;\n  --ink:#E6E4E0;\n  --ink-soft:#A8A49D;\n  --ink-mute:#7C7872;\n  --accent:#F2B189;\n  --accent-fill:#CC7A50;\n  --accent-edge:#5C412C;\n  --bg-accent:#31241A;\n  --on-accent:#1B0D05;\n  --success:#7CC49A;\n  --success-fill:#3F8A61;\n  --bg-success:#17301F;\n  --danger:#EB8272;\n  --danger-fill:#C0453A;\n  --bg-danger:#341D1B;\n  --info:#A3AEDD;\n  --bg-info:#1F2130;\n  --neutral:#A09B92;\n  --bg-neutral:#26282A;\n  --dev:#7FC9B8;\n  --bg-dev:#16302A;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Slate */\n:root[data-theme=\"slate\"]{\n  --ground:#14181D;\n  --surface:#1B2027;\n  --surface-2:#20262D;\n  --surface-3:#272F37;\n  --border:#2B323A;\n  --border-strong:#3A434C;\n  --border-control:#6A7684;\n  --ink:#E8EAEB;\n  --ink-soft:#A9B0B6;\n  --ink-mute:#78828B;\n  --accent:#E3B36B;\n  --accent-fill:#C4923F;\n  --accent-edge:#5A4522;\n  --bg-accent:#2E2412;\n  --on-accent:#241300;\n  --success:#84C4AA;\n  --success-fill:#4F8C74;\n  --bg-success:#172E25;\n  --danger:#E28270;\n  --danger-fill:#C1503C;\n  --bg-danger:#351F1A;\n  --info:#B4A4E0;\n  --bg-info:#241F36;\n  --neutral:#9AA6B2;\n  --bg-neutral:#222A32;\n  --dev:#78C8BC;\n  --bg-dev:#14302C;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude (light) */\n:root[data-theme=\"claude\"]{\n  --ground:#F0EEE6;\n  --surface:#FFFFFF;\n  --surface-2:#F7F6F1;\n  --surface-3:#EBE9E0;\n  --border:#DEDACE;\n  --border-strong:#C5C0B2;\n  --border-control:#8A8474;\n  --ink:#191917;\n  --ink-soft:#57544C;\n  --ink-mute:#84806F;\n  --accent:#A8461F;\n  --accent-fill:#B4552F;\n  --accent-edge:#DEB49F;\n  --bg-accent:#F7E6DD;\n  --on-accent:#FFF4EE;\n  --success:#276048;\n  --success-fill:#317055;\n  --bg-success:#D3E8DC;\n  --danger:#9E2B22;\n  --danger-fill:#BE4034;\n  --bg-danger:#F8E2DF;\n  --info:#474C93;\n  --bg-info:#E5E6F4;\n  --neutral:#6B6759;\n  --bg-neutral:#EDEBE2;\n  --dev:#256657;\n  --bg-dev:#D8EBE5;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n}\n\n/* Claude (medium) */\n:root[data-theme=\"claude-med\"]{\n  --ground:#26241F;\n  --surface:#2F2D27;\n  --surface-2:#37352E;\n  --surface-3:#403D35;\n  --border:#454239;\n  --border-strong:#5C5849;\n  --border-control:#807A68;\n  --ink:#EDEAE0;\n  --ink-soft:#B3AE9E;\n  --ink-mute:#8A8676;\n  --accent:#EFA189;\n  --accent-fill:#C26A4F;\n  --accent-edge:#66452F;\n  --bg-accent:#3B2A1E;\n  --on-accent:#1C0C03;\n  --success:#84C6A2;\n  --success-fill:#3C8A63;\n  --bg-success:#22342A;\n  --danger:#EE8B79;\n  --danger-fill:#BC4739;\n  --bg-danger:#3B2622;\n  --info:#AFA8E2;\n  --bg-info:#2B2839;\n  --neutral:#A8A292;\n  --bg-neutral:#343128;\n  --dev:#82C9B9;\n  --bg-dev:#1F3330;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude (dark) */\n:root[data-theme=\"claude-dark\"]{\n  --ground:#141312;\n  --surface:#1C1B19;\n  --surface-2:#232220;\n  --surface-3:#2C2A27;\n  --border:#31302C;\n  --border-strong:#47443E;\n  --border-control:#6E6A61;\n  --ink:#EFECE3;\n  --ink-soft:#ACA79A;\n  --ink-mute:#7E7A6E;\n  --accent:#F0A791;\n  --accent-fill:#C36E52;\n  --accent-edge:#523A26;\n  --bg-accent:#2B1D14;\n  --on-accent:#1A0A02;\n  --success:#82C9A3;\n  --success-fill:#3E8F66;\n  --bg-success:#14291D;\n  --danger:#F0907E;\n  --danger-fill:#C24A3B;\n  --bg-danger:#2E1B18;\n  --info:#B3ABE6;\n  --bg-info:#211E2E;\n  --neutral:#A5A092;\n  --bg-neutral:#26241F;\n  --dev:#7FCBBA;\n  --bg-dev:#132A26;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude Code */\n:root[data-theme=\"claude-code\"]{\n  --ground:#1F1E1D;\n  --surface:#262625;\n  --surface-2:#2E2E2C;\n  --surface-3:#383836;\n  --border:#3A3A38;\n  --border-strong:#54544F;\n  --border-control:#787870;\n  --ink:#F5F4EF;\n  --ink-soft:#B4B2A7;\n  --ink-mute:#88867C;\n  --accent:#E39070;\n  --accent-fill:#C2613F;\n  --accent-edge:#4A3227;\n  --bg-accent:#33221B;\n  --on-accent:#1A0A04;\n  --success:#7FC49E;\n  --success-fill:#3C8961;\n  --bg-success:#1C2E23;\n  --danger:#EE8B78;\n  --danger-fill:#BF4A39;\n  --bg-danger:#33211D;\n  --info:#ADA6E0;\n  --bg-info:#28253A;\n  --neutral:#A3A198;\n  --bg-neutral:#2C2C2A;\n  --dev:#7DC6B6;\n  --bg-dev:#1B2E2A;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* LEGACY ALIASES. The tool CSS written against the war-room names keeps\n   working; a new theme only has to fill the role names above. Do not use\n   these in new code. */\n:root,:root[data-theme]{\n  --brass:var(--accent); --brass-fill:var(--accent-fill);\n  --brass-text:var(--accent); --on-brass:var(--on-accent); --bg-brass:var(--bg-accent);\n  --ember:var(--danger); --ember-fill:var(--danger-fill); --bg-ember:var(--bg-danger);\n  --moss:var(--success); --moss-fill:var(--success-fill); --bg-moss:var(--bg-success);\n  --violet:var(--info); --bg-violet:var(--bg-info);\n  --steel:var(--neutral); --bg-steel:var(--bg-neutral);\n  --font-head:var(--font-display);\n}\n\n/* NUMBERS. Tabular figures give fixed-width digits, which is what makes a\n   column line up; the face itself is proportional and its zero is open.\n   `font-feature-settings: \"zero\" 0` is deliberately NOT used - it was tried,\n   and it does nothing, because in every mono face tested the slash or dot is\n   the default glyph rather than an optional feature. The fix is face choice,\n   not a feature flag. */\n.num,[data-num],table td,.stat .v,.mini .mr{\n  font-variant-numeric:tabular-nums;\n}\n\n/* DEVELOPER INFO (DESIGN.md §7, register R67). Hidden unless the reader has\n   turned it on, and tinted with its own hue so it is never mistaken for\n   something written for a player. */\n:root:not([data-dev=\"on\"]) [data-dev-only]{display:none!important}\n[data-dev-only]{color:var(--dev)}\n.devpill{\n  font-family:var(--font-mono);font-size:.6rem;font-weight:700;\n  padding:1px 6px;border-radius:3px;background:var(--bg-dev);color:var(--dev);\n}\n\n</style>\n<style>\n/* ===========================================================================\n   AWOO+ TOOL SETTINGS — the gear menu every tool shares.\n\n   Hand-written, unlike theme-tokens.css beside it. Injected by\n   userscripts/build.mjs at the <!-- @AWOO_TOOL_SETTINGS@ --> marker together\n   with tool-settings.js, for the same reason the tokens are injected rather\n   than copied: the menu, the theme inheritance and the \"Match game\" fallback\n   were about to exist four times, and the fallback is the part that has to\n   change in one place when Core's theme snapshot reaches tool payloads.\n\n   Every selector is prefixed `awoo-gear` because it lands inside pages whose\n   own `.btn` / `.panel` / `.note` rules differ from tool to tool.\n   ARTIFACT_STYLE_GUIDE.md Part II, \"Settings menu\".\n   =========================================================================== */\n.awoo-gear{position:relative;flex:none}\n.awoo-gear-btn{\n  background:transparent; border:1px solid var(--border-control); color:var(--ink-soft);\n  border-radius:4px; padding:3px 8px; cursor:pointer;\n  font:inherit; font-size:.95rem; line-height:1;\n}\n.awoo-gear-btn:hover,.awoo-gear-btn[aria-expanded=\"true\"]{\n  color:var(--ink); border-color:var(--accent-fill); background:var(--surface-2);\n}\n.awoo-gear-menu{\n  position:absolute; right:0; top:calc(100% + 6px); z-index:60; width:250px;\n  background:var(--surface); color:var(--ink); border:1px solid var(--border-strong);\n  border-radius:6px; box-shadow:var(--shadow); padding:8px;\n  display:flex; flex-direction:column; gap:7px;\n  font-family:var(--font-body); font-size:14px; line-height:1.4; text-align:left;\n}\n/* Opening upward, for a gear that sits at the foot of the viewport. */\n.awoo-gear-menu.up{top:auto; bottom:calc(100% + 6px)}\n.awoo-gear-row{display:flex;flex-direction:column;gap:3px}\n.awoo-gear-row label{\n  font-size:.62rem;font-weight:700;letter-spacing:.08em;\n  text-transform:uppercase;color:var(--ink-mute);\n}\n.awoo-gear-row select{\n  background:var(--surface-2); color:var(--ink); border:1px solid var(--border-control);\n  border-radius:4px; padding:var(--ctl-y) var(--ctl-x); font:inherit; font-size:.76rem; width:100%;\n}\n.awoo-gear-check{flex-direction:row;align-items:center;gap:7px}\n.awoo-gear-check label{flex:1}\n.awoo-gear-check input{accent-color:var(--accent-fill);margin:0}\n.awoo-gear-note{font-size:.66rem;color:var(--ink-mute);line-height:1.4}\n.awoo-gear-note:empty{display:none}\n/* A fallback is information the reader needs, not a footnote: the page is\n   deliberately not in the theme they asked for, and it says so. */\n.awoo-gear-note.fallback{color:var(--info);background:var(--bg-info);border-radius:4px;padding:4px 6px}\n\n/* SIDEBAR PINNING (2026-09-21). The default is that a tool's sidebar scrolls\n   WITH the page, and is pinned only while the whole of it fits on screen — a\n   pinned sidebar taller than the window hides its own bottom until the page\n   ends, and an independently scrolling one is a second scrollbar to manage.\n   \"Sidebar scrolls on its own\" in the gear menu restores the older behaviour.\n   tool-settings.js measures and sets data-side-mode; nothing else should. */\n[data-awoo-sidebar][data-side-mode=\"sticky\"]{position:sticky;top:var(--side-top,20px)}\n[data-awoo-sidebar][data-side-mode=\"scroll\"]{\n  position:sticky; top:var(--side-top,20px);\n  max-height:calc(100vh - var(--side-top,20px) - 16px);\n  overflow-y:auto; overflow-x:hidden; scrollbar-width:thin;\n}\n\n/* ===========================================================================\n   THE SHARED TOOL KIT (2026-09-23): the title block, the sync card, the field\n   lights, the Live/Standard switch and the one tooltip. tool-sync.js renders\n   the dynamic parts; these rules are the whole of their look, so every tool\n   shows the same card and the same lights.\n   =========================================================================== */\n\n/* Title block: eyebrow, title, one line, and the gear top-right. The layout\n   Party Gold ROI and Stat Rate Optimizer settled, now the standard. */\n.awoo-head{position:relative;padding-right:2.4rem}\n.awoo-head .awoo-gear{position:absolute;top:0;right:0}\n.awoo-eyebrow{font-family:var(--font-mono);font-size:.63rem;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin:0 0 .3rem}\n.awoo-title{font-family:var(--font-display);font-weight:700;font-size:1.7rem;line-height:1.05;margin:0 0 .3rem;text-wrap:balance;letter-spacing:normal;text-transform:none;color:var(--ink)}\n.awoo-sub{color:var(--ink-soft);font-size:.78rem;line-height:1.45;margin:0}\n\n/* Buttons the kit renders. Tools keep their own .btn; these do not collide. */\n.awoo-btn{\n  font-family:var(--font-body); font-size:.72rem; font-weight:500; color:var(--ink-soft);\n  background:var(--surface-2); border:1px solid var(--border-control); border-radius:6px;\n  padding:.28rem .6rem; cursor:pointer; white-space:nowrap; flex:1;\n}\n.awoo-btn:hover{border-color:var(--accent-fill);color:var(--accent);background:var(--surface-3)}\n.awoo-btn:disabled{opacity:.4;cursor:default}\n.awoo-btn:disabled:hover{border-color:var(--border-control);color:var(--ink-soft);background:var(--surface-2)}\n.awoo-btn-primary{color:var(--on-accent);background:var(--accent-fill);border-color:var(--accent-fill)}\n.awoo-btn-primary:hover{filter:brightness(1.07);color:var(--on-accent);background:var(--accent-fill)}\n\n/* The sync card: state and age on one line, the mode switch, two actions. */\n.awoo-sync{\n  background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border-strong);\n  border-radius:var(--radius); padding:var(--pad-panel); box-shadow:var(--shadow);\n  display:flex; flex-direction:column; gap:.45rem; font-family:var(--font-body); font-size:.75rem;\n}\n.awoo-sync[data-state=\"synced\"]{border-left-color:var(--success-fill)}\n.awoo-sync[data-state=\"stale\"]{border-left-color:var(--accent-fill)}\n.awoo-sync-head{display:flex;align-items:center;gap:.45rem}\n.awoo-sync-head .awoo-light{cursor:default;margin:0}\n.awoo-sync-state{font-weight:600;color:var(--ink);border-bottom:1px dotted var(--ink-mute);cursor:help}\n.awoo-sync-age{margin-left:auto;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--ink-mute);font-size:.68rem}\n.awoo-sync-actions{display:flex;gap:.35rem}\n\n/* Live / Standard. */\n.awoo-seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:2px;background:var(--surface-2);border:1px solid var(--border-control);border-radius:6px}\n.awoo-seg button{border:0;background:transparent;color:var(--ink-soft);font:inherit;font-size:.72rem;font-weight:600;padding:.22rem .4rem;border-radius:4px;cursor:pointer}\n.awoo-seg button:hover{color:var(--ink)}\n.awoo-seg button[aria-pressed=\"true\"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}\n[data-sync-mode=\"live\"] [data-mode-only=\"standard\"],\n[data-sync-mode=\"standard\"] [data-mode-only=\"live\"],\n:root:not([data-sync-mode]) [data-mode-only=\"standard\"]{display:none!important}\n\n/* A field's light. Filled means the game supplied it; hollow means it never\n   did (Core's convention: a state you cannot act on renders hollow). */\n.awoo-light{\n  display:inline-block; flex:none; width:.55rem; height:.55rem; border-radius:50%;\n  border:0; padding:0; margin:0 .3rem 0 0; vertical-align:middle; cursor:pointer;\n  background:transparent; box-shadow:inset 0 0 0 1.5px var(--ink-mute);\n}\n.awoo-light[data-state=\"synced\"]{background:var(--success-fill);box-shadow:none}\n.awoo-light[data-state=\"stale\"]{background:var(--accent-fill);box-shadow:none}\n.awoo-light[data-state=\"edited\"]{background:var(--info);box-shadow:none}\n.awoo-light[data-off=\"true\"]{opacity:.35}\n.awoo-light:focus-visible{outline:2px solid var(--accent-fill);outline-offset:2px}\n\n/* The one tooltip. */\n#awooTip{\n  position:fixed; z-index:200; left:0; top:0; max-width:22rem; pointer-events:none;\n  background:var(--ink); color:var(--surface); white-space:pre-line;\n  font-family:var(--font-body); font-size:.73rem; font-weight:400; line-height:1.45; letter-spacing:normal; text-transform:none;\n  padding:.45rem .6rem; border-radius:6px; box-shadow:var(--shadow);\n  opacity:0; visibility:hidden; transition:opacity .1s;\n}\n#awooTip.on{opacity:1;visibility:visible}\n#awooTip .awoo-tip-dev{display:block;margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--ink-mute);color:var(--bg-dev)}\n.awoo-tip{border-bottom:1px dotted var(--ink-mute);cursor:help}\n@media (prefers-reduced-motion:reduce){#awooTip{transition:none}}\n\n/* Number boxes (data-num): tabular figures in the number font, a size\n   smaller than body text (2026-09-23, asked for), right-aligned so a column\n   of them lines up on the last digit. */\ninput[data-num]{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:.74rem;text-align:right}\n\n/* THE DEFAULT INPUT BOX is Pet Slot ROI's (the maintainer, 2026-09-25: \"I like\n   the input boxes from the pet ROI, make those default. They are nicely\n   compact in height\"). It lives here, in the kit every tool gets, because a\n   box each page styled for itself is how two of them went unstyled: Cost\n   Tables' level boxes became type=\"text\" for locale-aware numbers while its\n   rule still said input[type=number], and the optimizer's ratio boxes sat in\n   a table no rule reached. Both drew the browser's white box under the\n   theme's light ink, which is unreadable in every dark theme. A page rule with\n   a class still wins (this is element + attribute specificity; the select's\n   :not([multiple]) is there only to outrank a page's bare `select` reset), so a page sets\n   only what is its own: a width, an alignment. The gear menu keeps its own. */\ninput[type=number],input[type=text],input:not([type]),select:not([multiple]){\n  font-family:var(--font-num);font-size:.74rem;font-weight:600;color:var(--ink);\n  background:var(--surface-2);border:1px solid var(--border-control);border-radius:4px;\n  padding:var(--ctl-y) var(--ctl-x);min-width:0;font-variant-numeric:tabular-nums;\n  line-height:1.4;height:1.45rem;box-sizing:border-box}\nselect:not([multiple]){font-family:var(--font-body);font-weight:400}\ninput[type=number]{-moz-appearance:textfield;appearance:textfield;text-align:right}\ninput[type=number]::-webkit-outer-spin-button,\ninput[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}\ninput[type=number]:focus,input[type=text]:focus,input:not([type]):focus,select:focus{outline:2px solid var(--accent-fill);outline-offset:1px}\ninput[type=number]:disabled,input[type=text]:disabled,select:disabled{opacity:.45;cursor:not-allowed;background:var(--surface-3)}\n\n</style>\n<script>\n/* ===========================================================================\n   AWOO+ TOOL SETTINGS — theme, developer info and fonts, shared by every tool.\n\n   Hand-written. Injected by userscripts/build.mjs at <!-- @AWOO_TOOL_SETTINGS@ -->\n   (with tool-settings.css), so the inheritance rules below exist once rather\n   than once per tool. A page opts in by carrying the marker, naming itself in\n   <meta name=\"awoo-tool\" content=\"...\"> BEFORE the marker, and calling\n   AWOO_TOOL_SETTINGS.mount(el) from its own init.\n\n   INHERIT, THEN OVERRIDE (ARTIFACT_STYLE_GUIDE.md Part II and Part IV).\n   The theme, \"Show developer info\" and the tool fonts are the PLAYER's\n   settings, held by AWOO+ Core. Core hands them over when it opens a tool, as\n   window.AWOO_APPEARANCE, prepended to the payload the same way AWOO_LIVE is.\n   A choice made in this page's gear menu overrides the inherited one and is\n   remembered per tool; \"Match game\" hands the decision back to Core.\n\n   THE FALLBACKS, stated because each one is a deliberate answer rather than\n   whatever happened to render:\n     - Opened outside the game (nothing inherited): the OS preference decides,\n       Beach (light) or Slate — theme-tokens.css does that with no stamp.\n     - Core's theme is game-shaped (\"Match game\", or the AWOO Turquoise preset):\n       a tool opened in its own tab cannot read the game page's variables, and\n       Core's snapshot of them does not reach tool payloads yet. So the page\n       shows SLATE AND SAYS SO in the menu — never an unstyled page, never a\n       silent substitute. When the snapshot does reach the payload, this\n       branch is the one place that changes.\n   =========================================================================== */\n(function(){\n'use strict';\n\nvar THEMES = [\n  ['beach','Beach (light)'], ['beach-dim','Beach (dimmed)'], ['slate','Slate'],\n  ['claude','Claude (light)'], ['claude-med','Claude (medium)'], ['claude-dark','Claude (dark)'],\n  ['claude-code','Claude Code']\n];\nvar THEME_IDS = THEMES.map(function(t){ return t[0]; });\n// Core's two themes that are defined by the GAME's variables rather than by\n// our contract. Neither can be rendered in a separate tab yet.\nvar GAME_SHAPED = { matchGame:'Match game', awooTurquoise:'AWOO Turquoise' };\nvar FALLBACK_THEME = 'slate';\n\n// The two font lists of Settings > Fonts. Core carries the same two lists for\n// the overlay; userscripts/tests/tool-theme-contract.mjs fails if they drift apart.\n//   text: Public Sans (default) · Open Sans · Figtree\n//   num:  Public Sans with tabular figures (default) · Roboto Mono\n// Roboto Mono marks its zero (69% ink in the counter, measured); it is offered\n// because it was asked for, and labelled for what it is in Core's picker.\nvar FONT_TEXT = {\n  public:  { stack:\"'Public Sans',system-ui,-apple-system,sans-serif\", family:'Public+Sans:wght@400;500;600;700' },\n  open:    { stack:\"'Open Sans',system-ui,-apple-system,sans-serif\",   family:'Open+Sans:wght@400;500;600;700' },\n  figtree: { stack:\"'Figtree',system-ui,-apple-system,sans-serif\",     family:'Figtree:wght@400;500;600;700' }\n};\nvar FONT_NUM = {\n  public: { stack:\"'Public Sans',system-ui,-apple-system,sans-serif\", family:'Public+Sans:wght@400;500;600;700' },\n  roboto: { stack:\"'Roboto Mono',ui-monospace,monospace\",             family:'Roboto+Mono:wght@400;500;600' }\n};\n\n// NUMBER PRESENTATION (2026-09-23: moved here from Cost Tables, so every tool\n// carries it). The game keeps two per-character settings, both CODE facts in\n// data/tables/number-display.json: numberFormatting (standard | exponential |\n// letters) and numberLocale ('Local' -> the browser, '1.000,00', '1,000.00').\n// Core hands the player's own over in AWOO_APPEARANCE.number; the gear menu\n// can override either, per tool. The suffix ladder starts at 1e3, and below\n// 1e6 every mode falls through to standard, which is the game's own rule.\nvar NUM_MODES = ['letters', 'standard', 'exponential'];\nvar LADDER = ['k','m','b','t','qa','qi','sx','sp','oc','no','dc','ud'];\nvar LOCALE_MAP = { 'Local':null, '1.000,00':'de-DE', '1,000.00':'en-US' };\n\nvar root = document.documentElement;\nvar meta = document.querySelector('meta[name=\"awoo-tool\"]');\nvar TOOL = (meta && meta.getAttribute('content')) || 'tool';\nvar LS = 'awoo:tool:' + TOOL + ':appearance';\n\nvar local = { theme:null, dev:null, sideScroll:false, numMode:null, numLocale:null, fontText:null, fontNum:null };\ntry {\n  var raw = localStorage.getItem(LS);\n  if (raw){ var p = JSON.parse(raw); if (p && typeof p === 'object'){\n    local.theme = p.theme || null; local.dev = (typeof p.dev === 'boolean') ? p.dev : null; local.sideScroll = p.sideScroll === true;\n    local.numMode = NUM_MODES.indexOf(p.numMode) >= 0 ? p.numMode : null;\n    local.numLocale = Object.prototype.hasOwnProperty.call(LOCALE_MAP, p.numLocale) ? p.numLocale : null;\n    local.fontText = FONT_TEXT[p.fontText] ? p.fontText : null;\n    local.fontNum = FONT_NUM[p.fontNum] ? p.fontNum : null;\n  } }\n} catch(e){ /* private window or blocked storage: inherit everything */ }\nfunction persist(){\n  try { localStorage.setItem(LS, JSON.stringify(local)); } catch(e){ /* not durable, still applied */ }\n}\n\n// What Core handed over. AWOO_APPEARANCE is the channel; the profile section\n// is the older one Cost Tables was written against, kept so a page embedded\n// beside Core (not in its own tab) still inherits.\nfunction inherited(){\n  var out = { theme:null, dev:null, fonts:null };\n  var a = window.AWOO_APPEARANCE;\n  if (a && typeof a === 'object'){\n    if (typeof a.theme === 'string') out.theme = a.theme;\n    if (typeof a.dev === 'boolean') out.dev = a.dev;\n    if (a.fonts && typeof a.fonts === 'object') out.fonts = a.fonts;\n  }\n  try {\n    var core = window.AWOO_CORE || window.Core;\n    if (core && core.profile && typeof core.profile.section === 'function'){\n      var t = core.profile.section('settings.theme');\n      if (out.theme == null && t && typeof t.value === 'string') out.theme = t.value;\n      var d = core.profile.section('settings.showDeveloperInfo');\n      if (out.dev == null && d && typeof d.value === 'boolean') out.dev = d.value;\n    }\n  } catch(e){ /* absent is absent */ }\n  return out;\n}\n\n// The theme actually painted, and why. `note` is shown in the menu whenever\n// the page is not showing exactly what was asked for.\nfunction resolveTheme(){\n  if (local.theme && THEME_IDS.indexOf(local.theme) >= 0){\n    return { id:local.theme, source:'picked', note:'' };\n  }\n  var inh = inherited().theme;\n  if (inh && THEME_IDS.indexOf(inh) >= 0){\n    return { id:inh, source:'game', note:'' };\n  }\n  if (inh && GAME_SHAPED[inh]){\n    return { id:FALLBACK_THEME, source:'fallback',\n      note:'Your AWOO+ theme is ' + GAME_SHAPED[inh] + ', which a tool cannot read yet. Showing Slate.' };\n  }\n  return { id:null, source:'os', note:'No AWOO+ theme to match, so this follows your system: Beach or Slate.' };\n}\n\nfunction labelOf(id){\n  for (var i = 0; i < THEMES.length; i++) if (THEMES[i][0] === id) return THEMES[i][1];\n  return null;\n}\n\nfunction applyTheme(){\n  var r = resolveTheme();\n  if (r.id) root.setAttribute('data-theme', r.id);\n  else root.removeAttribute('data-theme');\n  return r;\n}\nfunction devOn(){\n  if (local.dev != null) return local.dev;\n  return !!inherited().dev;\n}\nfunction applyDev(){ root.setAttribute('data-dev', devOn() ? 'on' : 'off'); }\n\nfunction inheritedNumber(){\n  var a = window.AWOO_APPEARANCE && window.AWOO_APPEARANCE.number;\n  return {\n    mode: a && NUM_MODES.indexOf(a.formatting) >= 0 ? a.formatting : null,\n    locale: a && Object.prototype.hasOwnProperty.call(LOCALE_MAP, a.locale) ? a.locale : null\n  };\n}\nfunction numMode(){ return local.numMode || inheritedNumber().mode || 'letters'; }\nfunction numLocaleKey(){ return local.numLocale || inheritedNumber().locale || 'Local'; }\nfunction numLocaleTag(){\n  var tag = LOCALE_MAP[numLocaleKey()];\n  if (tag) return tag;\n  try { return navigator.language || 'en-US'; } catch(e){ return 'en-US'; }\n}\nfunction finite(n){ return typeof n === 'number' && isFinite(n); }\n// Grouped digits, rounded. A dash for anything that is not a number, so a\n// missing input never renders as a confident 0.\nfunction fmtInt(n){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  try { return Math.round(n).toLocaleString(numLocaleTag()); } catch(e){ return String(Math.round(n)); }\n}\n// Exactly d decimals, in the player's separators.\nfunction fmtDec(n, d){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  d = d == null ? 2 : d;\n  try { return n.toLocaleString(numLocaleTag(), { minimumFractionDigits:d, maximumFractionDigits:d }); }\n  catch(e){ return n.toFixed(d); }\n}\n// A fraction as a percentage: 0.1234 -> \"12.34%\".\nfunction fmtPct(frac, d){ return finite(frac) ? fmtDec(frac * 100, d == null ? 2 : d) + '%' : '\\u2014'; }\n// The game's own rule: below 1e6 standard (with up to `small` decimals for\n// small non-integers), from 1e6 letters / exponential / standard.\nfunction fmtNum(n, small){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  if (n === 0) return '0';\n  var mode = numMode(), abs = Math.abs(n);\n  if (abs < 1e6 || mode === 'standard'){\n    if (abs < 1000 && small && Math.round(n) !== n){\n      var dd = abs < 10 ? small : Math.max(0, small - 1);\n      try { return n.toLocaleString(numLocaleTag(), { maximumFractionDigits:dd }); } catch(e){ return n.toFixed(dd); }\n    }\n    return fmtInt(n);\n  }\n  if (mode === 'exponential') return n.toExponential(2);\n  var i = Math.min(LADDER.length - 1, Math.floor(Math.log10(abs) / 3) - 1);\n  var v = n / Math.pow(1000, i + 1);\n  // Always two decimals: the game's own letter form (NumberDisplay, CODE;\n  // data/tables/number-display.json display.letterFormat.threshold). Cost\n  // Tables showed one decimal from 100 up until 2026-09-23, which the game never does.\n  return fmtDec(v, 2) + LADDER[i];\n}\n// Reads what a person typed, in the player's separators, with the game's\n// letter suffixes (\"4.18t\"). null when it is not a number, never 0.\nfunction parseNum(str){\n  if (typeof str === 'number') return finite(str) ? str : null;\n  if (typeof str !== 'string') return null;\n  var t = str.trim().toLowerCase().replace(/[\\s%]/g, '');\n  if (!t) return null;\n  var mult = 1, m = t.match(/(qa|qi|sx|sp|oc|no|dc|ud|k|m|b|t)$/);\n  if (m){ mult = Math.pow(1000, LADDER.indexOf(m[1]) + 1); t = t.slice(0, -m[1].length); }\n  var dec = fmtDec(1.5, 1).replace(/[0-9]/g, '') || '.';\n  var group = dec === ',' ? '.' : ',';\n  t = t.split(group).join('');\n  if (dec !== '.') t = t.replace(dec, '.');\n  if (!/^[-+]?\\d*\\.?\\d+(e[-+]?\\d+)?$/.test(t)) return null;\n  var v = parseFloat(t) * mult;\n  return finite(v) ? v : null;\n}\nfunction numberNote(){\n  var inh = inheritedNumber(), parts = [];\n  if (!local.numMode) parts.push(inh.mode ? 'format from game' : 'format: letters (not opened from the game)');\n  if (!local.numLocale) parts.push(inh.locale ? 'separators from game' : 'separators: browser');\n  return parts.join(' \\u00b7 ');\n}\n\n// Fonts: Settings > Fonts in Core sets the tools' faces for every tool, and\n// since 2026-09-23 each tool's gear can override them for that tool alone\n// (the maintainer asked for the number font in every settings menu). \"Match\n// AWOO+\" hands the choice back to Core. A face outside the page's own\n// stylesheet link is fetched only when chosen.\nfunction loadFamily(family){\n  if (!family || document.querySelector('link[data-awoo-font=\"' + family + '\"]')) return;\n  var l = document.createElement('link');\n  l.rel = 'stylesheet';\n  l.href = 'https://fonts.googleapis.com/css2?family=' + family + '&display=swap';\n  l.setAttribute('data-awoo-font', family);\n  (document.head || root).appendChild(l);\n}\nfunction fontIds(){\n  var f = inherited().fonts;\n  var tools = f && (f.tools || f);\n  return {\n    text: local.fontText || (tools && FONT_TEXT[tools.text] ? tools.text : null),\n    num: local.fontNum || (tools && FONT_NUM[tools.num] ? tools.num : null)\n  };\n}\nfunction applyFonts(){\n  var ids = fontIds();\n  var text = ids.text && FONT_TEXT[ids.text];\n  var num = ids.num && FONT_NUM[ids.num];\n  if (text){\n    loadFamily(text.family);\n    root.style.setProperty('--font-body', text.stack);\n    root.style.setProperty('--font-display', text.stack);\n  }\n  if (num){\n    loadFamily(num.family);\n    root.style.setProperty('--font-num', num.stack);\n  }\n  // Switching back to \"Match AWOO+\" with nothing inherited must undo an\n  // override, not leave the last one painted.\n  var rm = root.style && typeof root.style.removeProperty === 'function' ? function(k){ root.style.removeProperty(k); } : function(){};\n  if (!text){ rm('--font-body'); rm('--font-display'); }\n  if (!num) rm('--font-num');\n}\nvar FONT_LABEL = { public:'Public Sans', open:'Open Sans', figtree:'Figtree', roboto:'Roboto Mono (marked 0)' };\n\n/* NUMBER INPUTS (2026-09-23). A box marked data-num shows thousands\n   separators while you are not in it, and plain digits while you edit (so the\n   caret never fights a separator). What you paste may carry separators, as\n   long as they are your format's; letter suffixes (\"4.18t\") work too.\n   num.read(el) is how a page reads one: the value, or null, never 0 for a\n   box that is empty or not a number. */\nfunction showNum(el, v){\n  if (v === null || v === undefined){ return; }\n  var dig = el.getAttribute('data-num-digits');\n  var max = dig !== null ? parseInt(dig, 10) : 6;\n  var focused = document.activeElement === el;\n  try {\n    el.value = focused\n      ? v.toLocaleString(numLocaleTag(), { useGrouping:false, maximumFractionDigits:max })\n      : v.toLocaleString(numLocaleTag(), { maximumFractionDigits:max });\n  } catch(e){ el.value = String(v); }\n}\nfunction readNum(el){ return el ? parseNum(el.value) : null; }\nfunction enhanceNum(el){\n  if (!el || el.__awooNum) return;\n  el.__awooNum = true;\n  if (el.type === 'number') el.type = 'text';\n  el.setAttribute('inputmode', 'decimal');\n  el.setAttribute('autocomplete', 'off');\n  el.addEventListener('focus', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });\n  el.addEventListener('blur', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });\n  var v0 = readNum(el);\n  if (v0 === null && el.value){ var raw = parseFloat(el.value); if (isFinite(raw)) v0 = raw; }\n  if (v0 !== null) showNum(el, v0);\n}\nfunction enhanceAll(scope){\n  var list = (scope || document).querySelectorAll('input[data-num]');\n  for (var i = 0; i < list.length; i++) enhanceNum(list[i]);\n}\nfunction reformatAll(){\n  var list = document.querySelectorAll('input[data-num]');\n  for (var i = 0; i < list.length; i++){ if (document.activeElement !== list[i]){ var v = readNum(list[i]); if (v !== null) showNum(list[i], v); } }\n}\n\n// Sidebar pinning (see tool-settings.css). A page marks its sidebar with\n// data-awoo-sidebar, the viewport width from which it sits BESIDE the content\n// (data-side-min) and the pinned offset (data-side-top, e.g. below a sticky\n// top bar). Below that width the layout is one column and nothing is pinned.\nfunction sidebar(){ return document.querySelector('[data-awoo-sidebar]'); }\nfunction layoutSidebar(){\n  var el = sidebar();\n  if (!el) return;\n  var min = parseInt(el.getAttribute('data-side-min'), 10) || 0;\n  var top = parseInt(el.getAttribute('data-side-top'), 10) || 20;\n  el.style.setProperty('--side-top', top + 'px');\n  var mode;\n  if (window.innerWidth < min) mode = 'static';\n  else if (local.sideScroll) mode = 'scroll';\n  // scrollHeight is the content's own height whatever max-height says, so\n  // the measurement does not depend on the mode it is choosing between.\n  else mode = el.scrollHeight <= window.innerHeight - top - 16 ? 'sticky' : 'static';\n  if (el.getAttribute('data-side-mode') !== mode) el.setAttribute('data-side-mode', mode);\n}\nfunction watchSidebar(){\n  var el = sidebar();\n  if (!el) return;\n  layoutSidebar();\n  window.addEventListener('resize', layoutSidebar);\n  // Content grows and shrinks (a details panel opens, live data arrives), so\n  // the fit is re-measured on the element's own size changes too.\n  if (window.ResizeObserver) new ResizeObserver(layoutSidebar).observe(el);\n}\n\nvar listeners = [];\nfunction changed(){ for (var i = 0; i < listeners.length; i++){ try { listeners[i](); } catch(e){ /* one page bug must not stop the others */ } } }\n\n// Painted immediately, at parse time, so the page never flashes the base\n// theme before the stored or inherited one.\napplyTheme(); applyDev(); applyFonts();\n\nfunction el(tag, attrs, text){\n  var n = document.createElement(tag);\n  for (var k in attrs) n.setAttribute(k, attrs[k]);\n  if (text != null) n.textContent = text;\n  return n;\n}\n\n/* The gear menu. `host` is an empty element in the page's top bar; `opts.extra`\n   is an optional node of page-specific rows (Cost Tables' number format),\n   placed between Theme and Show developer info. `opts.up` opens it upward. */\nfunction mount(host, opts){\n  opts = opts || {};\n  if (!host) return;\n  host.classList.add('awoo-gear');\n  host.textContent = '';\n\n  var btn = el('button', { type:'button', 'class':'awoo-gear-btn', 'aria-expanded':'false',\n    'aria-controls':'awooGearMenu', 'aria-label':'Settings', title:'Settings' }, '⚙');\n  var menu = el('div', { id:'awooGearMenu', 'class':'awoo-gear-menu' + (opts.up ? ' up' : '') });\n  menu.hidden = true;\n\n  var themeRow = el('div', { 'class':'awoo-gear-row' });\n  themeRow.appendChild(el('label', { 'for':'awooThemeSel' }, 'Theme'));\n  var sel = el('select', { id:'awooThemeSel' });\n  var matchOpt = el('option', { value:'' }, 'Match game');\n  sel.appendChild(matchOpt);\n  THEMES.forEach(function(t){ sel.appendChild(el('option', { value:t[0] }, t[1])); });\n  themeRow.appendChild(sel);\n  menu.appendChild(themeRow);\n  var themeNote = el('div', { 'class':'awoo-gear-note' });\n  menu.appendChild(themeNote);\n\n  // Numbers and separators: in every tool's gear, not one tool's extra rows.\n  var numRow = el('div', { 'class':'awoo-gear-row' });\n  numRow.appendChild(el('label', { 'for':'awooNumMode' }, 'Numbers'));\n  var numSel = el('select', { id:'awooNumMode' });\n  [['', 'Match game'], ['letters', '105.44b'], ['standard', '105,440,000,000'], ['exponential', '1.05e+11']]\n    .forEach(function(o){ numSel.appendChild(el('option', { value:o[0] }, o[1])); });\n  numRow.appendChild(numSel);\n  menu.appendChild(numRow);\n  var locRow = el('div', { 'class':'awoo-gear-row' });\n  locRow.appendChild(el('label', { 'for':'awooNumLocale' }, 'Decimal separator'));\n  var locSel = el('select', { id:'awooNumLocale' });\n  [['', 'Match game'], ['1,000.00', '1,000.00 \\u00b7 point'], ['1.000,00', '1.000,00 \\u00b7 comma'], ['Local', 'Browser default']]\n    .forEach(function(o){ locSel.appendChild(el('option', { value:o[0] }, o[1])); });\n  locRow.appendChild(locSel);\n  menu.appendChild(locRow);\n  var numNote = el('div', { 'class':'awoo-gear-note' });\n  menu.appendChild(numNote);\n\n  function fontRow(id, label, list){\n    var row = el('div', { 'class':'awoo-gear-row' });\n    row.appendChild(el('label', { 'for':id }, label));\n    var sel2 = el('select', { id:id });\n    sel2.appendChild(el('option', { value:'' }, 'Match AWOO+'));\n    Object.keys(list).forEach(function(k){ sel2.appendChild(el('option', { value:k }, FONT_LABEL[k] || k)); });\n    row.appendChild(sel2);\n    menu.appendChild(row);\n    return sel2;\n  }\n  var fontNumSel = fontRow('awooFontNum', 'Number font', FONT_NUM);\n  var fontTextSel = fontRow('awooFontText', 'Text font', FONT_TEXT);\n\n  if (opts.extra) menu.appendChild(opts.extra);\n\n  var devRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });\n  devRow.appendChild(el('label', { 'for':'awooDevToggle' }, 'Show developer info'));\n  var dev = el('input', { type:'checkbox', id:'awooDevToggle' });\n  devRow.appendChild(dev);\n  menu.appendChild(devRow);\n  menu.appendChild(el('div', { 'class':'awoo-gear-note' },\n    opts.devHint || 'Adds the evidence tier, source files and last-checked date.'));\n\n  var side = null;\n  if (sidebar()){\n    var sideRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });\n    sideRow.appendChild(el('label', { 'for':'awooSideScroll' }, 'Sidebar scrolls on its own'));\n    side = el('input', { type:'checkbox', id:'awooSideScroll' });\n    sideRow.appendChild(side);\n    menu.appendChild(sideRow);\n    side.addEventListener('change', function(){\n      local.sideScroll = side.checked;\n      persist(); layoutSidebar(); changed();\n    });\n  }\n\n  host.appendChild(btn);\n  host.appendChild(menu);\n  watchSidebar();\n\n  function render(){\n    var r = resolveTheme();\n    sel.value = local.theme || '';\n    // \"Match game\" says what it resolved to, so the reader never has to open\n    // the list to find out which theme they are looking at.\n    matchOpt.textContent = 'Match game' + (r.source === 'picked' ? '' :\n      ' · ' + (r.id ? labelOf(r.id) : 'system'));\n    themeNote.textContent = (r.source === 'picked') ? '' : r.note;\n    themeNote.classList.toggle('fallback', r.source === 'fallback');\n    dev.checked = devOn();\n    if (side) side.checked = !!local.sideScroll;\n    numSel.value = local.numMode || '';\n    locSel.value = local.numLocale || '';\n    numNote.textContent = numberNote();\n    var fi = fontIds();\n    fontNumSel.value = local.fontNum || '';\n    fontTextSel.value = local.fontText || '';\n    fontNumSel.options[0].textContent = 'Match AWOO+' + (!local.fontNum ? ' \\u00b7 ' + (FONT_LABEL[fi.num] || 'Public Sans') : '');\n    fontTextSel.options[0].textContent = 'Match AWOO+' + (!local.fontText ? ' \\u00b7 ' + (FONT_LABEL[fi.text] || 'Public Sans') : '');\n  }\n  render();\n\n  fontNumSel.addEventListener('change', function(){\n    local.fontNum = fontNumSel.value || null;\n    persist(); applyFonts(); render(); changed();\n  });\n  fontTextSel.addEventListener('change', function(){\n    local.fontText = fontTextSel.value || null;\n    persist(); applyFonts(); render(); changed();\n  });\n\n  numSel.addEventListener('change', function(){\n    local.numMode = numSel.value || null;\n    persist(); render(); reformatAll(); changed();\n  });\n  locSel.addEventListener('change', function(){\n    local.numLocale = locSel.value || null;\n    persist(); render(); reformatAll(); changed();\n  });\n  enhanceAll();\n\n  sel.addEventListener('change', function(){\n    local.theme = sel.value || null;\n    persist(); applyTheme(); render(); changed();\n  });\n  dev.addEventListener('change', function(){\n    local.dev = dev.checked;\n    persist(); applyDev(); changed();\n  });\n\n  // Closes on outside click and on Escape, because a panel that only closes\n  // by clicking the same button again is a panel people leave open.\n  function setOpen(open){\n    menu.hidden = !open;\n    btn.setAttribute('aria-expanded', String(open));\n  }\n  btn.addEventListener('click', function(e){ e.stopPropagation(); setOpen(menu.hidden); });\n  menu.addEventListener('click', function(e){ e.stopPropagation(); });\n  document.addEventListener('click', function(){ setOpen(false); });\n  document.addEventListener('keydown', function(e){\n    if (e.key === 'Escape' && !menu.hidden){ setOpen(false); btn.focus(); }\n  });\n  // The OS flipping light/dark only matters while nothing more specific is set.\n  if (window.matchMedia){\n    var mq = window.matchMedia('(prefers-color-scheme: dark)');\n    var onOs = function(){ render(); changed(); };\n    if (mq.addEventListener) mq.addEventListener('change', onOs);\n    else if (mq.addListener) mq.addListener(onOs);\n  }\n}\n\n/* The developer tier of a Formula panel: one line per generated fact, with its\n   evidence tier, source file and last-checked date. Read from\n   window.AWOO_FACTS_META, which build.mjs writes from the same data/ entries\n   it generates the functions from — so this list cannot disagree with the\n   code the page actually runs. Returns <li> markup; the caller wraps it in a\n   list marked data-dev-only. */\nfunction esc(v){ return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\nfunction sources(names){\n  var meta = window.AWOO_FACTS_META || {};\n  var keys = names || Object.keys(meta);\n  if (!keys.length) return '<li>This copy was opened without the generated facts block.</li>';\n  return keys.filter(function(k){ return meta[k]; }).map(function(k){\n    var m = meta[k];\n    return '<li><span class=\"devpill\">' + esc(m.confidence) + '</span> <code>' + esc(m.file) +\n      '</code> &middot; <code>' + esc(m.fact) + '</code>' +\n      (m.checked ? ' &middot; checked ' + esc(m.checked) : '') + '</li>';\n  }).join('');\n}\n\nwindow.AWOO_TOOL_SETTINGS = {\n  mount: mount,\n  // Number presentation, the same for every tool (see NUMBER PRESENTATION).\n  num: { mode:numMode, localeKey:numLocaleKey, localeTag:numLocaleTag,\n         fmt:fmtNum, int:fmtInt, dec:fmtDec, pct:fmtPct, parse:parseNum,\n         read:readNum, show:showNum, enhance:enhanceAll,\n         // A tool that stored its own override before this layer carried one\n         // hands it over once; an override already set here wins.\n         adopt:function(mode, locale){\n           var any = false;\n           if (!local.numMode && NUM_MODES.indexOf(mode) >= 0){ local.numMode = mode; any = true; }\n           if (!local.numLocale && Object.prototype.hasOwnProperty.call(LOCALE_MAP, locale)){ local.numLocale = locale; any = true; }\n           if (any) persist();\n         },\n         // Test seam.\n         _set:function(mode, locale){ local.numMode = mode || null; local.numLocale = locale || null; } },\n  sources: sources,\n  onChange: function(fn){ if (typeof fn === 'function') listeners.push(fn); },\n  theme: resolveTheme,\n  devOn: devOn,\n  themes: THEMES.slice(),\n  // Test seam: the resolution rules, callable without a DOM round-trip.\n  _resolve: function(localTheme, inheritedTheme){\n    var pl = local.theme, pa = window.AWOO_APPEARANCE;\n    local.theme = localTheme || null;\n    window.AWOO_APPEARANCE = inheritedTheme ? { theme:inheritedTheme } : undefined;\n    try { return resolveTheme(); } finally { local.theme = pl; window.AWOO_APPEARANCE = pa; }\n  },\n  _fonts: { text:FONT_TEXT, num:FONT_NUM }\n};\n})();\n\n</script>\n<script>\n/* ===========================================================================\n   AWOO+ TOOL SYNC — the profile, the four field states, the Live/Standard\n   switch and the one tooltip every tool shares (2026-09-23).\n\n   Hand-written. Injected by userscripts/build.mjs at <!-- @AWOO_TOOL_SETTINGS@ -->\n   right after tool-settings.js, so a tool that takes the gear menu takes this\n   too. NO-PROVENANCE: it moves the player's observations around and reads no\n   game fact; every formula stays in the tool that uses it.\n\n   WHERE THE PROFILE COMES FROM. A tool opens in its own tab, but that tab has\n   the game's origin (a blob URL), so the BroadcastChannel Core already speaks\n   ('awoo-profile') reaches it:\n     - window.AWOO_INITIAL_PROFILE: what Core handed over at open time, when\n       the tool's .release.json asks for it (prefill: [\"profile\"]);\n     - PROFILE_UPDATED: every capture Core makes afterwards, pushed live;\n     - REQUEST_PROFILE_SYNC: \"Sync now\" asks the game tab to capture now.\n   Opened anywhere else (a file, a preview), nothing arrives, and the card\n   says so rather than pretending.\n\n   THE FOUR FIELD STATES (REGISTER.md R48; ARTIFACT_STYLE_GUIDE.md Part III).\n   Every bound input carries a light, visible without hovering:\n     synced       read from the profile, fresh               filled, success\n     stale        read from the profile, older than the window filled, accent\n     edited       you typed it; a sync never overwrites it    filled, info\n     unavailable  never observed; the box holds your figure   hollow\n   Hover explains; a click hands that one field back to the profile. \"Reset\n   inputs\" on the card hands every field back at once.\n\n   A SYNC APPLIES ITSELF to every field you have not edited. That replaced the\n   old \"detect, then press Apply\" flow on purpose: R48 (the maintainer's own\n   note) asks that syncs update the fields and never the ones you changed, and\n   the light is the visibility the Apply step used to provide.\n\n   AGE IS PER SECTION. A reading's age is profile.meta.observedAt[section],\n   stamped by Profile Sync only for sections that capture actually saw. A\n   profile from an older AWOO+ has no stamps; its readings show as stale with\n   the age \"unknown\", never as fresh (R49 found a tool falling back to \"now\").\n\n   LIVE / STANDARD. A tool may offer the switch. Live: the account as it is.\n   Standard: a documented reference setup for the parts of the answer that\n   depend on one account's luck (a pet's rolls, a party's make-up), so two\n   runs, or two players, compare like with like. What Standard swaps is the\n   TOOL's decision, stated in the tool; this file only holds the state and\n   hides whatever a page marks data-mode-only=\"live\" or \"standard\".\n   =========================================================================== */\n(function(){\n'use strict';\n\nvar root = document.documentElement;\nvar meta = document.querySelector('meta[name=\"awoo-tool\"]');\nvar TOOL = (meta && meta.getAttribute('content')) || 'tool';\nvar LS = 'awoo:tool:' + TOOL + ':sync';\nvar DEFAULT_STALE_MS = 6 * 60 * 60 * 1000;\nvar NO_ANSWER_MS = 4000;\n\nfunction settings(){ return window.AWOO_TOOL_SETTINGS || null; }\n\nvar saved = { edited:{}, mode:null };\ntry {\n  var raw = localStorage.getItem(LS);\n  if (raw){ var o = JSON.parse(raw); if (o && typeof o === 'object'){\n    if (o.edited && typeof o.edited === 'object') saved.edited = o.edited;\n    if (o.mode === 'live' || o.mode === 'standard') saved.mode = o.mode;\n  } }\n} catch(e){ /* storage blocked: nothing remembered, everything still works */ }\nfunction persist(){ try { localStorage.setItem(LS, JSON.stringify(saved)); } catch(e){ /* not durable */ } }\n\n/* ---------------------------------------------------------------- profile */\nvar profile = (window.AWOO_INITIAL_PROFILE && typeof window.AWOO_INITIAL_PROFILE === 'object') ? window.AWOO_INITIAL_PROFILE : null;\nvar connected = !!profile;           // has anything ever arrived?\nvar requestedAt = null;              // last \"Sync now\", for the no-answer state\nvar profileListeners = [];\n\nfunction setProfile(p){\n  if (!p || typeof p !== 'object') return;\n  profile = p; connected = true; requestedAt = null;\n  applyAll();\n  for (var i = 0; i < profileListeners.length; i++){ try { profileListeners[i](profile); } catch(e){ /* one page bug must not stop the others */ } }\n  renderCards();\n}\n\nvar bc = null;\ntry {\n  if (typeof BroadcastChannel !== 'undefined'){\n    bc = new BroadcastChannel('awoo-profile');\n    bc.onmessage = function(ev){\n      var d = ev && ev.data;\n      if (d && d.type === 'PROFILE_UPDATED' && d.profile) setProfile(d.profile);\n    };\n  }\n} catch(e){ bc = null; }\n\nfunction request(){\n  requestedAt = Date.now();\n  if (bc){ try { bc.postMessage({ type:'REQUEST_PROFILE_SYNC', timestamp:requestedAt }); } catch(e){ /* closed */ } }\n  renderCards();\n  setTimeout(renderCards, NO_ANSWER_MS + 50);\n}\n\n// A dotted path into the profile; null for anything absent. Never 0.\nfunction get(path, p){\n  var cur = p || profile;\n  if (!cur || !path) return null;\n  var parts = String(path).split('.');\n  for (var i = 0; i < parts.length; i++){\n    if (cur == null || typeof cur !== 'object') return null;\n    cur = cur[parts[i]];\n  }\n  return cur === undefined ? null : cur;\n}\nfunction sectionAge(section){\n  var at = get('meta.observedAt.' + section);\n  return (typeof at === 'number' && isFinite(at)) ? at : null;\n}\n\n/* ----------------------------------------------------------------- fields */\nvar fields = [];\nvar byKey = {};\nvar applyListeners = [];\nvar applying = false;\n\n// f.local: the field reads a source of the page's own (another module's\n// handover) and is read even before any profile arrives; f.observedAt()\n// then dates it.\nfunction readField(f){\n  if (!profile && !f.local) return null;\n  var v;\n  try { v = typeof f.read === 'function' ? f.read(profile, get) : get(f.read); } catch(e){ v = null; }\n  if (v === undefined || v === null) return null;\n  if (typeof v === 'number' && !isFinite(v)) return null;\n  return v;\n}\nfunction modeAllows(f){ return !f.modes || f.modes.indexOf(mode()) >= 0; }\n\nfunction state(f){\n  if (saved.edited[f.key]) return 'edited';\n  var v = readField(f);\n  if (v === null) return 'unavailable';\n  var at = fieldAge(f);\n  if (at === null) return 'stale';\n  return (Date.now() - at) > (f.staleMs || DEFAULT_STALE_MS) ? 'stale' : 'synced';\n}\nfunction fieldAge(f){\n  if (typeof f.observedAt === 'function'){ var t = f.observedAt(profile); if (typeof t === 'number' && isFinite(t)) return t; }\n  return sectionAge(f.section || String(f.read).split('.')[0]);\n}\nfunction ago(at){\n  if (at === null) return 'unknown';\n  var s = Math.max(0, Math.round((Date.now() - at) / 1000));\n  if (s < 60) return s + 's';\n  var m = Math.round(s / 60); if (m < 60) return m + 'm';\n  var h = Math.round(m / 60); if (h < 48) return h + 'h';\n  return Math.round(h / 24) + 'd';\n}\nvar STATE_TIP = {\n  synced: 'Synced from the game. Click to re-sync.',\n  stale: 'Synced, but old. Click to re-sync.',\n  edited: 'Typed by you; a sync keeps it. Click to sync it again.',\n  unavailable: 'Not synced yet. This is your own figure.'\n};\nfunction lightTip(f, st){\n  var t = (st === 'unavailable' && f.unavailableTip) ? f.unavailableTip : STATE_TIP[st];\n  if (st === 'synced' || st === 'stale') t += ' (' + ago(fieldAge(f)) + ' old)';\n  if (f.source && (st === 'synced' || st === 'stale')){ var src = f.source(profile); if (src) t += ' From ' + src + '.'; }\n  if (!modeAllows(f)) t = 'Not used in ' + (mode() === 'standard' ? 'Standard' : 'Live') + ' mode.';\n  return t;\n}\nfunction devTip(f){\n  return 'Profile: ' + (f.path || (typeof f.read === 'string' ? f.read : f.key));\n}\n\nfunction setInput(f, v){\n  var el = f.el;\n  applying = true;\n  try {\n    var S = settings();\n    if (el.type === 'checkbox') el.checked = !!v;\n    else if (f.fmt) el.value = f.fmt(v);\n    else if (el.hasAttribute('data-num') && typeof v === 'number' && S && S.num) S.num.show(el, v);\n    else el.value = String(v);\n  } finally { applying = false; }\n}\nfunction renderLight(f){\n  if (!f.light) return;\n  var st = state(f);\n  f.light.setAttribute('data-state', st);\n  f.light.setAttribute('data-off', modeAllows(f) ? 'false' : 'true');\n  f.light.setAttribute('data-tip', lightTip(f, st));\n  f.light.setAttribute('data-tip-dev', devTip(f));\n  f.light.setAttribute('aria-label', 'Sync: ' + st);\n}\nfunction applyOne(f){\n  if (saved.edited[f.key] || !modeAllows(f)) return false;\n  var v = readField(f);\n  if (v === null) return false;\n  setInput(f, v);\n  return true;\n}\nfunction notifyApplied(){\n  for (var i = 0; i < applyListeners.length; i++){ try { applyListeners[i](); } catch(e){ /* keep going */ } }\n}\nfunction applyAll(){\n  var any = false;\n  for (var i = 0; i < fields.length; i++) any = applyOne(fields[i]) || any;\n  for (var j = 0; j < fields.length; j++) renderLight(fields[j]);\n  if (any) notifyApplied();\n  return any;\n}\n\nfunction labelFor(el){\n  if (el.id){ var l = document.querySelector('label[for=\"' + el.id + '\"]'); if (l) return l; }\n  return el.closest ? el.closest('label') : null;\n}\n\n/* bind(def) — def: { key, el, read: 'dotted.path' | function(profile, get),\n   section?, fmt?, staleMs?, modes?: ['live'] , label? }. Returns the field. */\nfunction bind(def){\n  if (!def || !def.el || !def.key) return null;\n  if (byKey[def.key]) return byKey[def.key];\n  var f = def;\n  if (!f.path && typeof f.read === 'string') f.path = f.read;\n  var host = f.label || labelFor(f.el);\n  var light = document.createElement('button');\n  light.type = 'button';\n  light.className = 'awoo-light';\n  if (host) host.insertBefore(light, host.firstChild);\n  f.light = light;\n  light.addEventListener('click', function(e){\n    e.preventDefault(); e.stopPropagation();\n    delete saved.edited[f.key]; persist();\n    if (!connected) request();\n    if (applyOne(f)) notifyApplied();\n    renderLight(f); renderCards();\n  });\n  var onEdit = function(){\n    if (applying) return;\n    saved.edited[f.key] = true; persist();\n    renderLight(f); renderCards();\n  };\n  f.el.addEventListener('input', onEdit);\n  f.el.addEventListener('change', onEdit);\n  fields.push(f); byKey[f.key] = f;\n  applyOne(f);\n  renderLight(f);\n  return f;\n}\nfunction resetAll(){\n  for (var x = 0; x < extensions.length; x++){ try { if (extensions[x].reset) extensions[x].reset(); } catch(e){ /* keep going */ } }\n  saved.edited = {}; persist();\n  if (!connected) request();\n  applyAll();\n  for (var j = 0; j < fields.length; j++) renderLight(fields[j]);\n  notifyApplied();\n  renderCards();\n}\n\n/* ------------------------------------------------------------------- mode */\nvar modeListeners = [];\nvar modeOffered = false;\nfunction mode(){ return modeOffered ? (saved.mode || 'live') : 'live'; }\nfunction setMode(m){\n  if (m !== 'live' && m !== 'standard') return;\n  saved.mode = m; persist();\n  root.setAttribute('data-sync-mode', mode());\n  applyAll();\n  for (var i = 0; i < modeListeners.length; i++){ try { modeListeners[i](mode()); } catch(e){ /* keep going */ } }\n  for (var j = 0; j < fields.length; j++) renderLight(fields[j]);\n  renderCards();\n}\n\n/* ------------------------------------------------------------------- card */\nvar cards = [];\nfunction el(tag, attrs, text){\n  var n = document.createElement(tag);\n  for (var k in attrs) n.setAttribute(k, attrs[k]);\n  if (text != null) n.textContent = text;\n  return n;\n}\n// A tool that keeps its own per-field state (Cost Tables re-renders its inputs\n// per subject, so it cannot bind a lasting element) reports through this: its\n// counts join the card, and the card's Reset reaches it.\nvar extensions = [];\nfunction summary(){\n  var total = 0, synced = 0, stale = 0, edited = 0;\n  for (var x = 0; x < extensions.length; x++){\n    var e = extensions[x].summary ? extensions[x].summary() : null;\n    if (e){ total += e.total || 0; synced += e.synced || 0; stale += e.stale || 0; edited += e.edited || 0; }\n  }\n  for (var i = 0; i < fields.length; i++){\n    if (!modeAllows(fields[i])) continue;\n    total++;\n    var st = state(fields[i]);\n    if (st === 'synced') synced++; else if (st === 'stale') stale++; else if (st === 'edited') edited++;\n  }\n  return { total:total, synced:synced, stale:stale, edited:edited };\n}\nfunction renderCards(){\n  for (var i = 0; i < cards.length; i++) renderCard(cards[i]);\n}\nfunction renderCard(c){\n  var s = summary();\n  var st, label, tip;\n  if (connected || s.synced || s.stale){\n    st = s.synced ? 'synced' : (s.stale ? 'stale' : 'unavailable');\n    label = s.synced || s.stale ? 'Synced' : 'Connected';\n    tip = 'Fields follow the game tab. ' + (s.synced + s.stale) + ' of ' + s.total + ' read' +\n      (s.edited ? ', ' + s.edited + ' typed by you' : '') + '.';\n  } else if (requestedAt && Date.now() - requestedAt < NO_ANSWER_MS){\n    st = 'stale'; label = 'Asking the game…'; tip = 'Waiting for an open Queslar tab to answer.';\n  } else if (requestedAt){\n    st = 'unavailable'; label = 'No game tab'; tip = 'No Queslar tab with AWOO+ answered. Open the game in this browser, then Sync.';\n  } else {\n    st = 'unavailable'; label = 'Not synced'; tip = 'Open this tool from AWOO+ in the game, or keep the game open and press Sync.';\n  }\n  c.box.setAttribute('data-state', st);\n  c.light.setAttribute('data-state', st);\n  c.state.textContent = label;\n  c.state.setAttribute('data-tip', tip);\n  var at = get('meta.timestamp');\n  c.age.textContent = (connected || s.synced || s.stale) ? (s.total ? (s.synced + s.stale) + '/' + s.total : '') + (at ? ' · ' + ago(at) : '') : '';\n  c.reset.disabled = !s.edited;\n  if (c.seg){\n    var m = mode();\n    c.seg.live.setAttribute('aria-pressed', String(m === 'live'));\n    c.seg.standard.setAttribute('aria-pressed', String(m === 'standard'));\n  }\n}\n/* card(host, { modes?: { live:tip, standard:tip } }) */\nfunction card(host, opts){\n  if (!host) return;\n  opts = opts || {};\n  host.textContent = '';\n  var box = el('div', { 'class':'awoo-sync', 'data-state':'unavailable' });\n  var head = el('div', { 'class':'awoo-sync-head' });\n  var light = el('span', { 'class':'awoo-light', 'data-state':'unavailable', 'aria-hidden':'true' });\n  var stEl = el('span', { 'class':'awoo-sync-state' });\n  var age = el('span', { 'class':'awoo-sync-age' });\n  head.appendChild(light); head.appendChild(stEl); head.appendChild(age);\n  box.appendChild(head);\n  var c = { box:box, light:light, state:stEl, age:age };\n  if (opts.modes){\n    modeOffered = true;\n    root.setAttribute('data-sync-mode', mode());\n    var seg = el('div', { 'class':'awoo-seg', role:'group', 'aria-label':'Mode' });\n    var live = el('button', { type:'button', 'data-tip':opts.modes.live || 'Your account, as synced.' }, 'Live');\n    var std = el('button', { type:'button', 'data-tip':opts.modes.standard || 'A fixed reference setup, for fair comparisons.' }, 'Standard');\n    live.addEventListener('click', function(){ setMode('live'); });\n    std.addEventListener('click', function(){ setMode('standard'); });\n    seg.appendChild(live); seg.appendChild(std);\n    box.appendChild(seg);\n    c.seg = { live:live, standard:std };\n  }\n  var actions = el('div', { 'class':'awoo-sync-actions' });\n  var syncBtn = el('button', { type:'button', 'class':'awoo-btn awoo-btn-primary', 'data-tip':'Ask the open game tab for a fresh reading.' }, 'Sync');\n  var reset = el('button', { type:'button', 'class':'awoo-btn', 'data-tip':'Hand every field you typed back to the game.' }, 'Reset inputs');\n  syncBtn.addEventListener('click', request);\n  reset.addEventListener('click', resetAll);\n  actions.appendChild(syncBtn); actions.appendChild(reset);\n  box.appendChild(actions);\n  c.reset = reset;\n  host.appendChild(box);\n  cards.push(c);\n  renderCard(c);\n  return c;\n}\n// Ages and staleness move with the clock, not only with events.\nsetInterval(function(){ renderCards(); for (var j = 0; j < fields.length; j++) renderLight(fields[j]); }, 30000);\n\n// One quiet request on load when Core handed nothing over: an already-open\n// game tab answers within a moment, and the card says so when none does.\nsetTimeout(function(){ if (!connected && bc) request(); }, 300);\n\n/* ---------------------------------------------------------------- tooltip */\n// ONE fixed-position element on <body> (the Core lesson, DESIGN.md: a\n// pseudo-element or an absolutely-positioned child is clipped by scroll\n// containers and inherits an ancestor's opacity). data-tip is for the\n// player; data-tip-dev is appended only with \"Show developer info\" on, in\n// the --dev tint (R67).\nvar tipEl = null, tipFor = null;\nfunction ensureTip(){\n  if (tipEl || !document.body) return tipEl;\n  tipEl = document.createElement('div');\n  tipEl.id = 'awooTip';\n  tipEl.setAttribute('role', 'tooltip');\n  document.body.appendChild(tipEl);\n  return tipEl;\n}\nfunction showTip(t){\n  var text = t.getAttribute('data-tip');\n  var s = settings();\n  var dev = s && s.devOn && s.devOn() ? t.getAttribute('data-tip-dev') : null;\n  if (!text && !dev) return;\n  var tip = ensureTip(); if (!tip) return;\n  tipFor = t;\n  tip.textContent = text || '';\n  if (dev){ var d = document.createElement('span'); d.className = 'awoo-tip-dev'; d.textContent = dev; tip.appendChild(d); }\n  tip.classList.add('on');\n  var r = t.getBoundingClientRect(), b = tip.getBoundingClientRect();\n  var left = Math.min(Math.max(8, r.left + r.width / 2 - b.width / 2), window.innerWidth - b.width - 8);\n  var top = r.top - b.height - 8;\n  if (top < 8) top = r.bottom + 8;\n  tip.style.left = Math.round(left) + 'px';\n  tip.style.top = Math.round(top) + 'px';\n}\nfunction hideTip(){ tipFor = null; if (tipEl) tipEl.classList.remove('on'); }\nfunction tipTarget(e){ return e.target && e.target.closest ? e.target.closest('[data-tip],[data-tip-dev]') : null; }\ndocument.addEventListener('mouseover', function(e){ var t = tipTarget(e); if (t) showTip(t); });\ndocument.addEventListener('mouseout', function(e){ var t = tipTarget(e); if (t && t === tipFor) hideTip(); });\ndocument.addEventListener('focusin', function(e){ var t = tipTarget(e); if (t) showTip(t); });\ndocument.addEventListener('focusout', hideTip);\nwindow.addEventListener('scroll', hideTip, true);\n\nwindow.AWOO_SYNC = {\n  profile: function(){ return profile; },\n  connected: function(){ return connected; },\n  get: get,\n  age: sectionAge,\n  onProfile: function(fn){ if (typeof fn === 'function') profileListeners.push(fn); },\n  onApply: function(fn){ if (typeof fn === 'function') applyListeners.push(fn); },\n  request: request,\n  bind: bind,\n  field: function(key){ return byKey[key] || null; },\n  state: function(key){ var f = byKey[key]; return f ? state(f) : null; },\n  isEdited: function(key){ return !!saved.edited[key]; },\n  resetAll: resetAll,\n  refresh: function(){ applyAll(); renderCards(); },\n  card: card,\n  extend: function(ext){ if (ext && typeof ext === 'object'){ extensions.push(ext); renderCards(); } },\n  renderCards: renderCards,\n  ago: ago,\n  mode: mode,\n  setMode: setMode,\n  onMode: function(fn){ if (typeof fn === 'function') modeListeners.push(fn); },\n  // Test seam: push a profile as if Core had broadcast it.\n  _receive: setProfile\n};\n})();\n\n</script>\n\n<style>\n*{box-sizing:border-box}\n[hidden]{display:none!important}\nbody{\n  margin:0; background:var(--ground); color:var(--ink);\n  font-family:var(--font-body); font-size:14px; line-height:1.5;\n  -webkit-font-smoothing:antialiased;\n}\nbutton,input,select{font-family:inherit;font-size:inherit;color:inherit}\n:focus-visible{outline:2px solid var(--brass-fill);outline-offset:2px;border-radius:3px}\n\n/* The title block and the gear live at the top of the sidebar, like every\n   other tool (2026-09-23; this page had its own top bar until then). */\n.btn{\n  background:var(--surface-2); border:1px solid var(--border-control);\n  border-radius:4px; padding:5px 11px; cursor:pointer;\n  font-size:.78rem; font-weight:600; letter-spacing:.02em;\n  transition:background .12s,border-color .12s;\n}\n.btn:hover{background:var(--surface-3);border-color:var(--brass-fill)}\n.btn.primary{background:var(--brass-fill);border-color:var(--brass-fill);color:var(--on-brass)}\n.btn.primary:hover{filter:brightness(1.07)}\n.btn.ghost{background:transparent}\n.btn.sm{padding:3px 8px;font-size:.72rem}\n\n/* --- shell ---------------------------------------------------------- */\n.shell{\n  max-width:1400px; margin:0 auto; padding:18px 20px 60px;\n  display:grid; grid-template-columns:288px minmax(0,1fr); gap:18px; align-items:start;\n}\n/* One column: the title, sync card and subject list first, as in every tool. */\n@media (max-width:1040px){\n  .shell{grid-template-columns:minmax(0,1fr)}\n}\n\n/* Pinned or not is the shared settings layer's call (tool-settings.js,\n   \"Sidebar scrolls on its own\"): by default the sidebar scrolls with the page\n   and is pinned only while it fits on screen. */\n.side{display:flex; flex-direction:column; gap:10px}\n.panel{\n  background:var(--surface); border:1px solid var(--border);\n  border-radius:6px; box-shadow:var(--shadow);\n}\n.panel > .ph{\n  font-family:var(--font-display); font-size:.7rem; font-weight:700;\n  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-soft);\n  padding:7px var(--pad-panel); border-bottom:1px solid var(--border);\n  display:flex; align-items:center; gap:8px;\n}\n.panel .pb{padding:8px var(--pad-panel)}\n\n/* --- nav ------------------------------------------------------------ */\n.navgroup{padding:5px 0 4px}\n.navgroup + .navgroup{border-top:1px solid var(--border)}\n.navgroup h3{\n  margin:0 0 3px; padding:0 12px;\n  font-family:var(--font-head); font-size:.66rem; font-weight:600;\n  letter-spacing:.13em; text-transform:uppercase; color:var(--ink-mute);\n  display:flex; align-items:baseline; gap:6px;\n}\n/* The character level the group's system unlocks at. It is why the list is in\n   this order, so it may as well say so. */\n.navgroup h3 .gu{\n  margin-left:auto; font-family:var(--font-mono); font-size:.6rem;\n  letter-spacing:.02em; text-transform:none; color:var(--ink-mute); opacity:.8;\n}\n.ctl-inline{display:flex;align-items:center;gap:6px}\n.ctl-inline label{\n  font-size:.64rem;font-weight:600;letter-spacing:.09em;\n  text-transform:uppercase;color:var(--ink-mute);\n}\n.ctl-inline select{\n  background:var(--surface-2); border:1px solid var(--border-control);\n  border-radius:4px; padding:3px 6px; font-size:.74rem;\n}\n.navbtn{\n  display:flex; align-items:center; gap:8px; width:100%;\n  background:none; border:0; border-left:3px solid transparent;\n  padding:var(--nav-y) 12px var(--nav-y) 9px; text-align:left; cursor:pointer;\n  font-size:.79rem; color:var(--ink-soft); line-height:1.35;\n}\n.navbtn:hover{background:var(--surface-2);color:var(--ink)}\n.navbtn[aria-current=\"true\"]{\n  background:var(--bg-brass); border-left-color:var(--brass-fill);\n  color:var(--ink); font-weight:600;\n}\n.navbtn .nlv{\n  margin-left:auto; font-family:var(--font-mono); font-size:.7rem;\n  color:var(--ink-mute); font-variant-numeric:tabular-nums;\n}\n.navbtn[aria-current=\"true\"] .nlv{color:var(--brass)}\n\n/* --- options -------------------------------------------------------- */\n.optrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:3px 0}\n.optrow label{font-size:.78rem;color:var(--ink-soft)}\n.switch{display:flex;border:1px solid var(--border-strong);border-radius:4px;overflow:hidden}\n.switch button{\n  background:var(--surface-2);border:0;padding:3px 9px;cursor:pointer;\n  font-size:.72rem;font-weight:600;color:var(--ink-mute);\n}\n.switch button + button{border-left:1px solid var(--border-strong)}\n.switch button[aria-pressed=\"true\"]{background:var(--brass-fill);color:var(--on-brass)}\n\n/* --- main system panel ---------------------------------------------- */\n.syshead{\n  display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;\n  padding:11px 14px; border-bottom:1px solid var(--border);\n}\n.syshead h2{\n  font-family:var(--font-head); font-size:1.32rem; font-weight:600;\n  letter-spacing:.045em; text-transform:uppercase; margin:0; line-height:1.15;\n}\n.syshead .desc{flex-basis:100%;margin:0;font-size:.83rem;color:var(--ink-soft);max-width:72ch}\n.pill{\n  display:inline-flex;align-items:center;gap:5px;\n  font-family:var(--font-mono); font-size:.66rem; font-weight:600;\n  letter-spacing:.06em; padding:2px 7px; border-radius:3px;\n  background:var(--bg-steel); color:var(--steel); white-space:nowrap;\n}\n.pill.code{background:var(--bg-moss);color:var(--moss)}\n.pill.cross{background:var(--bg-brass);color:var(--brass-text)}\n.pill.live{background:var(--bg-moss);color:var(--moss)}\n.pill.open{background:var(--bg-violet);color:var(--violet)}\n.pill.cur{background:var(--bg-steel);color:var(--steel)}\n\n/* control strip */\n.controls{\n  display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;\n  padding:9px 14px; background:var(--surface-2); border-bottom:1px solid var(--border);\n}\n.field{display:flex;flex-direction:column;gap:3px}\n.field > .lab{\n  font-size:.66rem; font-weight:600; letter-spacing:.09em;\n  text-transform:uppercase; color:var(--ink-mute);\n  display:flex; align-items:center; gap:5px;\n}\n.field input, .field select{width:var(--ctl-w)}\n.field select{width:auto;min-width:112px}\n.field > .lab .awoo-light{margin:0}\n\n/* summary strip */\n.summary{\n  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));\n  gap:1px; background:var(--border); border-bottom:1px solid var(--border);\n}\n.stat{background:var(--surface);padding:8px 14px}\n.stat .k{\n  font-size:.64rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;\n  color:var(--ink-mute);display:block;margin-bottom:2px;\n}\n.stat .v{\n  font-family:var(--font-num); font-size:1.02rem; font-weight:600;\n  font-variant-numeric:tabular-nums; font-feature-settings:\"zero\" 0;\n  color:var(--ink); word-break:break-word;\n}\n.stat .v.accent{color:var(--brass)}\n.stat .u{font-size:.68rem;color:var(--ink-mute);font-weight:400;margin-left:3px}\n\n/* the rest of the bill, for systems that charge in more than one currency */\n.billstrip{\n  display:flex; align-items:center; gap:8px; flex-wrap:wrap;\n  padding:8px 16px; background:var(--surface-2); border-bottom:1px solid var(--border);\n}\n.billstrip .bk{\n  font-size:.64rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase;\n  color:var(--ink-mute);\n}\n.billstrip .bv{\n  font-family:var(--font-mono); font-size:.76rem; font-variant-numeric:tabular-nums;\n  background:var(--surface); border:1px solid var(--border);\n  border-radius:3px; padding:1px 7px; color:var(--ink-soft);\n}\n\n/* table */\n.tablewrap{overflow-x:auto;overflow-y:auto}\ntable{border-collapse:collapse;width:100%;min-width:560px}\nthead th{\n  position:sticky; top:0; z-index:2; background:var(--surface-3);\n  font-family:var(--font-display); font-size:.64rem; font-weight:700;\n  letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft);\n  text-align:right; padding:5px var(--row-x); line-height:1.4;\n  border-bottom:1px solid var(--border-strong);\n  white-space:nowrap;\n}\nthead th:first-child{text-align:left}\nthead th .hsub{\n  display:block;font-family:var(--font-body);font-size:.64rem;\n  letter-spacing:.01em;text-transform:none;color:var(--ink-mute);font-weight:400;\n}\ntbody td{\n  padding:var(--row-y) var(--row-x); text-align:right;\n  border-bottom:1px solid var(--border);\n  font-family:var(--font-num); font-size:.8rem; line-height:1.7;\n  font-variant-numeric:tabular-nums;\n  white-space:nowrap;\n}\n/* Only the level itself is emphasised. Every figure bold made the whole table\n   read as bold, which is the same as none of it being emphasised. */\ntbody td:first-child{text-align:left;font-weight:600}\ntbody tr.past td{color:var(--ink-mute);background:var(--surface-2)}\n/* Fill treatment BC, settled 2026-09-21: the accent tint carries the state,\n   a SOFT edge gives it a shape. --accent-edge, never --accent-fill: a\n   full-strength ring reads as a frame around the row rather than emphasis on\n   it, which is exactly what it looked like at full strength. */\n/* The tint already says \"you are here\"; bolding every figure in the row on top\n   of it is the third signal for one fact. Only the level stays bold. */\ntbody tr.current td{\n  background:var(--bg-accent);\n  border-top:1px solid var(--accent-edge); border-bottom:1px solid var(--accent-edge);\n}\ntbody tr.current td:first-child{font-weight:700}\ntbody tr.current td:first-child::after{\n  content:'YOU'; margin-left:8px; font-family:var(--font-body);\n  font-size:.6rem; letter-spacing:.09em; color:var(--brass-text);\n  background:var(--surface); padding:1px 5px; border-radius:3px; font-weight:600;\n}\ntbody tr.target td{\n  background:var(--bg-success);\n  border-top:1px solid var(--accent-edge); border-bottom:1px solid var(--accent-edge);\n}\ntbody tr.target td:first-child{font-weight:700}\ntbody tr.target td:first-child::after{\n  content:'TARGET'; margin-left:8px; font-family:var(--font-body);\n  font-size:.6rem; letter-spacing:.09em; color:var(--moss);\n  background:var(--surface); padding:1px 5px; border-radius:3px; font-weight:600;\n}\ntbody tr:hover td{background:var(--surface-3)}\ntbody tr.current:hover td{background:var(--bg-brass)}\ntbody tr.target:hover td{background:var(--bg-moss)}\ntbody td.dash{color:var(--ink-mute)}\ntbody tr.bp td{background:var(--bg-info);border-top:1px solid var(--info)}\ntbody tr.bp:hover td{background:var(--bg-violet)}\ntbody td .bpnote{\n  font-family:var(--font-body);font-size:.6rem;letter-spacing:.06em;\n  color:var(--violet);margin-left:8px;text-transform:uppercase;font-weight:600;\n  border-bottom:1px dotted currentColor;cursor:help;\n}\n\n/* BREAKPOINTS (2026-09-23): every place the formula changes shape, listed\n   above the table whatever the step, with what changes there. Click one to\n   make it the target. */\n.bpstrip{\n  display:flex; align-items:center; gap:6px; flex-wrap:wrap;\n  padding:8px 14px; border-bottom:1px solid var(--border); background:var(--surface);\n}\n.bpstrip .bk{font-size:.64rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-mute);margin-right:2px}\n.bpchip{\n  display:inline-flex; align-items:baseline; gap:5px; cursor:pointer;\n  font-size:.72rem; color:var(--ink-soft); background:var(--bg-info);\n  border:1px solid color-mix(in srgb,var(--info) 35%,transparent); border-radius:4px; padding:2px 7px;\n}\n.bpchip b{font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--info);font-weight:700}\n.bpchip:hover{border-color:var(--info);color:var(--ink)}\n.bpchip.passed{background:var(--surface-2);border-color:var(--border);opacity:.7}\n.bpchip.passed b{color:var(--ink-mute)}\n.bpnone{font-size:.72rem;color:var(--ink-mute)}\n\n.rowctl{\n  display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;\n  padding:7px 14px; border-top:1px solid var(--border); background:var(--surface-2);\n}\n.rowctl .hint{margin-right:auto;font-size:.72rem;color:var(--ink-mute)}\n.rowctl input{width:64px}\n.rowctl label{font-size:.72rem;color:var(--ink-soft)}\n\n/* notes */\ndetails.notes{border-top:1px solid var(--border)}\ndetails.notes > summary{\n  cursor:pointer; padding:9px 16px; list-style:none;\n  font-family:var(--font-head); font-size:.72rem; font-weight:600;\n  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft);\n  display:flex; align-items:center; gap:8px;\n}\ndetails.notes > summary::-webkit-details-marker{display:none}\ndetails.notes > summary::before{content:'▸';color:var(--brass);font-size:.8rem}\ndetails.notes[open] > summary::before{content:'▾'}\n.notebody{padding:0 16px 14px;font-size:.82rem;color:var(--ink-soft);max-width:82ch}\n.notebody p{margin:.5em 0}\n.notebody code, .formula{\n  font-family:var(--font-mono);font-size:.78rem;\n  background:var(--surface-3);padding:1px 5px;border-radius:3px;color:var(--ink);\n}\n.formula{display:block;padding:8px 11px;margin:.6em 0;white-space:pre-wrap;line-height:1.55;border-left:2px solid var(--brass-fill)}\n.srcline{\n  display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:9px;\n  border-top:1px dashed var(--border);\n}\n.srcline .pill{background:var(--surface-3);color:var(--ink-mute)}\n\n/* Tooltips are the shared kit's (tool-sync.js): one fixed element, never\n   clipped by the table's scroll box. .tip only marks what has one. */\n.tip{cursor:help;border-bottom:1px dotted var(--ink-mute)}\n.banner{\n  display:flex;gap:9px;align-items:flex-start;\n  padding:9px 12px;border-radius:5px;font-size:.78rem;line-height:1.45;\n  background:var(--bg-violet); color:var(--ink); border:1px solid var(--violet);\n}\n.banner.warn{background:var(--bg-ember);border-color:var(--ember)}\n.banner b{font-weight:700}\n.foot{\n  max-width:1400px;margin:0 auto;padding:0 20px 40px;\n  font-size:.74rem;color:var(--ink-mute);line-height:1.6;\n}\n/* Standing default 5: one control that grows the table to the viewport,\n   not a drag handle and not incremental steps. */\n.expandbtn{margin-left:auto}\n\n/* v4 baseline: back-to-top, shown only once scrolled AND collapsed to one\n   column — on the wide sticky-sidebar layout the inputs never leave the\n   screen, so it would be redundant chrome. */\n#backTop{\n  position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom,0px));\n  z-index:40; width:40px; height:40px; border-radius:50%;\n  background:var(--brass-fill); color:var(--on-brass);\n  border:1px solid var(--brass); box-shadow:var(--shadow);\n  font-size:1.05rem; line-height:1; cursor:pointer;\n}\n#backTop[hidden]{display:none!important}\n\n@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}\n</style>\n\n<script>\n/* Helpers the generated facts below call but do not define. `triangular` is\n   the shared arithmetic-series cost primitive (village strengths, relic\n   boosts, cave tools, sculptures all use it); `geomCost` is the geometric one\n   (village buildings and the village boss). Both are quoted from\n   engine/costs/primitives.js, and both are on window deliberately: the facts\n   are emitted into their own IIFE and resolve these through global scope,\n   exactly as those facts' own comments assume. */\n/* Function DECLARATIONS, not window assignments: an emitted fact resolves\n   `triangular` as a bare identifier, and a declaration in a classic script is\n   a real global binding in every environment, where `window.x = ...` only\n   happens to be one in a browser. Also mirrored onto window for the page's\n   own use. */\nfunction triangular(a, b, mult) { return ((a + b) * (b - a) * mult) / 2; }\nfunction geomCost(currentLevel, newLevel, base, ratio) {\n  ratio = ratio || 1.15;\n  var start = currentLevel + 1, count = newLevel - currentLevel;\n  return Math.round((base * Math.pow(ratio, start) * (Math.pow(ratio, count) - 1)) / (ratio - 1));\n}\nwindow.triangular = triangular;\nwindow.geomCost = geomCost;\n</script>\n\n<script>\n/* GENERATED from data/ by userscripts/build.mjs — do not edit. */\nwindow.AWOO_FACTS = (function () {\n  /* tables/sanctum-nodes.json :: sanctumNodes.formula.status  [CROSS] */\n  function sanctumNodeCost(currentLevel, newLevel) { const RATE = 125000, EXP = 5; let total = 0; for (let n = currentLevel + 1; n <= newLevel; n++) { total += RATE * Math.pow(n, EXP) + n * RATE * 100; } return { currency: 'gold', value: total }; } // costTable's per-node figures = round(sanctumNodeCost(n-1, n).value / 1e9), i.e. the table is in BILLIONS of gold, rounded\n  /* formulas/pets.json :: pets.slotUpgrade.costFormula  [CODE] */\n  function petSlotUpgradeCost(currentLevel, newLevel) { let total = 0; for (let r = currentLevel + 1; r <= newLevel; r++) total += r <= 150 ? Math.floor(500000 * r**3) : Math.floor(500000 * 150**3 * (r/150)**15); return { currency: 'gold', value: total }; } // per-level marginal cost at level L->L+1: floor(500000*(L+1)^3) while L+1<=150, else floor(500000*150^3*((L+1)/150)^15). Exactly continuous at the seam: both branches evaluate to floor(500000*150^3) = 1,687,500,000,000 at r=150.\n  /* formulas/equipment.json :: equipment.slotUpgrade.costFormula  [CODE] */\n  function slotUpgradeCost(currentLevel, newLevel) { let ratio = 1.1; let count = newLevel - currentLevel; if (count <= 0) return 0; let cost = Math.round(250 * ratio**(currentLevel+1) * (ratio**count - 1) / (ratio - 1)); return { meat: cost, iron: cost, wood: cost, stone: cost }; }\n  /* formulas/leveling.json :: leveling.genericExpRequired.formula  [CODE] */\n  function expRequired(level, type) { if (type === 'sanctum') level += 500; if (level < 10) return level * 150; if (level < 20) return level * 250; if (level < 40) return level * 400; if (level < 50) return level * 600; if (level < 100 || type === 'crafting') return level * 1000; let base = 20000 * Math.sqrt(level); if (level <= 500) return Math.round(base); let n = level - 500; let extra = 2500 * n**1.25; if (level > 10000) { n = level - 10000; extra += 100000 * n**1.4; } return Math.round(base + extra); }\n  /* formulas/partners.json :: partner.level.expFormula  [CODE] */\n  function partnerLevelExp(level) { if (level < 10) return level * 150; if (level < 20) return level * 200; if (level < 40) return level * 300; if (level < 50) return level * 400; let base = Math.round(25000 * level**0.5); if (level <= 1500) return Math.round(base); let n = level - 1500; let extra = 250 * n**1.25; if (level > 6000) { n = level - 6000; extra += 2500 * n**1.4; } return Math.round(base + extra); }\n  /* formulas/partners.json :: partner.boostUpgradeCost.formula  [CODE] */\n  function partnerBoostUpgradeCost(currentLevel, targetLevel) { const tri = (a, b, mult) => (a + b) * (b - a) / 2 * mult; if (targetLevel < 10) return tri(currentLevel, targetLevel, 150); let total = tri(Math.max(currentLevel - 9, 0), Math.max(targetLevel - 9, 1), 15000); const brackets = [[1000, 10000], [2000, 100000], [3500, 500000]]; for (const [threshold, mult] of brackets) { const a = Math.max(currentLevel, threshold), b = Math.max(targetLevel, threshold); if (a <= b) total += tri(a, b, mult); } return { currency: 'gold', value: total }; }\n  /* formulas/relic-boosts.json :: relicBoost.bracketSurcharge  [CODE] */\n  function bracketSurcharge(currentLevel, newLevel) { const series = (x, m) => x * (x + 1) / 2 * m; if (newLevel <= 5000) return 0; let sum = 0; const first = Math.floor((Math.max(currentLevel, 5001) - 5001) / 1000), last = Math.floor((newLevel - 5001) / 1000); for (let o = first; o <= last; o++) { const bracketStart = 5001 + o * 1000, bracketEnd = Math.min(5000 + (o + 1) * 1000, newLevel); const rate = o < 5 ? 20 : 20 + (o - 4) * 10; const lo = Math.max(currentLevel + 1, bracketStart), hi = bracketEnd; if (hi >= lo) sum += series(hi - 5000, rate) - series(lo - 5000 - 1, rate); } return sum; }\n  /* formulas/relic-boosts.json :: relicBoost.veryHighLevelSurcharge  [CODE] */\n  function veryHighLevelSurcharge(currentLevel, newLevel) { let low = Math.max(currentLevel, 50000); let high = Math.max(newLevel, 50000); if (low > high) return 0; return triangular(low - 50000, high - 50000, 50000); }\n  /* formulas/relic-boosts.json :: relicBoost.costFormula  [CODE] */\n  function boostCost(currentLevel, newLevel, boostType) { const series = (x, m) => x * (x + 1) / 2 * m; if (boostType==='defenseFlat' || boostType==='damageFlat') { let cost = series(newLevel, 100) - series(currentLevel, 100) + bracketSurcharge(currentLevel, newLevel); return {currency:'gold', value: Math.round(cost)}; } let cost = series(newLevel, 10) - series(currentLevel, 10) + bracketSurcharge(currentLevel, newLevel) + veryHighLevelSurcharge(currentLevel, newLevel); return {currency:'relics', value: Math.round(cost)}; }\n  /* formulas/sculptures.json :: sculptures.tileUpgradeCost  [CODE] */\n  function tileUpgradeCost(currentLevel, newLevel) { const series = (x, m) => x * (x + 1) / 2 * m; const a = Math.max(currentLevel, 2500), b = Math.max(newLevel, 2500); const past2500 = a <= b ? triangular(a - 2500, b - 2500, 2500000) : 0; return Math.round(series(newLevel, 25000) - series(currentLevel, 25000) + past2500); }  // level L costs 25,000*L, plus (L-2500-0.5)*2,500,000 past 2500\n  /* formulas/village-boss.json :: villageBoss.costFormula  [CODE] */\n  function villageBossCost(currentLevel, newLevel, base, ratio=1.15) { let start = currentLevel+1; let count = newLevel-currentLevel; return Math.round(base * ratio**start * (ratio**count - 1) / (ratio-1)); }\n  /* formulas/village.json :: village.buildings.costFormula.implementation  [CODE] */\n  function villageBuildingCost(currentLevel, newLevel) { const ratio = 1.15, start = currentLevel + 1, count = newLevel - currentLevel, ratioToStart = ratio ** start; const geomCost = (base) => Math.round(base * ratioToStart * (ratio ** count - 1) / (ratio - 1)); const out = [{currency: 'gold', value: geomCost(200000)}, {currency: 'meat', value: geomCost(4000)}, {currency: 'iron', value: geomCost(4000)}, {currency: 'wood', value: geomCost(4000)}, {currency: 'stone', value: geomCost(4000)}]; if (newLevel > 40) { const relicStart = Math.max(start, 41), relicCount = newLevel - relicStart + 1; if (relicCount > 0) out.push({currency: 'relics', value: Math.round(3000 * (ratio ** relicStart) * (ratio ** relicCount - 1) / (ratio - 1))}); } return out; }\n  /* formulas/caves.json :: caves.toolUpgradeCost.formula  [CODE] */\n  function caveToolUpgradeCost(currentLevel, targetLevel, toolName) { const tri = (a, b, mult) => (a + b) * (b - a) / 2 * mult; if (toolName === 'repeater') return { currency: 'diamonds', value: Math.round(1000 * (2 ** (targetLevel + 1) - 2 ** (currentLevel + 1)) / 9) }; const base = tri(currentLevel, targetLevel, 4000); const a = Math.max(currentLevel, 100), o = Math.max(targetLevel, 100), tier100 = a <= o ? tri(a, o, 4000) : 0; const c = Math.max(currentLevel, 200), l = Math.max(targetLevel, 200), tier200 = c <= l ? tri(c - 200, l - 200, 400000) : 0; const d = Math.max(currentLevel, 600), f = Math.max(targetLevel, 600), tier600 = d <= f ? tri(d - 600, f - 600, 2000000) : 0; const resourceCost = Math.round(base + tier100 + tier200 + tier600); const diamondCost = Math.round(tri(currentLevel, targetLevel, 1)); return { meat: resourceCost, iron: resourceCost, wood: resourceCost, stone: resourceCost, diamonds: diamondCost }; }\n  /* formulas/dungeons.json :: dungeon.fighterSlotCost.formula  [CODE] */\n  function fighterSlotCost(currentCount, targetCount) { if (targetCount <= currentCount) return { currency: 'gold', value: 0 }; return { currency: 'gold', value: 10000 * (Math.pow(10, targetCount + 1) - Math.pow(10, currentCount + 1)) / 9 }; }\n  /* tables/house-upgrades.json :: house.resourceCost.formula  [CODE] */\n  function houseUpgradeCost(currentLevel, newLevel) { const perLevel = (lvl) => 5000 + Math.round(5000 * Math.pow(lvl, 1.25)); let total = 0; for (let lvl = currentLevel + 1; lvl <= newLevel; lvl++) total += perLevel(lvl); let extra = 0; if (newLevel > 50) extra = (newLevel - Math.max(currentLevel, 50)) * 1e6; return { meat: total + extra, iron: total + extra, wood: total + extra, stone: total + extra }; }\n  return { sanctumNodeCost, petSlotUpgradeCost, slotUpgradeCost, expRequired, partnerLevelExp, partnerBoostUpgradeCost, bracketSurcharge, veryHighLevelSurcharge, boostCost, tileUpgradeCost, villageBossCost, villageBuildingCost, caveToolUpgradeCost, fighterSlotCost, houseUpgradeCost };\n})();\nwindow.AWOO_FACTS_META = {\"sanctumNodeCost\":{\"file\":\"tables/sanctum-nodes.json\",\"fact\":\"sanctumNodes.formula.status\",\"confidence\":\"CROSS\",\"checked\":\"2026-08-23\"},\"petSlotUpgradeCost\":{\"file\":\"formulas/pets.json\",\"fact\":\"pets.slotUpgrade.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-09-07\"},\"slotUpgradeCost\":{\"file\":\"formulas/equipment.json\",\"fact\":\"equipment.slotUpgrade.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"expRequired\":{\"file\":\"formulas/leveling.json\",\"fact\":\"leveling.genericExpRequired.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"partnerLevelExp\":{\"file\":\"formulas/partners.json\",\"fact\":\"partner.level.expFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"partnerBoostUpgradeCost\":{\"file\":\"formulas/partners.json\",\"fact\":\"partner.boostUpgradeCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"bracketSurcharge\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.bracketSurcharge\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"veryHighLevelSurcharge\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.veryHighLevelSurcharge\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"boostCost\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"tileUpgradeCost\":{\"file\":\"formulas/sculptures.json\",\"fact\":\"sculptures.tileUpgradeCost\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageBossCost\":{\"file\":\"formulas/village-boss.json\",\"fact\":\"villageBoss.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageBuildingCost\":{\"file\":\"formulas/village.json\",\"fact\":\"village.buildings.costFormula.implementation\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"caveToolUpgradeCost\":{\"file\":\"formulas/caves.json\",\"fact\":\"caves.toolUpgradeCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"fighterSlotCost\":{\"file\":\"formulas/dungeons.json\",\"fact\":\"dungeon.fighterSlotCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"houseUpgradeCost\":{\"file\":\"tables/house-upgrades.json\",\"fact\":\"house.resourceCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"}};\n</script>\n\n<div class=\"shell\">\n  <aside class=\"side\" data-awoo-sidebar data-side-min=\"1041\" data-side-top=\"20\">\n    <div class=\"awoo-head\">\n      <div id=\"gear\"></div>\n      <div class=\"awoo-eyebrow\">Upgrade pricing &middot; 15 systems</div>\n      <h1 class=\"awoo-title\">Cost Tables</h1>\n      <p class=\"awoo-sub\">What the next levels cost, from where you are to where you want to be.</p>\n    </div>\n    <div id=\"syncCard\"></div>\n    <nav class=\"panel\" id=\"nav\" aria-label=\"Cost systems\"></nav>\n    <button class=\"btn ghost sm\" type=\"button\" id=\"resetAllBtn\" data-tip=\"Current levels, targets, steps and row counts back to their defaults, for every subject.\">Reset every subject</button>\n\n    <div class=\"panel\">\n      <div class=\"ph\">Legend</div>\n      <div class=\"pb\" style=\"display:flex;flex-direction:column;gap:6px;font-size:.76rem;color:var(--ink-soft)\">\n        <div><span class=\"pill live\">LIVE</span> checked against the real game</div>\n        <div><span class=\"pill code\">CODE</span> read from the shipped bundle</div>\n        <div><span class=\"pill cross\">CROSS</span> matches a known table, small drift</div>\n        <div><span class=\"pill open\">OPEN</span> something here is unresolved</div>\n      </div>\n    </div>\n  </aside>\n\n  <main class=\"panel\" id=\"main\"></main>\n</div>\n\n<button id=\"backTop\" type=\"button\" aria-label=\"Back to top\" hidden>↑</button>\n\n<div class=\"foot\">\n  Formulas are generated from the AWOO+ core (<code>core/data/formulas/</code>) and\n  were last checked against the game's own code (1.2.3.12) on 2026-09-23. Confidence tags are that core's own evidence\n  tiers, not a generic severity scale — a <b>CROSS</b> or <b>OPEN</b> table is\n  telling you something real about how far to trust the number.\n</div>\n\n<script>\n(function(){\n'use strict';\n\n/* =====================================================================\n   NUMBER FORMATTING — the shared settings layer's (tool-settings.js,\n   2026-09-23). The game's own two settings, inherited through AWOO+ and\n   overridable in the gear menu, the same in every tool. This page carried\n   its own copy of that until then; its saved override is handed over once\n   (see load()).\n   ===================================================================== */\nvar NUM = window.AWOO_TOOL_SETTINGS.num;\nfunction fmtInt(n){ return NUM.int(n); }\nfunction fmtNum(n){ return NUM.fmt(n); }\n\n/* =====================================================================\n   COST FORMULAS — verbatim ports. Each system exposes range(a,b,variant)\n   returning a currency->amount map, NOT a per-level marginal that the\n   page then sums. That matters: several of these are bracketed\n   triangular sums whose own range function is the authority, and at\n   least one (partner boosts) is provably non-additive across its\n   level-10 seam. Summing marginals would quietly disagree with the game.\n   ===================================================================== */\nvar F = (typeof window !== 'undefined' && window.AWOO_FACTS) || null;\nvar triangular = window.triangular, geomCost = window.geomCost;\n\n// Every generated fact returns one of three shapes: a bare number, a\n// { currency, value } pair, or a map of currency -> amount. One normaliser,\n// so the emitted text is never edited to fit this page.\nfunction asCost(out, fallbackCurrency){\n  if (out == null) return {};\n  if (typeof out === 'number'){ var o = {}; o[fallbackCurrency] = out; return o; }\n  // Some facts return an ARRAY of {currency,value} (village buildings bills in\n  // six currencies that way); others a single such pair; others a plain map.\n  if (Array.isArray(out)){\n    var m = {};\n    for (var i=0;i<out.length;i++){ if (out[i] && out[i].currency) m[out[i].currency] = out[i].value; }\n    return m;\n  }\n  if (typeof out.currency === 'string'){ var p = {}; p[out.currency] = out.value; return p; }\n  return out;\n}\n// A fact that failed to generate must not silently become zero. If the build\n// did not inject it, the page says so rather than pricing everything free.\nfunction fact(name){\n  if (!F || typeof F[name] !== 'function') {\n    throw new Error('Cost Tables: generated fact \"' + name + '\" is missing — the page was opened unbuilt.');\n  }\n  return F[name];\n}\n\n// partner.slotUnlock.formula and dungeon.fighterSlotCost.formula are the same\n// base-10 closed form. The dungeon one generates; the partner one is recorded\n// as prose, so it is hand-written here against that shared shape.\nfunction base10Series(a,b){ return (10000*(Math.pow(10,b+1)-Math.pow(10,a+1)))/9; }\n\n/* GENERATED: tables/sanctum-nodes.json :: sanctumNodes.formula.status */\nfunction sanctumNodeCost(a,b){ return asCost(fact('sanctumNodeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/pets.json :: pets.slotUpgrade.costFormula */\nfunction petSlotCost(a,b){ return asCost(fact('petSlotUpgradeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/partners.json :: partner.boostUpgradeCost.formula */\nfunction partnerBoostCost(a,b){ return asCost(fact('partnerBoostUpgradeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/partners.json :: partner.level.expFormula */\nfunction partnerLevelExpAt(level){ return fact('partnerLevelExp')(level); }\n/* GENERATED: formulas/leveling.json :: leveling.genericExpRequired.formula */\nfunction levelExp(level,type){ return fact('expRequired')(level, type || 'battling'); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.bracketSurcharge.\n   Hand-translated here until 2026-09-21, when the fact's pseudocode was\n   rewritten as real JavaScript (pinned against the engine's loop in\n   tests/income-relic-boosts-vs-known-captures.mjs). */\nfunction relicBracketSurcharge(a,b){ return fact('bracketSurcharge')(a,b); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.costFormula — all three\n   layers, priced by the game's own boostCost rather than re-assembled here. */\nfunction relicBoostCost(a,b,boostType){ return fact('boostCost')(a,b,boostType); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.veryHighLevelSurcharge */\nfunction relicVeryHigh(a,b){ return fact('veryHighLevelSurcharge')(a,b); }\n/* GENERATED: formulas/caves.json :: caves.toolUpgradeCost.formula */\nfunction caveToolCost(a,b,tool){ return asCost(fact('caveToolUpgradeCost')(a,b,tool),'meat'); }\n/* GENERATED: tables/house-upgrades.json :: house.resourceCost.formula */\nfunction houseCost(a,b){ return asCost(fact('houseUpgradeCost')(a,b),'meat'); }\n/* GENERATED: formulas/village.json :: village.buildings.costFormula.implementation */\nfunction villageBuildingCost(a,b){ return asCost(fact('villageBuildingCost')(a,b),'gold'); }\n\n/* =====================================================================\n   SYSTEM REGISTRY\n   ===================================================================== */\nvar CUR = {\n  gold:{label:'Gold'}, relics:{label:'Relics'}, diamonds:{label:'Diamonds'},\n  meat:{label:'Meat'}, iron:{label:'Iron'}, wood:{label:'Wood'}, stone:{label:'Stone'},\n  exp:{label:'EXP'}, essence:{label:'Boss essence'},\n  tileres:{label:'Tile resource'},\n  unrecorded:{label:'Unrecorded currency'}\n};\n\nvar SYSTEMS = [\n{\n  id:'sanctum', group:'Character', name:'Sanctum skill tree', tier:'CROSS',\n  unit:'nodes bought', unitShort:'Nodes', def:25, min:0, max:84, view:84, expandBy:0, step:1, checked:'2026-08-23',\n  maxNote:'84 is the whole tree — counted from the node graph in tables/skill-tree.json, not estimated.',\n  desc:'Priced on the TOTAL number of nodes you have bought tree-wide — not on any one node’s level. Node 26 costs the same whichever node you spend it on.',\n  cur:['gold'],\n  range:function(a,b){ return { gold: sanctumNodeCost(a,b) }; },\n  formula:'cost(n) = 125,000 · n⁵  +  12,500,000 · n      (n = the nth node bought)',\n  userNote:'Every node costs the same wherever you spend it — the price is set by how many you have bought in total, so the cheapest node is always the next one.',\n  devNote:'Reproduces the known cost table <b>exactly</b> for nodes 6–15, then runs 0.3–0.4% <b>low</b> from node 16 onward (computed 996 vs table 999 at node 24). Budget slightly above what this table says. Reading one real per-node price off the Skill Tree page past node 24 would settle what the drift actually is. Checked against the 1.2.3.12 bundle 2026-09-23: unchanged.',\n  srcs:['tables/sanctum-nodes.json','engine/income/sanctum.js'],\n  alias:'Called \"sanctum nodes\" in game, but 81 of its 84 nodes have nothing to do with sanctums.',\n  noBreaks:'One smooth curve: no breakpoints.'\n},\n{\n  id:'petslot', group:'Pets', name:'Pet slot', tier:'LIVE',\n  unit:'slot level', unitShort:'Level', def:100, min:0, max:300, view:30, expandBy:30, step:1, checked:'2026-09-07',\n  desc:'Each of the three slots levels and is paid for separately. Gold only — pet slots never cost village resources.',\n  variants:{ label:'Slot', options:[{id:'combat',label:'Combat'},{id:'utility',label:'Utility'},{id:'gathering',label:'Gathering'}] },\n  defByVariant:{ combat:136, utility:51, gathering:71 },\n  cur:['gold'],\n  breaks:[\n    { at:31, short:'boost ×2 rate', tip:'From here each level adds 2% boost instead of 1%. The rate steps up every 30 levels.' },\n    { at:61, short:'boost ×3 rate', tip:'Each level now adds 3% boost.' },\n    { at:91, short:'boost ×4 rate', tip:'Each level now adds 4% boost.' },\n    { at:121, short:'boost ×5 rate', tip:'Each level now adds 5% boost.' },\n    { at:151, short:'cost ×5 curve', tip:'Past 150 the cost exponent jumps from 3 to 15 (the patch notes call it \"x5 scaling\"). The boost still adds 6% a level up to 179.', dev:'pets.slotUpgrade.costFormula: floor(500,000 · 150³ · (L/150)^15) for L > 150.' },\n    { at:180, short:'boost falls to +450%', tip:'The pet boost saw-tooths from here: 179 gives +624%, 180 gives +450%, and it climbs 6% a level back to +624% at 209. Buying 179 → 180 lowers your boost; so does every 30th level after.', dev:'pets.slotUpgrade.boostFormula: the block term freezes at block 5 (0.3·5·6/2 = 4.5) while intoBlock keeps cycling.' }\n  ],\n  range:function(a,b){ return { gold: petSlotCost(a,b) }; },\n  formula:'level ≤ 150:  floor(500,000 · level³)\\nlevel > 150:  floor(500,000 · 150³ · (level/150)¹⁵)',\n  userNote:'Gold only, and each of the three slots is priced separately. Past level 150 the cost climbs far faster — the exponent jumps from 3 to 15, which is the dev’s “x5 scaling” note, while from level 180 the boost falls back to +450% every 30 levels.',\n  devNote:'The cubic branch is <b>live-verified</b> at three points on a real account (combat 135→136, utility 50→51, gathering 70→71 — all exact). The post-150 branch is <b>bundle-only</b>: no tracked account has reached 150 yet.',\n  srcs:['formulas/pets.json','engine/income/profile.js']\n},\n{\n  id:'equipslot', group:'Character', name:'Equipment slot', tier:'CODE',\n  unit:'slot level', unitShort:'Level', def:60, min:1, max:300, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Character equipment slots, each levelled on its own. Costs the same amount of all four village resources at once — no gold.',\n  variants:{ label:'Slot', options:[{id:'head',label:'Head'},{id:'body',label:'Body'},{id:'legs',label:'Legs'},{id:'hands',label:'Hands'},{id:'feet',label:'Feet'},{id:'leftHand',label:'Left hand'},{id:'rightHand',label:'Right hand'}] },\n  cur:['meat','iron','wood','stone'],\n  breaks:[\n    { at:31, short:'boost ×2 rate', tip:'The boost these levels buy accelerates in 30-level blocks: from here each level adds 2%.' },\n    { at:61, short:'boost ×3 rate', tip:'Each level now adds 3%.' },\n    { at:91, short:'boost ×4 rate', tip:'Each level now adds 4%.' },\n    { at:121, short:'boost ×5 rate', tip:'Each level now adds 5%.' },\n    { at:151, short:'boost ×6 rate', tip:'Each level now adds 6%. Unlike pets, equipment keeps climbing past 150.' },\n    { at:181, short:'boost ×7 rate', tip:'Each level now adds 7%.' },\n    { at:211, short:'boost ×8 rate', tip:'Each level now adds 8%.' },\n    { at:241, short:'boost ×9 rate', tip:'Each level now adds 9%.' },\n    { at:271, short:'boost ×10 rate', tip:'Each level now adds 10%.' }\n  ],\n  range:function(a,b){ return asCost(fact('slotUpgradeCost')(a,b),'meat'); },  /* GENERATED: equipment.slotUpgrade.costFormula */\n  formula:'geometric series, base 250, ratio 1.10 per level, charged in each of meat / iron / wood / stone',\n  userNote:'Costs the same amount of all four village resources at once, and no gold. The cost itself has no breakpoints; the boost these levels buy steps up every 30 levels — level 30 gives +30%, 60 gives +90%, 90 gives +180%.',\n  devNote:'A different curve from pet slots, and deliberately so — the level-150 cap the dev added to pets was gated on a pet-only branch and never touched equipment.',\n  srcs:['formulas/equipment.json','engine/income/profile.js']\n},\n{\n  id:'charlevel', group:'Character', name:'Level EXP', tier:'CODE',\n  unit:'level', unitShort:'Level', def:300, min:1, max:20000, view:2000, expandBy:2000, step:10, checked:'2026-09-23',\n  desc:'One curve backs three tracks. Crafting never leaves the flat stair-step; sanctum shifts the level by +500 before applying the same curve, so sanctum level N costs what battling level N+500 costs.',\n  variants:{ label:'Which level', options:[{id:'battling',label:'Character level'},{id:'crafting',label:'Crafting / forging level'},{id:'sanctum',label:'Sanctum level'}] },\n  defByVariant:{ battling:300, crafting:300, sanctum:120 },\n  cur:['exp'],\n  breaks:function(v){\n    var stairs = [\n      { at:10, short:'250 per level', tip:'Levels 10–19 cost 250 EXP × level.' },\n      { at:20, short:'400 per level', tip:'Levels 20–39 cost 400 EXP × level.' },\n      { at:40, short:'600 per level', tip:'Levels 40–49 cost 600 EXP × level.' },\n      { at:50, short:'1,000 per level', tip:'Levels 50–99 cost 1,000 EXP × level.' }\n    ];\n    if (v === 'crafting') return stairs.concat([{ at:100, short:'stays flat', tip:'Crafting never leaves the flat 1,000 × level stair-step.' }]);\n    var tail = [\n      { at:100, short:'√ curve', tip:'From here: 20,000 · √level.' },\n      { at:501, short:'+ power tail', tip:'Adds 2,500 · (level − 500)^1.25.' },\n      { at:10001, short:'+ steep tail', tip:'Adds 100,000 · (level − 10,000)^1.4 — the steepest part of the curve.', dev:'Changed in 1.2.3.11 from 10,000 · (level − 10,000)^1.35; this table used the old tail until 2026-09-23.' }\n    ];\n    if (v === 'sanctum') return [\n      { at:1, short:'starts on the √ curve', tip:'Sanctum level N is priced as character level N + 500, so it starts past the stair-steps, on the √ curve with its first tail.' },\n      { at:9501, short:'+ steep tail', tip:'Sanctum 9,501 is character-curve level 10,001: the steep tail starts here.' }\n    ];\n    return stairs.concat(tail);\n  },\n  range:function(a,b,v){ var t=0; for(var n=a+1;n<=b;n++) t+=levelExp(n,v||'battling'); return {exp:t}; },\n  formula:'<10: L·150   <20: L·250   <40: L·400   <50: L·600   <100: L·1000\\n≥100: 20,000·√L  (+ 2,500·(L−500)^1.25 past 500, + 100,000·(L−10,000)^1.4 past 10,000)',\n  userNote:'This is EXP required, not currency — the “cost” columns count experience. Crafting never leaves the flat stair-step; a sanctum level costs what a character level 500 higher would.',\n  devNote:'<b>Corrected 2026-09-23</b>: the past-10,000 tail changed in 1.2.3.11 (was 10,000·(L−10,000)^1.35). Every figure above level 10,000 in this table was low until then — about a sixth of the real value at 11,500. The sanctum +500 shift was read from the bundle only and has not been checked against a live sanctum level.',\n  srcs:['formulas/leveling.json','engine/income/leveling.js']\n},\n\n{\n  id:'partnerboost', group:'Partners', name:'Speed / intelligence boost', tier:'CODE',\n  unit:'boost level', unitShort:'Level', def:900, min:0, max:5000, view:200, expandBy:200, step:10, checked:'2026-08-25',\n  desc:'Per partner, per boost. The same function priced at current level 0 is what the game shows you as the refund when you reset a partner’s boosts.',\n  variants:{ label:'Boost', options:[{id:'speed',label:'Speed'},{id:'intelligence',label:'Intelligence'}] },\n  cur:['gold'],\n  breaks:[\n    { at:10, short:'rate 15,000', tip:'From level 10 each level costs about 15,000 × (level − 9). One purchase across this seam is slightly cheaper than two.', dev:'Known discontinuity: cost(5→15) = 270,000 but cost(5→9) + cost(9→15) = 274,200.' },\n    { at:1001, short:'+10,000/level', tip:'Past 1,000 each level adds about 10,000 × level on top.' },\n    { at:2001, short:'+100,000/level', tip:'Past 2,000 each level adds about 100,000 × level on top.' },\n    { at:3501, short:'+500,000/level', tip:'Past 3,500 each level adds about 500,000 × level on top: the steepest stretch.' }\n  ],\n  range:function(a,b){ return { gold: partnerBoostCost(a,b) }; },\n  formula:'below 10:  triangular(a, b, 150)\\nfrom 10:   triangular(max(a−9,0), max(b−9,1), 15,000)\\n+ triangular past 1,000 @ 10,000 · past 2,000 @ 100,000 · past 3,500 @ 500,000',\n  userNote:'Per partner, per boost: buying a level for every partner costs this times your partner count. The same figure priced from level 0 is what the game shows you as the refund when you reset a partner’s boosts.',\n  devNote:'<b>Known discontinuity at level 10.</b> One purchase spanning the seam is cheaper than the same range bought as two: cost(5→15) = 270,000, but cost(5→9) + cost(9→15) = 274,200. The ≥10 branch re-indexes by −9 and clamps at zero, so every starting level from 0 to 9 lands on the same point. A real property of the game’s formula, not a transcription slip — and the reason this page always prices a range with the range function rather than adding up single levels. The other three thresholds are properly additive. Synced level = your LOWEST partner’s, the one you would buy next to keep them even.',\n  srcs:['formulas/partners.json','engine/income/partners.js']\n},\n{\n  id:'partnerhire', group:'Partners', name:'Hire a partner', tier:'CODE',\n  unit:'partners owned', unitShort:'Partners', def:5, min:0, max:12, view:12, expandBy:0, step:1, checked:'2026-08-23',\n  desc:'Unlocking the next partner slot. Ten times the previous one, every time — the single steepest curve in the game.',\n  cur:['gold'],\n  range:function(a,b){ return { gold: base10Series(a,b) }; },\n  formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',\n  userNote:'Ten times the previous one, every time — the steepest curve in the game. <b>Whether partners cap at all is unknown</b>; this table stops at 12 for a technical reason, not a game one.',\n  devNote:'It stops at 12 because that is where the cost passes what a double-precision number represents exactly. Byte-for-byte the same closed form as the fighter-slot cost, one shared primitive across two unrelated systems; fighter slots are known to cap at 6.',\n  srcs:['formulas/partners.json','engine/income/partners.js'],\n  noBreaks:'No breakpoints: every partner costs exactly ten times the one before.'\n},\n{\n  id:'partnerlevel', group:'Partners', name:'Partner level EXP', tier:'CODE',\n  unit:'partner level', unitShort:'Level', def:400, min:0, max:10000, view:500, expandBy:500, step:10, checked:'2026-09-23',\n  desc:'A sibling of the character curve with its own coefficients — same √ + power-tail family, different numbers.',\n  cur:['exp'],\n  breaks:[\n    { at:10, short:'200 per level', tip:'Levels 10–19 cost 200 EXP × level.' },\n    { at:20, short:'300 per level', tip:'Levels 20–39 cost 300 EXP × level.' },\n    { at:40, short:'400 per level', tip:'Levels 40–49 cost 400 EXP × level.' },\n    { at:50, short:'√ curve', tip:'From here: 25,000 · √level.' },\n    { at:1501, short:'+ power tail', tip:'Adds 250 · (level − 1,500)^1.25.' },\n    { at:6001, short:'+ steep tail', tip:'Adds 2,500 · (level − 6,000)^1.4.', dev:'The game’s own formula label still prints 1.35 here; the code charges 1.4 (since 1.2.3.11).' }\n  ],\n  range:function(a,b){ var t=0; for(var n=a+1;n<=b;n++) t+=partnerLevelExpAt(n); return {exp:t}; },\n  formula:'<10: L·150   <20: L·200   <40: L·300   <50: L·400\\n≥50: 25,000·√L  (+ 250·(L−1500)^1.25 past 1500, + 2,500·(L−6000)^1.4 past 6000)',\n  userNote:'A partner’s four <i>skills</i> level on this curve. They are not the same thing as its four base <i>stats</i>. Every skill level also raises that partner’s own income multiplier.',\n  devNote:'<b>Corrected 2026-09-23</b>: the past-6000 exponent is 1.4 since 1.2.3.11 (the Partners page label still says 1.35). The live checks all sit between 1,500 and 6,000, where the two agree. How partner stats grow is still unknown; the dev’s own wiki page for it reads “coming soon”.',\n  srcs:['formulas/partners.json','engine/income/partners.js']\n},\n\n{\n  id:'villagebuilding', group:'Village', name:'Buildings', tier:'LIVE',\n  unit:'building level', unitShort:'Level', def:38, min:1, max:200, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Every building shares one price curve. Gold and all four resources at once, on the same geometric curve at different bases. Relics join the bill only past level 40.',\n  variants:{ label:'Building', options:[{id:'market',label:'Market'},{id:'stable',label:'Stable'},{id:'tavern',label:'Tavern'},{id:'well',label:'Well'},{id:'mill',label:'Mill'},{id:'granary',label:'Granary'},{id:'shrine',label:'Shrine'},{id:'treasury',label:'Treasury'},{id:'warehouse',label:'Warehouse'}] },\n  cur:['gold','meat','iron','wood','stone','relics'],\n  breaks:[{ at:41, short:'relics join the bill', tip:'From level 41 every level also costs relics (base 3,000, ratio 1.15).' }],\n  range:villageBuildingCost,\n  formula:'gold: geometric base 200,000 · ratio 1.15\\nmeat / iron / wood / stone: geometric base 4,000 · ratio 1.15\\nrelics: geometric base 3,000, pivoted at level 41, nothing below',\n  userNote:'Every building shares one curve: pick yours to see your own level. Gold and all four resources at once; relics join the bill only past level 40.',\n  devNote:'<b>Live-verified end to end</b> across all six currencies against a real Village → Upgrades price, which also settled a long-standing 3,000-vs-8,000 disagreement in the relic coefficient in favour of 3,000.',\n  srcs:['formulas/village.json','engine/costs/village.js']\n},\n{\n  id:'villagestrength', group:'Village', name:'Strengths', tier:'OPEN',\n  unit:'strength level', unitShort:'Level', def:20, min:0, max:500, view:50, expandBy:50, step:1, checked:'2026-08-23',\n  desc:'Brave / Wealthy / Bold / Swift / Trailblazer / Potent all cost ×2. Loyal alone costs ×10 — five times any other strength, per level.',\n  variants:{ label:'Strength', options:[{id:'brave',label:'Brave (×2)'},{id:'wealthy',label:'Wealthy (×2)'},{id:'bold',label:'Bold (×2)'},{id:'swift',label:'Swift (×2)'},{id:'trailblazer',label:'Trailblazer (×2)'},{id:'potent',label:'Potent (×2)'},{id:'loyal',label:'Loyal (×10)'}] },\n  cur:['unrecorded'],\n  range:function(a,b,v){ return { unrecorded: Math.round(triangular(a,b, v==='loyal'?10:2)) }; },\n  formula:'cost(a → b) = triangular(a, b) × 10 for Loyal, × 2 for every other strength',\n  userNote:'Loyal costs five times what any other strength costs per level. The bonus side is simpler: level × 1% for the six, while Loyal returns the bare level.',\n  devNote:'<b>What this is paid in is not recorded anywhere in the core</b> — the bundle gives the arithmetic and not the currency, so the column is labelled “Cost” rather than guessed at. The bonus formula is cross-confirmed exactly against six live readings on two different characters.',\n  srcs:['formulas/village.json','engine/costs/village.js'],\n  noBreaks:'No breakpoints: one triangular curve.'\n},\n{\n  id:'villageboss', group:'Village', name:'Boss upgrades', tier:'CODE',\n  unit:'upgrade level', unitShort:'Level', def:15, min:0, max:200, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Four upgrade types, four different currencies, one shared curve — and an identical +2% per level whichever you buy.',\n  variants:{ label:'Upgrade', options:[\n    {id:'health',label:'Health (gold)'},{id:'attackSpeed',label:'Attack speed (relics)'},\n    {id:'dropQuality',label:'Drop quality (essence)'},{id:'duration',label:'Duration (4 resources)'}]},\n  cur:['gold','relics','essence','meat','iron','wood','stone'],\n  range:function(a,b,v){\n    var cfg={health:[200000,'gold'],attackSpeed:[3000,'relics'],dropQuality:[3000,'essence'],duration:[4000,'res']}[v||'health'];\n    var c=fact('villageBossCost')(a,b,cfg[0]);  /* GENERATED: villageBoss.costFormula */\n    if (cfg[1]==='res') return {meat:c,iron:c,wood:c,stone:c};\n    var o={}; o[cfg[1]]=c; return o;\n  },\n  formula:'geometric series, ratio 1.15, base 200,000 (gold) / 3,000 (relics) / 3,000 (essence) / 4,000 (each of four resources)',\n  userNote:'Four upgrade types, four different currencies, one shared curve — and every type gives the same +2% per level. The only real decision is which currency you would rather spend.',\n  devNote:'Confirmed to be literally the same helper function as Buildings, not merely a similar shape.',\n  srcs:['formulas/village-boss.json','engine/costs/village.js'],\n  noBreaks:'No breakpoints: one geometric curve (×1.15 per level).'\n},\n\n{\n  id:'sculpture', group:'Sculpture', name:'Sculpture tile', tier:'LIVE',\n  unit:'tile level', unitShort:'Level', def:223, min:0, max:3000, view:300, expandBy:300, step:25, checked:'2026-09-23',\n  desc:'Which resource a tile bills you in is fixed by its position on a 2×2 checkerboard — 16 of the 64 tiles on each resource. The price is the same wherever it sits.',\n  cur:['tileres'],\n  breaks:[{ at:2501, short:'+2.5m per level', tip:'Past level 2,500 every level also pays (level − 2,500) × 2,500,000 on top: the cost climbs a hundred times faster.', dev:'New in 1.2.3.11; this table did not know it until 2026-09-23.' }],\n  range:function(a,b){ return { tileres: fact('tileUpgradeCost')(a,b) }; },  /* GENERATED: sculptures.tileUpgradeCost */\n  formula:'level L costs 25,000 · L\\n+ past 2,500: (L − 2,500 − ½) · 2,500,000, in the same resource',\n  userNote:'Which resource a tile bills you in is fixed by its position on the grid; the price is the same wherever it sits. The slot boost these levels feed has diminishing returns, so the last levels cost the most and give the least.',\n  devNote:'<b>Corrected 2026-09-23.</b> Level L costs 25,000 × L exactly: 223 → 224 is 5,600,000, the live-observed “5.60m”. This table used triangular(a, b, 25,000), which prices it at 5,587,500 (“5.59m”) and was wrongly recorded as a match. The past-2,500 surcharge is from 1.2.3.11.',\n  srcs:['formulas/sculptures.json','engine/income/sculptures.js'],\n  curNote:'meat / iron / wood / stone — set by the tile’s coordinates'\n},\n{\n  id:'cavetool', group:'Caves', name:'Cave tools', tier:'LIVE',\n  unit:'tool level', unitShort:'Level', def:150, min:0, max:500, view:300, expandBy:100, step:5, checked:'2026-08-25',\n  desc:'Every tool but the repeater costs four resources plus a gentle diamond fee. The repeater is diamonds only, and doubles.',\n  variants:{ label:'Tool', options:[{id:'standard',label:'Any tool except repeater'},{id:'repeater',label:'Repeater (diamonds, ×2/level)'}] },\n  cur:['meat','iron','wood','stone','diamonds'],\n  breaks:function(v){\n    if (v === 'repeater') return [];\n    return [\n      { at:101, short:'+4,000 layer', tip:'Past level 100 a second 4,000-per-level layer is added to the resource cost.' },\n      { at:201, short:'+400,000 layer', tip:'Past level 200 a 400,000-per-level layer is added.' },\n      { at:601, short:'+2m layer', tip:'Past level 600 a 2,000,000-per-level layer is added.' }\n    ];\n  },\n  range:function(a,b,v){ return caveToolCost(a,b,v==='repeater'?'repeater':'standard'); },\n  formula:'resources: triangular @ 4,000, + 4,000 from level 100, + 400,000 from 200, + 2,000,000 from 600\\ndiamonds: triangular @ 1  (≈ the target level per single upgrade)\\nrepeater: 1,000 · (2^(b+1) − 2^(a+1)) / 9, diamonds only',\n  userNote:'Every tool but the repeater costs four resources plus a gentle diamond fee; the repeater is diamonds only, and doubles. Worth knowing before you spend: resetting a tool refunds all four resources and none of the diamonds — so the repeater refunds nothing at all.',\n  devNote:'<b>Live-verified exact</b> against four real upgrade prices. Checked against the 1.2.3.12 bundle 2026-09-23: unchanged.',\n  srcs:['formulas/caves.json','engine/income/caves.js']\n},\n{\n  id:'house', group:'Caves', name:'House', tier:'CROSS',\n  unit:'house level', unitShort:'Level', def:40, min:0, max:100, view:100, expandBy:50, step:1, checked:'2026-08-27',\n  desc:'All four resources at the same value each, on a gentle power curve — until level 50, where a flat million per level per resource lands on top.',\n  cur:['meat','iron','wood','stone'],\n  breaks:[{ at:51, short:'+1m per level', tip:'From level 51 every level also costs a flat 1,000,000 of each resource.' }],\n  range:houseCost,\n  formula:'per level: 5,000 + round(5,000 · level^1.25)\\npast level 50: + 1,000,000 per level, to each of the four resources',\n  userNote:'All four resources at the same value each, on a gentle curve — until level 50, where a flat million per level per resource lands on top.',\n  devNote:'26 of 32 known table rows match exactly; the six that miss look like transcription noise in the source table rather than a second branch.',\n  srcs:['tables/house-upgrades.json','engine/income/house.js']\n},\n{\n  id:'relicboost', group:'Relics', name:'Relic boost shop', tier:'CODE',\n  unit:'boost level', unitShort:'Level', def:2000, min:0, max:60000, view:2000, expandBy:2000, step:100, checked:'2026-09-23',\n  desc:'Defense and damage flat are gold and skip the top surcharge layer. Everything else is relic-paid and carries all three layers.',\n  variants:{ label:'Boost', options:[\n    {id:'critChance',label:'Crit chance'},{id:'critDamage',label:'Crit damage'},{id:'multistrike',label:'Multistrike'},\n    {id:'healing',label:'Healing'},{id:'defense',label:'Defense'},\n    {id:'huntingBoost',label:'Hunting'},{id:'miningBoost',label:'Mining'},{id:'woodcuttingBoost',label:'Woodcutting'},{id:'stonecarvingBoost',label:'Stonecarving'},\n    {id:'damageFlat',label:'Damage flat (gold)'},{id:'defenseFlat',label:'Defense flat (gold)'}]},\n  defByVariant:{ damageFlat:1000, defenseFlat:1000 },\n  cur:['relics','gold'],\n  breaks:function(v){\n    var gold = v === 'damageFlat' || v === 'defenseFlat';\n    var out = [\n      { at:5001, short:'+20 × (L−5,000)', tip:'Past 5,000 every level pays an extra (level − 5,000) × 20.' },\n      { at:10001, short:'rate +10 per 1,000', tip:'From 10,001 that extra rate climbs by 10 every 1,000 levels (30, 40, 50, …).' }\n    ];\n    if (!gold) out.push({ at:50001, short:'+50,000 layer', tip:'Past 50,000 relic-paid boosts add a third layer at 50,000 per level.', dev:'50,000 since 1.2.3.11; this table used 1.2.3.7’s 20,000 until 2026-09-23.' });\n    return out;\n  },\n  range:function(a,b,v){\n    var gold = v==='damageFlat' || v==='defenseFlat';\n    var out = relicBoostCost(a, b, gold ? 'damageFlat' : 'critChance');\n    return asCost(out, gold ? 'gold' : 'relics');\n  },\n  formula:'layer 1: level L costs L · 100 (gold types) or L · 10 (relic types)\\nlayer 2, past 5,000: (L − 5,000) · rate — 20 through 10,000, then +10 per 1,000 levels\\nlayer 3, past 50,000, relic types only: triangular @ 50,000/level',\n  userNote:'Defense and damage flat are gold-paid; everything else costs relics, and every relic type is priced the same. What a level buys: +10 flat for the gold types, level/5,000 for attack speed, level/2,000 for everything else.',\n  devNote:'<b>Corrected 2026-09-23</b> against the 1.2.3.12 function: layers 1 and 2 are arithmetic-series differences (level L costs L·rate; the old triangular form charged (L−½)·rate), and layer 3 charges 50,000 since 1.2.3.11 (was 20,000). The shattered-relics discount the game shows is server-side and not modelled.',\n  srcs:['formulas/relic-boosts.json','engine/income/relicBoosts.js']\n},\n{\n  id:'fighterslot', group:'Fighters', name:'Fighter slot', tier:'LIVE', generated:true,\n  unit:'fighter slots', unitShort:'Slots', def:5, min:0, max:6, view:6, expandBy:0, step:1, checked:'2026-08-23',\n  desc:'Expanding the fighter roster for dungeons. Six slots is the cap, and each one costs ten times the last.',\n  cur:['gold'],\n  range:function(a,b){ return asCost(fact('fighterSlotCost')(a,b),'gold'); },  /* GENERATED: dungeon.fighterSlotCost.formula */\n  formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',\n  userNote:'Six slots is the cap, and each one costs ten times the last.',\n  devNote:'The cap of 6 is from the maintainer (2026-09-21). The arithmetic is certain, but <b>what it buys is inferred</b> from the function’s shape and where it sits in the bundle, not from watching a slot get bought — if you expand one and the price does not match this row, that is the more interesting finding.',\n  srcs:['formulas/dungeons.json','engine/costs/dungeon.js'],\n  noBreaks:'No breakpoints: each slot costs ten times the last, to the cap of 6.'\n}\n];\n\n// Groups are ordered by when a player unlocks the system, from\n// data/tables/feature-unlock-levels.json — not alphabetically and not by build\n// order. A newer player meets them top to bottom.\n// Ordered by roughly when a player meets each system (unlock levels are in\n// data/tables/feature-unlock-levels.json) - but the level itself is not shown.\n// It explains the order to whoever maintains this list; it is noise to a\n// reader who just wants the cost of their next pet slot.\nvar GROUPS = [\n  { id:'Character', label:'Character' },\n  { id:'Partners',  label:'Partners' },\n  { id:'Village',   label:'Village' },\n  { id:'Fighters',  label:'Fighters' },\n  { id:'Pets',      label:'Pets' },\n  { id:'Caves',     label:'Caves & house' },\n  { id:'Relics',    label:'Relics' },\n  { id:'Sculpture', label:'Sculptures' }\n];\n// Within a group, the order a player meets them: the thing you level first,\n// then what it gates. Explicit, because build order is not a meaning.\nvar ORDER = ['charlevel','equipslot','sanctum',\n             'partnerhire','partnerboost','partnerlevel',\n             'villagebuilding','villagestrength','villageboss',\n             'fighterslot',\n             'petslot',\n             'cavetool','house',\n             'relicboost',\n             'sculpture'];\nSYSTEMS.sort(function(a,b){\n  var ia = GROUPS.findIndex(function(g){ return g.id===a.group; });\n  var ib = GROUPS.findIndex(function(g){ return g.id===b.group; });\n  return ia !== ib ? ia - ib : ORDER.indexOf(a.id) - ORDER.indexOf(b.id);\n});\n\nvar BY_ID = {};\nSYSTEMS.forEach(function(s){ BY_ID[s.id]=s; });\n\n/* =====================================================================\n   PROFILE SYNC — live since 2026-09-23, through the shared kit\n   (tool-sync.js: the profile Core hands over and every capture after it).\n\n   Each subject key (\"<systemId>\" or \"<systemId>:<variantId>\") names what it\n   reads and which profile section dates it. A key with no entry is never\n   synced: its level is always yours to type. The four states are the kit's\n   (synced / stale / edited / unavailable); this page keeps its own record of\n   which keys you typed, because its inputs are rebuilt for every subject.\n   ===================================================================== */\nvar SYNC = window.AWOO_SYNC;\nvar STALE_MS = 6*60*60*1000;\nfunction g(path){ return SYNC.get(path); }\n// The lowest of your partners' speed or intelligence: the level you would buy\n// next to keep them even, which is the price this table can honestly quote.\nfunction lowestPartner(boost){\n  return function(){\n    var r = g('partner.roster');\n    if (!Array.isArray(r) || !r.length) return null;\n    var min = null;\n    for (var i = 0; i < r.length; i++){ var v = r[i] && r[i][boost]; if (typeof v === 'number' && (min === null || v < min)) min = v; }\n    return min;\n  };\n}\nvar PROFILE_READS = {\n  'charlevel:battling':   ['levels', function(){ var v = g('levels.battling'); return v != null ? v : g('core.level'); }],\n  'charlevel:crafting':   ['levels', 'levels.crafting'],\n  'charlevel:sanctum':    ['levels', 'levels.sanctum'],\n  'petslot:combat':       ['pets', 'pets.combat.slotLevel'],\n  'petslot:utility':      ['pets', 'pets.utility.slotLevel'],\n  'petslot:gathering':    ['pets', 'pets.gathering.slotLevel'],\n  'partnerboost:speed':        ['partner', lowestPartner('speed')],\n  'partnerboost:intelligence': ['partner', lowestPartner('intelligence')],\n  'partnerhire':          ['partner', 'partner.count']\n};\n['head','body','legs','hands','feet','leftHand','rightHand'].forEach(function(k){ PROFILE_READS['equipslot:' + k] = ['equipment', 'equipment.slots.' + k + 'Level']; });\n['market','stable','tavern','well','mill','granary','shrine','treasury','warehouse'].forEach(function(k){ PROFILE_READS['villagebuilding:' + k] = ['village', 'village.buildings.' + k]; });\n['brave','wealthy','bold','swift','trailblazer','potent','loyal'].forEach(function(k){ PROFILE_READS['villagestrength:' + k] = ['village', 'village.strengths.' + k]; });\n['critChance','critDamage','multistrike','healing','defense','huntingBoost','miningBoost','woodcuttingBoost','stonecarvingBoost','damageFlat','defenseFlat'].forEach(function(k){ PROFILE_READS['relicboost:' + k] = ['relicBoosts', 'relicBoosts.' + k]; });\n\n// key -> { value, observedAt } | null. Never 0 for \"not observed\".\nfunction profileValue(key){\n  var spec = PROFILE_READS[key];\n  if (!spec || !SYNC) return null;\n  var v = typeof spec[1] === 'function' ? spec[1]() : g(spec[1]);\n  if (typeof v !== 'number' || !isFinite(v)) return null;\n  return { value:v, observedAt:SYNC.age(spec[0]) };\n}\n\nvar edited = {};   // key -> true once the user types in that field\n\n/* state of one field: 'edited' | 'synced' | 'stale' | 'unavailable' */\nfunction fieldState(key){\n  if (edited[key]) return 'edited';\n  var p = profileValue(key);\n  if (!p) return 'unavailable';\n  if (p.observedAt === null || (Date.now() - p.observedAt) > STALE_MS) return 'stale';\n  return 'synced';\n}\nvar STATE_TEXT = {\n  edited:'Typed by you; a sync keeps it. Click to sync it again.',\n  synced:'Synced from the game. Click to re-sync.',\n  stale:'Synced, but over six hours old. Click to re-sync.',\n  unavailable:'Not synced: this is your own figure.'\n};\nfunction syncSummary(){\n  var out = { total:0, synced:0, stale:0, edited:0 };\n  for (var key in PROFILE_READS){\n    out.total++;\n    var st = fieldState(key);\n    if (st === 'synced') out.synced++; else if (st === 'stale') out.stale++; else if (st === 'edited') out.edited++;\n  }\n  return out;\n}\n\n/* =====================================================================\n   STATE\n   ===================================================================== */\n// Theme and \"Show developer info\" are the shared tool-settings layer's\n// (tool-settings.js): inherited from AWOO+ Core, overridable in the gear menu,\n// remembered per tool. Nothing here duplicates that.\n\nvar LS = 'awooCostTables.v1';\nvar state = { active:'charlevel', levels:{}, variants:{}, rows:{}, targets:{}, currency:{}, steps:{}, expanded:false };\n\n// Every system that HAS variants gets one selected before the first render.\n// Leaving it undefined would split the field key (\"petslot\") from the variant\n// the table is actually priced with (\"petslot:combat\") — a level typed into\n// one would be read back under the other, and no profile reading would match.\nSYSTEMS.forEach(function(s){\n  if (s.variants && !state.variants[s.id]) state.variants[s.id] = s.variants.options[0].id;\n});\n\nfunction keyFor(sys){\n  var v = state.variants[sys.id];\n  return (sys.variants && v) ? sys.id + ':' + v : sys.id;\n}\nfunction clampLevel(sys, v){\n  if (!isFinite(v)) return sys.min;\n  return Math.max(sys.min, Math.min(sys.max, Math.round(v)));\n}\nfunction stepFor(sys){\n  var v = state.steps[keyFor(sys)];\n  return (v && v > 0) ? Math.round(v) : sys.step;\n}\nfunction targetLevel(sys){\n  var k = keyFor(sys), lv = currentLevel(sys);\n  var t = state.targets[k];\n  if (t == null || t <= lv) return Math.min(lv + 10, sys.max);\n  return Math.min(t, sys.max);\n}\nfunction defaultLevel(sys){\n  var v = state.variants[sys.id];\n  if (sys.defByVariant && v && sys.defByVariant[v] != null) return sys.defByVariant[v];\n  return sys.def;\n}\nfunction currentLevel(sys){\n  var k = keyFor(sys);\n  if (edited[k] && state.levels[k] != null) return clampLevel(sys, state.levels[k]);\n  var p = profileValue(k);\n  if (p) return clampLevel(sys, p.value);\n  if (state.levels[k] != null) return clampLevel(sys, state.levels[k]);\n  return clampLevel(sys, defaultLevel(sys));\n}\n\nfunction load(){\n  try {\n    var raw = localStorage.getItem(LS);\n    if (!raw) return;\n    var o = JSON.parse(raw);\n    if (o.levels) state.levels = o.levels;\n    if (o.variants) state.variants = o.variants;\n    if (o.currency) state.currency = o.currency;\n    if (o.edited) edited = o.edited;\n    if (o.targets) state.targets = o.targets;\n    if (o.steps) state.steps = o.steps;\n    // This page kept its own number override until 2026-09-23; hand it to\n    // the shared layer once, where every tool now keeps it.\n    if (o.numberMode || o.numberLocale) NUM.adopt(o.numberMode, o.numberLocale);\n    if (o.expanded) state.expanded = true;\n    if (o.active && BY_ID[o.active]) state.active = o.active;\n  } catch(e){}\n}\nvar saveTimer = null;\nfunction save(){\n  clearTimeout(saveTimer);\n  saveTimer = setTimeout(function(){\n    try {\n      localStorage.setItem(LS, JSON.stringify({\n        levels:state.levels, variants:state.variants, currency:state.currency,\n        targets:state.targets, expanded:state.expanded,\n        steps:state.steps, edited:edited, active:state.active\n      }));\n    } catch(e){}\n  }, 700);\n}\n\n/* =====================================================================\n   RENDER\n   ===================================================================== */\nfunction esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;'); }\n\nfunction activeCurrency(sys){\n  var c = state.currency[sys.id];\n  if (c && sys.cur.indexOf(c) >= 0) return c;\n  return sys.cur[0];\n}\n\nfunction renderNav(){\n  var html = '', lastGroup = null;\n  SYSTEMS.forEach(function(s){\n    if (s.group !== lastGroup){\n      if (lastGroup !== null) html += '</div>';\n      var g = GROUPS.filter(function(x){ return x.id===s.group; })[0] || { label:s.group };\n      html += '<div class=\"navgroup\"><h3>' + esc(g.label) + '</h3>';\n      lastGroup = s.group;\n    }\n    var lv = currentLevel(s);\n    html += '<button class=\"navbtn\" type=\"button\" data-sys=\"' + s.id + '\"' +\n            (s.id===state.active ? ' aria-current=\"true\"' : '') + '>' +\n            esc(s.name) + '<span class=\"nlv\">' + fmtInt(lv) + '</span></button>';\n  });\n  html += '</div>';\n  document.getElementById('nav').innerHTML = html;\n}\n\nfunction costCell(amounts, cur){\n  var v = amounts[cur];\n  if (v == null) return '<td class=\"dash\">—</td>';\n  return '<td>' + fmtNum(v) + '</td>';\n}\n\nfunction renderSystem(){\n  var sys = BY_ID[state.active];\n  var cur = activeCurrency(sys);\n  var lv  = currentLevel(sys);\n  var key = keyFor(sys);\n  var fstate = fieldState(key);\n  var tgt = targetLevel(sys);\n  var step = stepFor(sys);\n  var rowsTo = state.rows[key];\n  if (rowsTo == null || rowsTo <= lv) rowsTo = Math.min(Math.max(lv + sys.view, tgt), sys.max);\n  rowsTo = Math.min(rowsTo, sys.max);\n  var from = Math.max(sys.min, lv - 3*step);\n  var variant = state.variants[sys.id] || (sys.variants ? sys.variants.options[0].id : null);\n\n  var h = '';\n\n  /* header */\n  h += '<div class=\"syshead\">';\n  h += '<h2>' + esc(sys.name) + '</h2>';\n  h += '<span class=\"pill ' + sys.tier.toLowerCase() + '\">' + sys.tier + '</span>';\n  h += '<span class=\"pill cur\">' + esc(sys.cur.map(function(c){return CUR[c].label;}).join(' · ')) + '</span>';\n  h += '<p class=\"desc\">' + sys.desc + (sys.alias ? ' <span class=\"tip\" data-tip=\"' + esc(sys.alias) + '\">Naming note.</span>' : '') + '</p>';\n  h += '</div>';\n\n  /* controls */\n  h += '<div class=\"controls\">';\n  h += '<div class=\"field\"><span class=\"lab\">' +\n       (PROFILE_READS[key]\n         ? '<button class=\"awoo-light\" type=\"button\" id=\"stateLight\" data-state=\"' + fstate + '\" aria-label=\"Sync: ' + fstate + '\" data-tip=\"' + esc(STATE_TEXT[fstate]) + '\" data-tip-dev=\"' + esc('Profile: ' + (typeof PROFILE_READS[key][1] === 'string' ? PROFILE_READS[key][1] : PROFILE_READS[key][0])) + '\"></button>'\n         : '<span class=\"awoo-light\" data-state=\"unavailable\" data-tip=\"Not something the game sync reads. Type your own level.\"></span>') +\n       '<span>Current ' + esc(sys.unit) + '</span></span>' +\n       '<input type=\"text\" data-num data-num-digits=\"0\" id=\"lvInput\" value=\"' + lv + '\" min=\"' + sys.min + '\" max=\"' + sys.max + '\" step=\"1\"></div>';\n  h += '<div class=\"field\"><span class=\"lab\"><span class=\"tip\" data-tip=\"' +\n       esc('Where you want to get to. Sets the headline total, and grows the table to reach it.') +\n       '\">Target</span></span>' +\n       '<input type=\"text\" data-num data-num-digits=\"0\" id=\"tgtInput\" value=\"' + tgt + '\" min=\"' + (lv+1) + '\" max=\"' + sys.max + '\" step=\"1\"></div>';\n  if (sys.variants){\n    h += '<div class=\"field\"><span class=\"lab\">' + esc(sys.variants.label) + '</span><select id=\"varSel\">';\n    sys.variants.options.forEach(function(o){\n      h += '<option value=\"' + o.id + '\"' + (o.id===variant?' selected':'') + '>' + esc(o.label) + '</option>';\n    });\n    h += '</select></div>';\n  }\n  if (sys.cur.length > 1){\n    h += '<div class=\"field\"><span class=\"lab\">Show cost in</span><select id=\"curSel\">';\n    sys.cur.forEach(function(c){\n      h += '<option value=\"' + c + '\"' + (c===cur?' selected':'') + '>' + esc(CUR[c].label) + '</option>';\n    });\n    h += '</select></div>';\n  }\n  h += '<div class=\"field\"><span class=\"lab\"><span class=\"tip\" data-tip=\"' +\n       esc('Rows advance by this many levels. A subject that runs to thousands is unreadable at 1.') +\n       '\">Step</span></span>' +\n       '<input type=\"text\" data-num data-num-digits=\"0\" id=\"stepInput\" value=\"' + step + '\" min=\"1\" max=\"' + Math.max(1, sys.max) + '\" step=\"1\"></div>';\n  h += '<button class=\"btn\" type=\"button\" id=\"resetSysBtn\">Reset this subject</button>';\n  h += '</div>';\n\n  /* summary — the headline is the question this page exists to answer:\n     what does it cost to get from where I am to where I want to be. */\n  var toTarget = sys.range(lv, tgt, variant);\n  var next1 = sys.range(lv, Math.min(lv+1, sys.max), variant);\n  var next5 = sys.range(lv, Math.min(lv+5, sys.max), variant);\n  var spent = sys.range(sys.min, lv, variant);\n  h += '<div class=\"summary\">';\n  h += '<div class=\"stat\"><span class=\"k\">' + fmtInt(lv) + ' → ' + fmtInt(tgt) + '</span><span class=\"v accent\">' +\n       fmtNum(toTarget[cur]||0) + '<span class=\"u\">' + esc(CUR[cur].label.toLowerCase()) + '</span></span></div>';\n  h += '<div class=\"stat\"><span class=\"k\">Next level</span><span class=\"v\">' + fmtNum(next1[cur]||0) + '</span></div>';\n  h += '<div class=\"stat\"><span class=\"k\">Next 5 → ' + fmtInt(Math.min(lv+5, sys.max)) + '</span><span class=\"v\">' + fmtNum(next5[cur]||0) + '</span></div>';\n  h += '<div class=\"stat\"><span class=\"k\">Sunk to ' + fmtInt(lv) + '</span><span class=\"v\">' + fmtNum(spent[cur]||0) + '</span></div>';\n  h += '</div>';\n\n  // The full bill for the target, when a system charges in more than one\n  // currency. The table can only show one column at a time; a village\n  // building upgrade you cannot actually afford in wood is not a detail.\n  var others = [];\n  for (var ck in toTarget){ if (ck !== cur && toTarget[ck]) others.push(CUR[ck].label + ' ' + fmtNum(toTarget[ck])); }\n  if (others.length){\n    h += '<div class=\"billstrip\"><span class=\"bk\">' + fmtInt(lv) + ' → ' + fmtInt(tgt) + ' also charges</span>' +\n         others.map(function(o){ return '<span class=\"bv\">' + esc(o) + '</span>'; }).join('') + '</div>';\n  }\n\n  /* breakpoints: every one, whatever the step, with what changes there */\n  var bps = breaksFor(sys, variant);\n  h += '<div class=\"bpstrip\"><span class=\"bk\">Breakpoints</span>';\n  if (bps.length){\n    bps.forEach(function(b){\n      h += '<button type=\"button\" class=\"bpchip' + (b.at <= lv ? ' passed' : '') + '\" data-bp=\"' + b.at + '\" data-tip=\"' +\n           esc(b.tip + (b.at <= lv ? ' (Behind you.)' : ' Click to make it your target.')) + '\"' +\n           (b.dev ? ' data-tip-dev=\"' + esc(b.dev) + '\"' : '') + '><b>' + fmtInt(b.at) + '</b>' + esc(b.short) + '</button>';\n    });\n  } else {\n    h += '<span class=\"bpnone\">' + esc(sys.noBreaks || 'None.') + '</span>';\n  }\n  h += '</div>';\n\n  if (sys.curNote){\n    h += '<div style=\"padding:10px 16px 0\"><div class=\"banner\"><span>' + sys.curNote + '</span></div></div>';\n  }\n\n  /* table */\n  h += '<div class=\"tablewrap\"><table><thead><tr>' +\n       '<th>' + esc(sys.unitShort) + '</th>' +\n       '<th>Cost<span class=\"hsub\">' +\n       (step === 1 ? 'this level alone' : 'this ' + step + '-level step') + '</span></th>' +\n       '<th>Cumulative<span class=\"hsub\">from ' + sys.min + '</span></th>' +\n       '<th>From level ' + fmtInt(lv) + '<span class=\"hsub\">what you still owe</span></th>' +\n       '</tr></thead><tbody>';\n\n  // Rows advance by `step`, and always include the current and target levels\n  // even when they do not land on a step boundary - a table that hides the two\n  // rows the reader came for is worse than an unaligned one.\n  var marks = {};\n  for (var q = Math.max(from, sys.min + 1); q <= rowsTo; q += step) marks[q] = true;\n  if (lv > sys.min) marks[lv] = true;\n  if (tgt > sys.min && tgt <= rowsTo) marks[tgt] = true;\n  // Breakpoint rows are always shown in range, even off-step: a table that\n  // steps past the level where the formula changes hides the one row that\n  // explains the jump.\n  var bpAt = {};\n  bps.forEach(function(b){ bpAt[b.at] = b; if (b.at > sys.min && b.at >= from && b.at <= rowsTo) marks[b.at] = true; });\n  var rowLevels = Object.keys(marks).map(Number).sort(function(a,b){ return a-b; });\n\n  for (var ri = 0; ri < rowLevels.length; ri++){\n    var n = rowLevels[ri];\n    var prev = ri > 0 ? rowLevels[ri-1] : Math.max(sys.min, n - step);\n    var cls = n === lv ? 'current' : (n < lv ? 'past' : '');\n    if (n === tgt && n !== lv) cls += ' target';\n    var bp = bpAt[n] || null;\n    if (bp) cls += ' bp';\n    var stepCost = sys.range(prev, n, variant);\n    var cum  = sys.range(sys.min, n, variant);\n    h += '<tr class=\"' + cls + '\"' + (n===lv ? ' id=\"curRow\"' : '') + '>';\n    h += '<td>' + fmtInt(n) + (bp ? '<span class=\"bpnote\" data-tip=\"' + esc(bp.tip) + '\">' + esc(bp.short) + '</span>' : '') + '</td>';\n    h += costCell(stepCost, cur);\n    h += costCell(cum, cur);\n    if (n <= lv) h += '<td class=\"dash\">—</td>';\n    else h += costCell(sys.range(lv, n, variant), cur);\n    h += '</tr>';\n  }\n  h += '</tbody></table></div>';\n\n  /* row controls */\n  h += '<div class=\"rowctl\">';\n  h += '<span class=\"hint\">Showing ' + Math.max(from, sys.min+1) + '–' + rowsTo +\n       ' of ' + sys.min + '–' + fmtInt(sys.max) + ', every ' + step + '.' +\n       (sys.maxNote ? ' ' + sys.maxNote : '') +\n       (bps.length ? ' Violet rows mark where the formula changes shape.' : '') + '</span>';\n  h += '<button class=\"btn sm expandbtn\" type=\"button\" id=\"expandBtn\" aria-pressed=\"' +\n       (state.expanded ? 'true' : 'false') + '\">' +\n       (state.expanded ? 'Shrink table' : 'Expand table') + '</button>';\n  if (rowsTo < sys.max && sys.expandBy) h += '<button class=\"btn sm\" type=\"button\" id=\"more30\">+' + sys.expandBy + ' levels</button>';\n  else h += '<span style=\"font-size:.72rem;color:var(--ink-mute)\">Showing the full range.</span>';\n  h += '</div>';\n\n  /* notes */\n  // Two audiences, one panel. A player wants the formula and the sentence that\n  // says what it means; the evidence tier, the source files and the\n  // last-checked date are for whoever maintains the numbers. The developer half\n  // is hidden unless \"Show developer info\" is on, and tinted with --dev when\n  // it is, so the two are never confused. DESIGN.md §7, register R67.\n  h += '<details class=\"notes\"><summary>Formula' +\n       '<span data-dev-only> &amp; source</span></summary><div class=\"notebody\">';\n  h += '<span class=\"formula\">' + esc(sys.formula) + '</span>';\n  h += '<p>' + sys.userNote + '</p>';\n  if (sys.devNote) h += '<p data-dev-only><span class=\"devpill\">dev</span> ' + sys.devNote + '</p>';\n  h += '<div class=\"srcline\" data-dev-only>' +\n       '<span class=\"devpill\">' + sys.tier + '</span>';\n  sys.srcs.forEach(function(x){ h += '<span class=\"devpill\">' + esc(x) + '</span>'; });\n  h += '<span class=\"devpill\">last checked ' + esc(sys.checked) + '</span>';\n  h += '</div></div></details>';\n\n  document.getElementById('main').innerHTML = h;\n  NUM.enhance(document.getElementById('main'));\n  wireSystem(sys);\n}\n\nfunction breaksFor(sys, variant){\n  var b = typeof sys.breaks === 'function' ? sys.breaks(variant) : (sys.breaks || []);\n  return b.filter(function(x){ return x.at >= sys.min && x.at <= sys.max; }).sort(function(x, y){ return x.at - y.at; });\n}\n\nfunction wireSystem(sys){\n  var key = keyFor(sys);\n\n  Array.prototype.forEach.call(document.querySelectorAll('.bpchip'), function(chip){\n    chip.addEventListener('click', function(){\n      var at = parseInt(chip.getAttribute('data-bp'), 10);\n      if (at > currentLevel(sys)){ state.targets[key] = at; delete state.rows[key]; save(); }\n      renderSystem(); sizeTable(); scrollRowIntoView(at);\n    });\n  });\n\n  var lvInput = document.getElementById('lvInput');\n  lvInput.addEventListener('input', function(){\n    var v = NUM.read(lvInput); if (v !== null) v = Math.round(v);\n    if (v === null || v < sys.min || v > sys.max) return;\n    state.levels[key] = v;\n    edited[key] = true;\n    save();\n    renderAll('lvInput');\n  });\n\n  var tgtInput = document.getElementById('tgtInput');\n  tgtInput.addEventListener('input', function(){\n    var v = NUM.read(tgtInput); if (v !== null) v = Math.round(v);\n    if (v === null || v <= currentLevel(sys) || v > sys.max) return;\n    state.targets[key] = v;\n    delete state.rows[key];\n    save();\n    renderAll('tgtInput');\n  });\n\n  var light = document.getElementById('stateLight');\n  if (light) light.addEventListener('click', function(){\n    delete edited[key];\n    delete state.levels[key];\n    save();\n    if (!SYNC.connected()) SYNC.request();\n    renderAll();\n  });\n\n  document.getElementById('resetSysBtn').addEventListener('click', function(){\n    delete edited[key];\n    delete state.levels[key];\n    delete state.rows[key];\n    delete state.targets[key];\n    delete state.steps[key];\n    save();\n    renderAll();\n  });\n\n  var varSel = document.getElementById('varSel');\n  if (varSel) varSel.addEventListener('change', function(){\n    state.variants[sys.id] = varSel.value;\n    save(); renderAll();\n  });\n\n  var curSel = document.getElementById('curSel');\n  if (curSel) curSel.addEventListener('change', function(){\n    state.currency[sys.id] = curSel.value;\n    save(); renderSystem();\n  });\n\n  var stepInput = document.getElementById('stepInput');\n  stepInput.addEventListener('input', function(){\n    var v = NUM.read(stepInput); if (v !== null) v = Math.round(v);\n    if (v === null || v < 1 || v > sys.max) return;\n    state.steps[key] = v;\n    save(); renderAll('stepInput');\n  });\n\n  document.getElementById('expandBtn').addEventListener('click', function(){\n    state.expanded = !state.expanded;\n    save(); renderSystem(); sizeTable(); scrollCurrentIntoView();\n  });\n\n  var more = document.getElementById('more30');\n  if (more) more.addEventListener('click', function(){\n    var lv = currentLevel(sys);\n    var now = state.rows[key] || Math.max(lv + sys.view, targetLevel(sys));\n    state.rows[key] = Math.min(now + sys.expandBy, sys.max);\n    save(); renderSystem();\n  });\n}\n\nfunction renderAll(refocusId, forceScrollY){\n  var scrollY = forceScrollY != null ? forceScrollY : window.scrollY;\n  var caret = null;\n  if (refocusId){\n    var was = document.getElementById(refocusId);\n    if (was) { try { caret = was.selectionStart; } catch(e){} }\n  }\n  renderNav();\n  if (SYNC) SYNC.renderCards();\n  renderSystem();\n  if (refocusId){\n    var el = document.getElementById(refocusId);\n    if (el){\n      el.focus();\n      // Put the caret back where the user left it. Jamming it to the end\n      // makes editing the middle of a number impossible.\n      try { if (caret != null) el.setSelectionRange(caret, caret); } catch(e){}\n    }\n  }\n  window.scrollTo(0, scrollY);\n  sizeTable();\n  scrollCurrentIntoView();\n}\n\n// The table gets a real height so \"scroll the current row into view\" means\n// something — sized to the viewport, not a fixed pixel count. Re-applied on\n// every render, because renderSystem() replaces the element.\nfunction sizeTable(){\n  var w = document.querySelector('.tablewrap');\n  if (!w) return;\n  var reserve = state.expanded ? 150 : 380;\n  w.style.maxHeight = Math.max(320, window.innerHeight - reserve) + 'px';\n}\n\nfunction scrollRowIntoView(level){\n  var wrap = document.querySelector('.tablewrap');\n  if (!wrap) return;\n  var rows = wrap.querySelectorAll('tbody tr');\n  for (var i = 0; i < rows.length; i++){\n    var c = rows[i].firstChild;\n    if (c && parseInt(c.textContent.replace(/[^0-9]/g, ''), 10) === level){\n      var delta = rows[i].getBoundingClientRect().top - wrap.getBoundingClientRect().top;\n      wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * rows[i].offsetHeight);\n      return;\n    }\n  }\n}\n\nfunction scrollCurrentIntoView(){\n  var wrap = document.querySelector('.tablewrap');\n  var row = document.getElementById('curRow');\n  if (!wrap || !row) return;\n  // A few rows above the current one, the rest below — the decision is about\n  // what comes next, not what is already paid for. Measured rather than read\n  // off offsetTop, whose offsetParent is the panel here, not the scroller.\n  var delta = row.getBoundingClientRect().top - wrap.getBoundingClientRect().top;\n  wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * row.offsetHeight);\n}\n\n/* =====================================================================\n   BOOT\n   ===================================================================== */\nfunction init(){\n  load();\n\n  document.getElementById('nav').addEventListener('click', function(e){\n    var b = e.target.closest('.navbtn');\n    if (!b) return;\n    state.active = b.getAttribute('data-sys');\n    save();\n    renderAll(null, 0);\n  });\n\n  document.getElementById('resetAllBtn').addEventListener('click', function(){\n    state.levels = {}; state.rows = {}; state.targets = {}; state.steps = {}; edited = {};\n    save(); renderAll();\n  });\n\n  AWOO_TOOL_SETTINGS.mount(document.getElementById('gear'), {\n    devHint: 'Adds the evidence tier, source files and last-checked date to each Formula panel.'\n  });\n  // Numbers and theme re-render the page; the gear menu says when they change.\n  AWOO_TOOL_SETTINGS.onChange(function(){ renderAll(); });\n\n  // The shared sync card, with this page's own per-subject state reported\n  // into it: its counts, and its Reset.\n  SYNC.card(document.getElementById('syncCard'));\n  SYNC.extend({\n    summary: syncSummary,\n    reset: function(){\n      for (var k in edited){ if (PROFILE_READS[k]) { delete edited[k]; delete state.levels[k]; } }\n      save(); renderAll();\n    }\n  });\n  // A live capture re-prices the page, but never under someone's typing: an\n  // input with focus waits for blur.\n  var pendingProfile = false;\n  SYNC.onProfile(function(){\n    var a = document.activeElement;\n    if (a && a.closest && a.closest('#main') && /INPUT|SELECT/.test(a.tagName)){ pendingProfile = true; return; }\n    renderAll();\n  });\n  document.addEventListener('focusout', function(){\n    if (pendingProfile){ pendingProfile = false; setTimeout(function(){ renderAll(); }, 0); }\n  });\n\n  var backTop = document.getElementById('backTop');\n  backTop.addEventListener('click', function(){ window.scrollTo({ top:0, behavior:'smooth' }); });\n  // Cheap enough not to need rAF gating, and a plain handler is verifiable in\n  // an automated browser where an rAF-gated one is not (style guide, Lessons).\n  var updateBackTop = function(){\n    backTop.hidden = !(window.scrollY > 320 && window.innerWidth <= 1040);\n  };\n  window.addEventListener('scroll', updateBackTop);\n  window.addEventListener('resize', function(){ sizeTable(); scrollCurrentIntoView(); updateBackTop(); });\n  updateBackTop();\n\n  renderAll();\n}\n\n/* The test seam, and the profile reads for inspection. */\nwindow.AWOO_COST_TABLES = {\n  refresh: function(){ renderAll(); return syncSummary(); },\n  reads: PROFILE_READS,\n  systems: SYSTEMS,\n  breaks: breaksFor\n};\nwindow.__AWOO_COST_TABLES_FOR_TEST = {\n  sanctumNodeCost:sanctumNodeCost, petSlotCost:petSlotCost,\n  partnerBoostCost:partnerBoostCost, levelExp:levelExp, houseCost:houseCost,\n  caveToolCost:caveToolCost, villageBuildingCost:villageBuildingCost,\n  relicBracketSurcharge:relicBracketSurcharge, triangular:triangular,\n  geomCost:geomCost, base10Series:base10Series,\n  fmtNum:function(n, mode, localeKey){\n    NUM._set(mode || 'letters', localeKey);\n    try { return fmtNum(n); } finally { NUM._set(null, null); }\n  },\n  profileValue:profileValue, fieldState:fieldState, breaksFor:breaksFor\n};\n\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);\nelse init();\n})();\n</script>\n";
+  const AWOO_TOOL_COST_TABLES = "<!doctype html>\n<meta charset=\"utf-8\">\n<title>Cost Tables</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Azeret+Mono:wght@400;500;600&display=swap\">\n\n<meta name=\"awoo-tool\" content=\"cost-tables\">\n<style>\n/* ===========================================================================\n   AWOO+ THEME TOKENS — GENERATED, DO NOT EDIT BY HAND.\n\n   Source: the AWOO+ Design System (projects/ARTIFACT_STYLE_GUIDE.md Part II,\n   live at https://claude.ai/artifact/3Xv8kdGSd6Lth8MhQEtBrS). Injected into\n   every tool page by userscripts/build.mjs at the <!-- @AWOO_THEME_TOKENS@ -->\n   marker, so one palette correction reaches every tool on the next build.\n\n   SEVEN THEMES, FOUR FAMILIES. A family name carries no mode; the variant\n   does, and only where more than one exists — which is why Slate and Claude\n   Code have no suffix.\n\n     Beach        light · dimmed\n     Slate        (was \"war room\" before the merge)\n     Claude       light · medium · dark\n     Claude Code  (RECONSTRUCTED from the brand register, not sampled)\n\n   ONE CONTRACT. Every theme defines the same 25 tokens and no component ever\n   names a colour, which is what makes an eighth theme a block of properties\n   rather than a rewrite. Two of those tokens exist for specific reasons:\n     --accent-edge     the soft edge of a tinted row. A full-strength accent\n                       ring reads as a frame around a table row, not emphasis\n                       on it.\n     --border-control  inputs, selects and buttons only, clearing WCAG\n                       1.4.11's 3:1 against surface. Table hairlines stay soft\n                       on --border.\n\n   Every text pair in every theme clears WCAG AA; tertiary \"muted\" text is\n   AA-large by design across the whole family.\n   =========================================================================== */\n:root{\n  /* Beach (light) is the base layer, so an un-stamped page is always legible. */\n  --ground:#EFE7D7;\n  --surface:#FAF5EC;\n  --surface-2:#F1E8D8;\n  --surface-3:#E7DCC7;\n  --border:#D8CBB2;\n  --border-strong:#C3B193;\n  --border-control:#8C7D64;\n  --ink:#33291D;\n  --ink-soft:#6B5C48;\n  --ink-mute:#94836C;\n  --accent:#8A4322;\n  --accent-fill:#A8552C;\n  --accent-edge:#D4AB93;\n  --bg-accent:#F3E2D8;\n  --on-accent:#FBF0E6;\n  --success:#3F5C33;\n  --success-fill:#4A6741;\n  --bg-success:#E4EBDC;\n  --danger:#8C2F2A;\n  --danger-fill:#A83A33;\n  --bg-danger:#F5E0DD;\n  --info:#41528A;\n  --bg-info:#E2E5F2;\n  --neutral:#6E5F49;\n  --bg-neutral:#EDE4D3;\n  --dev:#2E6B5C;\n  --bg-dev:#DCEBE6;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n\n  /* TYPE, corrected 2026-09-21 after MEASURING the glyphs rather than\n     recalling them.\n\n     NUMBERS ARE PUBLIC SANS, NOT A MONO FACE. The requirement was a clear,\n     unmarked zero. Measured by rendering each zero at 200px and sampling the\n     centre of its counter (capital O as the control, which reads 0% ink in\n     every face, proving the method): Noto Sans Mono 83%, DM Mono 80%, Roboto\n     Mono 69%, IBM Plex Mono 93%, JetBrains Mono 95%, Space Mono 95%, Cousine\n     100%. Every one of them marks the zero. So does the earlier \"fix\":\n     font-feature-settings \"zero\" 0 changes NOTHING in any of them, because\n     the mark is the default glyph, not an optional feature.\n\n     Public Sans's own zero measures 0% — genuinely open — and\n     font-variant-numeric: tabular-nums makes every digit exactly the same\n     width (measured: all ten at 70px against 40.7-64.75 proportional). Fixed\n     width is what a column needs; a monospaced FACE was never the\n     requirement. So the number face is the text face, with tabular figures.\n\n     --font-mono stays a real mono for identifiers and formula text, where\n     letter alignment matters: Azeret Mono, the only mono of the eight tested\n     whose zero measured 0%. */\n  --font-display:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-body:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-num:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-mono:'Azeret Mono',ui-monospace,'Cascadia Mono',monospace;\n  --display-tracking:-.005em; --display-caps:none;\n  --radius:6px;\n\n  /* DENSITY, 2026-09-21. These are read as data, not prose: a table row and a\n     nav row both want to be tighter than a paragraph. Tokens rather than\n     literals so \"slightly more condensed\" is one edit, everywhere. */\n  --row-y:2px;        /* table cell vertical padding */\n  --row-x:12px;       /* table cell horizontal padding */\n  --nav-y:3px;        /* sidebar nav row */\n  --ctl-y:2px;        /* input and select vertical padding */\n  --ctl-x:6px;\n  --ctl-w:78px;       /* a number input's default width - subtle, not a field */\n  --pad-panel:11px;\n}\n\n/* No explicit choice and a dark OS: Slate. */\n@media (prefers-color-scheme: dark){\n  :root:not([data-theme]){\n    --ground:#14181D;\n    --surface:#1B2027;\n    --surface-2:#20262D;\n    --surface-3:#272F37;\n    --border:#2B323A;\n    --border-strong:#3A434C;\n    --border-control:#6A7684;\n    --ink:#E8EAEB;\n    --ink-soft:#A9B0B6;\n    --ink-mute:#78828B;\n    --accent:#E3B36B;\n    --accent-fill:#C4923F;\n    --accent-edge:#5A4522;\n    --bg-accent:#2E2412;\n    --on-accent:#241300;\n    --success:#84C4AA;\n    --success-fill:#4F8C74;\n    --bg-success:#172E25;\n    --danger:#E28270;\n    --danger-fill:#C1503C;\n    --bg-danger:#351F1A;\n    --info:#B4A4E0;\n    --bg-info:#241F36;\n    --neutral:#9AA6B2;\n    --bg-neutral:#222A32;\n    --dev:#78C8BC;\n    --bg-dev:#14302C;\n    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n  }\n}\n\n/* Beach (light) */\n:root[data-theme=\"beach\"]{\n  --ground:#EFE7D7;\n  --surface:#FAF5EC;\n  --surface-2:#F1E8D8;\n  --surface-3:#E7DCC7;\n  --border:#D8CBB2;\n  --border-strong:#C3B193;\n  --border-control:#8C7D64;\n  --ink:#33291D;\n  --ink-soft:#6B5C48;\n  --ink-mute:#94836C;\n  --accent:#8A4322;\n  --accent-fill:#A8552C;\n  --accent-edge:#D4AB93;\n  --bg-accent:#F3E2D8;\n  --on-accent:#FBF0E6;\n  --success:#3F5C33;\n  --success-fill:#4A6741;\n  --bg-success:#E4EBDC;\n  --danger:#8C2F2A;\n  --danger-fill:#A83A33;\n  --bg-danger:#F5E0DD;\n  --info:#41528A;\n  --bg-info:#E2E5F2;\n  --neutral:#6E5F49;\n  --bg-neutral:#EDE4D3;\n  --dev:#2E6B5C;\n  --bg-dev:#DCEBE6;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n}\n\n/* Beach (dimmed) */\n:root[data-theme=\"beach-dim\"]{\n  --ground:#17181A;\n  --surface:#1E2022;\n  --surface-2:#25282A;\n  --surface-3:#2E3134;\n  --border:#33373A;\n  --border-strong:#4A4F53;\n  --border-control:#6D7378;\n  --ink:#E6E4E0;\n  --ink-soft:#A8A49D;\n  --ink-mute:#7C7872;\n  --accent:#F2B189;\n  --accent-fill:#CC7A50;\n  --accent-edge:#5C412C;\n  --bg-accent:#31241A;\n  --on-accent:#1B0D05;\n  --success:#7CC49A;\n  --success-fill:#3F8A61;\n  --bg-success:#17301F;\n  --danger:#EB8272;\n  --danger-fill:#C0453A;\n  --bg-danger:#341D1B;\n  --info:#A3AEDD;\n  --bg-info:#1F2130;\n  --neutral:#A09B92;\n  --bg-neutral:#26282A;\n  --dev:#7FC9B8;\n  --bg-dev:#16302A;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Slate */\n:root[data-theme=\"slate\"]{\n  --ground:#14181D;\n  --surface:#1B2027;\n  --surface-2:#20262D;\n  --surface-3:#272F37;\n  --border:#2B323A;\n  --border-strong:#3A434C;\n  --border-control:#6A7684;\n  --ink:#E8EAEB;\n  --ink-soft:#A9B0B6;\n  --ink-mute:#78828B;\n  --accent:#E3B36B;\n  --accent-fill:#C4923F;\n  --accent-edge:#5A4522;\n  --bg-accent:#2E2412;\n  --on-accent:#241300;\n  --success:#84C4AA;\n  --success-fill:#4F8C74;\n  --bg-success:#172E25;\n  --danger:#E28270;\n  --danger-fill:#C1503C;\n  --bg-danger:#351F1A;\n  --info:#B4A4E0;\n  --bg-info:#241F36;\n  --neutral:#9AA6B2;\n  --bg-neutral:#222A32;\n  --dev:#78C8BC;\n  --bg-dev:#14302C;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude (light) */\n:root[data-theme=\"claude\"]{\n  --ground:#F0EEE6;\n  --surface:#FFFFFF;\n  --surface-2:#F7F6F1;\n  --surface-3:#EBE9E0;\n  --border:#DEDACE;\n  --border-strong:#C5C0B2;\n  --border-control:#8A8474;\n  --ink:#191917;\n  --ink-soft:#57544C;\n  --ink-mute:#84806F;\n  --accent:#A8461F;\n  --accent-fill:#B4552F;\n  --accent-edge:#DEB49F;\n  --bg-accent:#F7E6DD;\n  --on-accent:#FFF4EE;\n  --success:#276048;\n  --success-fill:#317055;\n  --bg-success:#D3E8DC;\n  --danger:#9E2B22;\n  --danger-fill:#BE4034;\n  --bg-danger:#F8E2DF;\n  --info:#474C93;\n  --bg-info:#E5E6F4;\n  --neutral:#6B6759;\n  --bg-neutral:#EDEBE2;\n  --dev:#256657;\n  --bg-dev:#D8EBE5;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n}\n\n/* Claude (medium) */\n:root[data-theme=\"claude-med\"]{\n  --ground:#26241F;\n  --surface:#2F2D27;\n  --surface-2:#37352E;\n  --surface-3:#403D35;\n  --border:#454239;\n  --border-strong:#5C5849;\n  --border-control:#807A68;\n  --ink:#EDEAE0;\n  --ink-soft:#B3AE9E;\n  --ink-mute:#8A8676;\n  --accent:#EFA189;\n  --accent-fill:#C26A4F;\n  --accent-edge:#66452F;\n  --bg-accent:#3B2A1E;\n  --on-accent:#1C0C03;\n  --success:#84C6A2;\n  --success-fill:#3C8A63;\n  --bg-success:#22342A;\n  --danger:#EE8B79;\n  --danger-fill:#BC4739;\n  --bg-danger:#3B2622;\n  --info:#AFA8E2;\n  --bg-info:#2B2839;\n  --neutral:#A8A292;\n  --bg-neutral:#343128;\n  --dev:#82C9B9;\n  --bg-dev:#1F3330;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude (dark) */\n:root[data-theme=\"claude-dark\"]{\n  --ground:#141312;\n  --surface:#1C1B19;\n  --surface-2:#232220;\n  --surface-3:#2C2A27;\n  --border:#31302C;\n  --border-strong:#47443E;\n  --border-control:#6E6A61;\n  --ink:#EFECE3;\n  --ink-soft:#ACA79A;\n  --ink-mute:#7E7A6E;\n  --accent:#F0A791;\n  --accent-fill:#C36E52;\n  --accent-edge:#523A26;\n  --bg-accent:#2B1D14;\n  --on-accent:#1A0A02;\n  --success:#82C9A3;\n  --success-fill:#3E8F66;\n  --bg-success:#14291D;\n  --danger:#F0907E;\n  --danger-fill:#C24A3B;\n  --bg-danger:#2E1B18;\n  --info:#B3ABE6;\n  --bg-info:#211E2E;\n  --neutral:#A5A092;\n  --bg-neutral:#26241F;\n  --dev:#7FCBBA;\n  --bg-dev:#132A26;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude Code */\n:root[data-theme=\"claude-code\"]{\n  --ground:#1F1E1D;\n  --surface:#262625;\n  --surface-2:#2E2E2C;\n  --surface-3:#383836;\n  --border:#3A3A38;\n  --border-strong:#54544F;\n  --border-control:#787870;\n  --ink:#F5F4EF;\n  --ink-soft:#B4B2A7;\n  --ink-mute:#88867C;\n  --accent:#E39070;\n  --accent-fill:#C2613F;\n  --accent-edge:#4A3227;\n  --bg-accent:#33221B;\n  --on-accent:#1A0A04;\n  --success:#7FC49E;\n  --success-fill:#3C8961;\n  --bg-success:#1C2E23;\n  --danger:#EE8B78;\n  --danger-fill:#BF4A39;\n  --bg-danger:#33211D;\n  --info:#ADA6E0;\n  --bg-info:#28253A;\n  --neutral:#A3A198;\n  --bg-neutral:#2C2C2A;\n  --dev:#7DC6B6;\n  --bg-dev:#1B2E2A;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* LEGACY ALIASES. The tool CSS written against the war-room names keeps\n   working; a new theme only has to fill the role names above. Do not use\n   these in new code. */\n:root,:root[data-theme]{\n  --brass:var(--accent); --brass-fill:var(--accent-fill);\n  --brass-text:var(--accent); --on-brass:var(--on-accent); --bg-brass:var(--bg-accent);\n  --ember:var(--danger); --ember-fill:var(--danger-fill); --bg-ember:var(--bg-danger);\n  --moss:var(--success); --moss-fill:var(--success-fill); --bg-moss:var(--bg-success);\n  --violet:var(--info); --bg-violet:var(--bg-info);\n  --steel:var(--neutral); --bg-steel:var(--bg-neutral);\n  --font-head:var(--font-display);\n}\n\n/* NUMBERS. Tabular figures give fixed-width digits, which is what makes a\n   column line up; the face itself is proportional and its zero is open.\n   `font-feature-settings: \"zero\" 0` is deliberately NOT used - it was tried,\n   and it does nothing, because in every mono face tested the slash or dot is\n   the default glyph rather than an optional feature. The fix is face choice,\n   not a feature flag. */\n.num,[data-num],table td,.stat .v,.mini .mr{\n  font-variant-numeric:tabular-nums;\n}\n\n/* DEVELOPER INFO (DESIGN.md §7, register R67). Hidden unless the reader has\n   turned it on, and tinted with its own hue so it is never mistaken for\n   something written for a player. */\n:root:not([data-dev=\"on\"]) [data-dev-only]{display:none!important}\n[data-dev-only]{color:var(--dev)}\n.devpill{\n  font-family:var(--font-mono);font-size:.6rem;font-weight:700;\n  padding:1px 6px;border-radius:3px;background:var(--bg-dev);color:var(--dev);\n}\n\n</style>\n<style>\n/* ===========================================================================\n   AWOO+ TOOL SETTINGS — the gear menu every tool shares.\n\n   Hand-written, unlike theme-tokens.css beside it. Injected by\n   userscripts/build.mjs at the <!-- @AWOO_TOOL_SETTINGS@ --> marker together\n   with tool-settings.js, for the same reason the tokens are injected rather\n   than copied: the menu, the theme inheritance and the \"Match game\" fallback\n   were about to exist four times, and the fallback is the part that has to\n   change in one place when Core's theme snapshot reaches tool payloads.\n\n   Every selector is prefixed `awoo-gear` because it lands inside pages whose\n   own `.btn` / `.panel` / `.note` rules differ from tool to tool.\n   ARTIFACT_STYLE_GUIDE.md Part II, \"Settings menu\".\n   =========================================================================== */\n.awoo-gear{position:relative;flex:none}\n.awoo-gear-btn{\n  background:transparent; border:1px solid var(--border-control); color:var(--ink-soft);\n  border-radius:4px; padding:3px 8px; cursor:pointer;\n  font:inherit; font-size:.95rem; line-height:1;\n}\n.awoo-gear-btn:hover,.awoo-gear-btn[aria-expanded=\"true\"]{\n  color:var(--ink); border-color:var(--accent-fill); background:var(--surface-2);\n}\n.awoo-gear-menu{\n  position:absolute; right:0; top:calc(100% + 6px); z-index:60; width:250px;\n  background:var(--surface); color:var(--ink); border:1px solid var(--border-strong);\n  border-radius:6px; box-shadow:var(--shadow); padding:8px;\n  display:flex; flex-direction:column; gap:7px;\n  font-family:var(--font-body); font-size:14px; line-height:1.4; text-align:left;\n}\n/* Opening upward, for a gear that sits at the foot of the viewport. */\n.awoo-gear-menu.up{top:auto; bottom:calc(100% + 6px)}\n.awoo-gear-row{display:flex;flex-direction:column;gap:3px}\n.awoo-gear-row label{\n  font-size:.62rem;font-weight:700;letter-spacing:.08em;\n  text-transform:uppercase;color:var(--ink-mute);\n}\n.awoo-gear-row select{\n  background:var(--surface-2); color:var(--ink); border:1px solid var(--border-control);\n  border-radius:4px; padding:var(--ctl-y) var(--ctl-x); font:inherit; font-size:.76rem; width:100%;\n}\n.awoo-gear-check{flex-direction:row;align-items:center;gap:7px}\n.awoo-gear-check label{flex:1}\n.awoo-gear-check input{accent-color:var(--accent-fill);margin:0}\n.awoo-gear-note{font-size:.66rem;color:var(--ink-mute);line-height:1.4}\n.awoo-gear-note:empty{display:none}\n/* A fallback is information the reader needs, not a footnote: the page is\n   deliberately not in the theme they asked for, and it says so. */\n.awoo-gear-note.fallback{color:var(--info);background:var(--bg-info);border-radius:4px;padding:4px 6px}\n\n/* SIDEBAR PINNING (2026-09-21). The default is that a tool's sidebar scrolls\n   WITH the page, and is pinned only while the whole of it fits on screen — a\n   pinned sidebar taller than the window hides its own bottom until the page\n   ends, and an independently scrolling one is a second scrollbar to manage.\n   \"Sidebar scrolls on its own\" in the gear menu restores the older behaviour.\n   tool-settings.js measures and sets data-side-mode; nothing else should. */\n[data-awoo-sidebar][data-side-mode=\"sticky\"]{position:sticky;top:var(--side-top,20px)}\n[data-awoo-sidebar][data-side-mode=\"scroll\"]{\n  position:sticky; top:var(--side-top,20px);\n  max-height:calc(100vh - var(--side-top,20px) - 16px);\n  overflow-y:auto; overflow-x:hidden; scrollbar-width:thin;\n}\n\n/* ===========================================================================\n   THE SHARED TOOL KIT (2026-09-23): the title block, the sync card, the field\n   lights, the Live/Standard switch and the one tooltip. tool-sync.js renders\n   the dynamic parts; these rules are the whole of their look, so every tool\n   shows the same card and the same lights.\n   =========================================================================== */\n\n/* Title block: eyebrow, title, one line, and the gear top-right. The layout\n   Party Gold ROI and Stat Rate Optimizer settled, now the standard. */\n.awoo-head{position:relative;padding-right:2.4rem}\n.awoo-head .awoo-gear{position:absolute;top:0;right:0}\n.awoo-eyebrow{font-family:var(--font-mono);font-size:.63rem;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin:0 0 .3rem}\n.awoo-title{font-family:var(--font-display);font-weight:700;font-size:1.7rem;line-height:1.05;margin:0 0 .3rem;text-wrap:balance;letter-spacing:normal;text-transform:none;color:var(--ink)}\n.awoo-sub{color:var(--ink-soft);font-size:.78rem;line-height:1.45;margin:0}\n\n/* Buttons the kit renders. Tools keep their own .btn; these do not collide. */\n.awoo-btn{\n  font-family:var(--font-body); font-size:.72rem; font-weight:500; color:var(--ink-soft);\n  background:var(--surface-2); border:1px solid var(--border-control); border-radius:6px;\n  padding:.28rem .6rem; cursor:pointer; white-space:nowrap; flex:1;\n}\n.awoo-btn:hover{border-color:var(--accent-fill);color:var(--accent);background:var(--surface-3)}\n.awoo-btn:disabled{opacity:.4;cursor:default}\n.awoo-btn:disabled:hover{border-color:var(--border-control);color:var(--ink-soft);background:var(--surface-2)}\n.awoo-btn-primary{color:var(--on-accent);background:var(--accent-fill);border-color:var(--accent-fill)}\n.awoo-btn-primary:hover{filter:brightness(1.07);color:var(--on-accent);background:var(--accent-fill)}\n\n/* The sync card: state and age on one line, the mode switch, two actions. */\n.awoo-sync{\n  background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border-strong);\n  border-radius:var(--radius); padding:var(--pad-panel); box-shadow:var(--shadow);\n  display:flex; flex-direction:column; gap:.45rem; font-family:var(--font-body); font-size:.75rem;\n}\n.awoo-sync[data-state=\"synced\"]{border-left-color:var(--success-fill)}\n.awoo-sync[data-state=\"stale\"]{border-left-color:var(--accent-fill)}\n.awoo-sync-head{display:flex;align-items:center;gap:.45rem}\n.awoo-sync-head .awoo-light{cursor:default;margin:0}\n.awoo-sync-state{font-weight:600;color:var(--ink);border-bottom:1px dotted var(--ink-mute);cursor:help}\n.awoo-sync-age{margin-left:auto;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--ink-mute);font-size:.68rem}\n.awoo-sync-actions{display:flex;gap:.35rem}\n\n/* Live / Standard. */\n.awoo-seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:2px;background:var(--surface-2);border:1px solid var(--border-control);border-radius:6px}\n.awoo-seg button{border:0;background:transparent;color:var(--ink-soft);font:inherit;font-size:.72rem;font-weight:600;padding:.22rem .4rem;border-radius:4px;cursor:pointer}\n.awoo-seg button:hover{color:var(--ink)}\n.awoo-seg button[aria-pressed=\"true\"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}\n[data-sync-mode=\"live\"] [data-mode-only=\"standard\"],\n[data-sync-mode=\"standard\"] [data-mode-only=\"live\"],\n:root:not([data-sync-mode]) [data-mode-only=\"standard\"]{display:none!important}\n\n/* A field's light. Filled means the game supplied it; hollow means it never\n   did (Core's convention: a state you cannot act on renders hollow). */\n.awoo-light{\n  display:inline-block; flex:none; width:.55rem; height:.55rem; border-radius:50%;\n  border:0; padding:0; margin:0 .3rem 0 0; vertical-align:middle; cursor:pointer;\n  background:transparent; box-shadow:inset 0 0 0 1.5px var(--ink-mute);\n}\n.awoo-light[data-state=\"synced\"]{background:var(--success-fill);box-shadow:none}\n.awoo-light[data-state=\"stale\"]{background:var(--accent-fill);box-shadow:none}\n.awoo-light[data-state=\"edited\"]{background:var(--info);box-shadow:none}\n.awoo-light[data-off=\"true\"]{opacity:.35}\n.awoo-light:focus-visible{outline:2px solid var(--accent-fill);outline-offset:2px}\n\n/* The one tooltip. */\n#awooTip{\n  position:fixed; z-index:200; left:0; top:0; max-width:22rem; pointer-events:none;\n  background:var(--ink); color:var(--surface); white-space:pre-line;\n  font-family:var(--font-body); font-size:.73rem; font-weight:400; line-height:1.45; letter-spacing:normal; text-transform:none;\n  padding:.45rem .6rem; border-radius:6px; box-shadow:var(--shadow);\n  opacity:0; visibility:hidden; transition:opacity .1s;\n}\n#awooTip.on{opacity:1;visibility:visible}\n#awooTip .awoo-tip-dev{display:block;margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--ink-mute);color:var(--bg-dev)}\n.awoo-tip{border-bottom:1px dotted var(--ink-mute);cursor:help}\n@media (prefers-reduced-motion:reduce){#awooTip{transition:none}}\n\n/* Number boxes (data-num): tabular figures in the number font, a size\n   smaller than body text (2026-09-23, asked for), right-aligned so a column\n   of them lines up on the last digit. */\ninput[data-num]{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:.74rem;text-align:right}\n\n/* THE DEFAULT INPUT BOX is Pet Slot ROI's (the maintainer, 2026-09-25: \"I like\n   the input boxes from the pet ROI, make those default. They are nicely\n   compact in height\"). It lives here, in the kit every tool gets, because a\n   box each page styled for itself is how two of them went unstyled: Cost\n   Tables' level boxes became type=\"text\" for locale-aware numbers while its\n   rule still said input[type=number], and the optimizer's ratio boxes sat in\n   a table no rule reached. Both drew the browser's white box under the\n   theme's light ink, which is unreadable in every dark theme. A page rule with\n   a class still wins (this is element + attribute specificity; the select's\n   :not([multiple]) is there only to outrank a page's bare `select` reset), so a page sets\n   only what is its own: a width, an alignment. The gear menu keeps its own. */\ninput[type=number],input[type=text],input:not([type]),select:not([multiple]){\n  font-family:var(--font-num);font-size:.74rem;font-weight:600;color:var(--ink);\n  background:var(--surface-2);border:1px solid var(--border-control);border-radius:4px;\n  padding:var(--ctl-y) var(--ctl-x);min-width:0;font-variant-numeric:tabular-nums;\n  line-height:1.4;height:1.45rem;box-sizing:border-box}\nselect:not([multiple]){font-family:var(--font-body);font-weight:400}\ninput[type=number]{-moz-appearance:textfield;appearance:textfield;text-align:right}\ninput[type=number]::-webkit-outer-spin-button,\ninput[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}\ninput[type=number]:focus,input[type=text]:focus,input:not([type]):focus,select:focus{outline:2px solid var(--accent-fill);outline-offset:1px}\ninput[type=number]:disabled,input[type=text]:disabled,select:disabled{opacity:.45;cursor:not-allowed;background:var(--surface-3)}\n\n</style>\n<script>\n/* ===========================================================================\n   AWOO+ TOOL SETTINGS — theme, developer info and fonts, shared by every tool.\n\n   Hand-written. Injected by userscripts/build.mjs at <!-- @AWOO_TOOL_SETTINGS@ -->\n   (with tool-settings.css), so the inheritance rules below exist once rather\n   than once per tool. A page opts in by carrying the marker, naming itself in\n   <meta name=\"awoo-tool\" content=\"...\"> BEFORE the marker, and calling\n   AWOO_TOOL_SETTINGS.mount(el) from its own init.\n\n   INHERIT, THEN OVERRIDE (ARTIFACT_STYLE_GUIDE.md Part II and Part IV).\n   The theme, \"Show developer info\" and the tool fonts are the PLAYER's\n   settings, held by AWOO+ Core. Core hands them over when it opens a tool, as\n   window.AWOO_APPEARANCE, prepended to the payload the same way AWOO_LIVE is.\n   A choice made in this page's gear menu overrides the inherited one and is\n   remembered per tool; \"Match game\" hands the decision back to Core.\n\n   THE FALLBACKS, stated because each one is a deliberate answer rather than\n   whatever happened to render:\n     - Opened outside the game (nothing inherited): the OS preference decides,\n       Beach (light) or Slate — theme-tokens.css does that with no stamp.\n     - Core's theme is game-shaped (\"Match game\", or the AWOO Turquoise preset):\n       a tool opened in its own tab cannot read the game page's variables, and\n       Core's snapshot of them does not reach tool payloads yet. So the page\n       shows SLATE AND SAYS SO in the menu — never an unstyled page, never a\n       silent substitute. When the snapshot does reach the payload, this\n       branch is the one place that changes.\n   =========================================================================== */\n(function(){\n'use strict';\n\nvar THEMES = [\n  ['beach','Beach (light)'], ['beach-dim','Beach (dimmed)'], ['slate','Slate'],\n  ['claude','Claude (light)'], ['claude-med','Claude (medium)'], ['claude-dark','Claude (dark)'],\n  ['claude-code','Claude Code']\n];\nvar THEME_IDS = THEMES.map(function(t){ return t[0]; });\n// Core's two themes that are defined by the GAME's variables rather than by\n// our contract. Neither can be rendered in a separate tab yet.\nvar GAME_SHAPED = { matchGame:'Match game', awooTurquoise:'AWOO Turquoise' };\nvar FALLBACK_THEME = 'slate';\n\n// The two font lists of Settings > Fonts. Core carries the same two lists for\n// the overlay; userscripts/tests/tool-theme-contract.mjs fails if they drift apart.\n//   text: Public Sans (default) · Open Sans · Figtree\n//   num:  Public Sans with tabular figures (default) · Roboto Mono\n// Roboto Mono marks its zero (69% ink in the counter, measured); it is offered\n// because it was asked for, and labelled for what it is in Core's picker.\nvar FONT_TEXT = {\n  public:  { stack:\"'Public Sans',system-ui,-apple-system,sans-serif\", family:'Public+Sans:wght@400;500;600;700' },\n  open:    { stack:\"'Open Sans',system-ui,-apple-system,sans-serif\",   family:'Open+Sans:wght@400;500;600;700' },\n  figtree: { stack:\"'Figtree',system-ui,-apple-system,sans-serif\",     family:'Figtree:wght@400;500;600;700' }\n};\nvar FONT_NUM = {\n  public: { stack:\"'Public Sans',system-ui,-apple-system,sans-serif\", family:'Public+Sans:wght@400;500;600;700' },\n  roboto: { stack:\"'Roboto Mono',ui-monospace,monospace\",             family:'Roboto+Mono:wght@400;500;600' }\n};\n\n// NUMBER PRESENTATION (2026-09-23: moved here from Cost Tables, so every tool\n// carries it). The game keeps two per-character settings, both CODE facts in\n// data/tables/number-display.json: numberFormatting (standard | exponential |\n// letters) and numberLocale ('Local' -> the browser, '1.000,00', '1,000.00').\n// Core hands the player's own over in AWOO_APPEARANCE.number; the gear menu\n// can override either, per tool. The suffix ladder starts at 1e3, and below\n// 1e6 every mode falls through to standard, which is the game's own rule.\nvar NUM_MODES = ['letters', 'standard', 'exponential'];\nvar LADDER = ['k','m','b','t','qa','qi','sx','sp','oc','no','dc','ud'];\nvar LOCALE_MAP = { 'Local':null, '1.000,00':'de-DE', '1,000.00':'en-US' };\n\nvar root = document.documentElement;\nvar meta = document.querySelector('meta[name=\"awoo-tool\"]');\nvar TOOL = (meta && meta.getAttribute('content')) || 'tool';\nvar LS = 'awoo:tool:' + TOOL + ':appearance';\n\nvar local = { theme:null, dev:null, sideScroll:false, numMode:null, numLocale:null, fontText:null, fontNum:null };\ntry {\n  var raw = localStorage.getItem(LS);\n  if (raw){ var p = JSON.parse(raw); if (p && typeof p === 'object'){\n    local.theme = p.theme || null; local.dev = (typeof p.dev === 'boolean') ? p.dev : null; local.sideScroll = p.sideScroll === true;\n    local.numMode = NUM_MODES.indexOf(p.numMode) >= 0 ? p.numMode : null;\n    local.numLocale = Object.prototype.hasOwnProperty.call(LOCALE_MAP, p.numLocale) ? p.numLocale : null;\n    local.fontText = FONT_TEXT[p.fontText] ? p.fontText : null;\n    local.fontNum = FONT_NUM[p.fontNum] ? p.fontNum : null;\n  } }\n} catch(e){ /* private window or blocked storage: inherit everything */ }\nfunction persist(){\n  try { localStorage.setItem(LS, JSON.stringify(local)); } catch(e){ /* not durable, still applied */ }\n}\n\n// What Core handed over. AWOO_APPEARANCE is the channel; the profile section\n// is the older one Cost Tables was written against, kept so a page embedded\n// beside Core (not in its own tab) still inherits.\nfunction inherited(){\n  var out = { theme:null, dev:null, fonts:null };\n  var a = window.AWOO_APPEARANCE;\n  if (a && typeof a === 'object'){\n    if (typeof a.theme === 'string') out.theme = a.theme;\n    if (typeof a.dev === 'boolean') out.dev = a.dev;\n    if (a.fonts && typeof a.fonts === 'object') out.fonts = a.fonts;\n  }\n  try {\n    var core = window.AWOO_CORE || window.Core;\n    if (core && core.profile && typeof core.profile.section === 'function'){\n      var t = core.profile.section('settings.theme');\n      if (out.theme == null && t && typeof t.value === 'string') out.theme = t.value;\n      var d = core.profile.section('settings.showDeveloperInfo');\n      if (out.dev == null && d && typeof d.value === 'boolean') out.dev = d.value;\n    }\n  } catch(e){ /* absent is absent */ }\n  return out;\n}\n\n// The theme actually painted, and why. `note` is shown in the menu whenever\n// the page is not showing exactly what was asked for.\nfunction resolveTheme(){\n  if (local.theme && THEME_IDS.indexOf(local.theme) >= 0){\n    return { id:local.theme, source:'picked', note:'' };\n  }\n  var inh = inherited().theme;\n  if (inh && THEME_IDS.indexOf(inh) >= 0){\n    return { id:inh, source:'game', note:'' };\n  }\n  if (inh && GAME_SHAPED[inh]){\n    return { id:FALLBACK_THEME, source:'fallback',\n      note:'Your AWOO+ theme is ' + GAME_SHAPED[inh] + ', which a tool cannot read yet. Showing Slate.' };\n  }\n  return { id:null, source:'os', note:'No AWOO+ theme to match, so this follows your system: Beach or Slate.' };\n}\n\nfunction labelOf(id){\n  for (var i = 0; i < THEMES.length; i++) if (THEMES[i][0] === id) return THEMES[i][1];\n  return null;\n}\n\nfunction applyTheme(){\n  var r = resolveTheme();\n  if (r.id) root.setAttribute('data-theme', r.id);\n  else root.removeAttribute('data-theme');\n  return r;\n}\nfunction devOn(){\n  if (local.dev != null) return local.dev;\n  return !!inherited().dev;\n}\nfunction applyDev(){ root.setAttribute('data-dev', devOn() ? 'on' : 'off'); }\n\nfunction inheritedNumber(){\n  var a = window.AWOO_APPEARANCE && window.AWOO_APPEARANCE.number;\n  return {\n    mode: a && NUM_MODES.indexOf(a.formatting) >= 0 ? a.formatting : null,\n    locale: a && Object.prototype.hasOwnProperty.call(LOCALE_MAP, a.locale) ? a.locale : null\n  };\n}\nfunction numMode(){ return local.numMode || inheritedNumber().mode || 'letters'; }\nfunction numLocaleKey(){ return local.numLocale || inheritedNumber().locale || 'Local'; }\nfunction numLocaleTag(){\n  var tag = LOCALE_MAP[numLocaleKey()];\n  if (tag) return tag;\n  try { return navigator.language || 'en-US'; } catch(e){ return 'en-US'; }\n}\nfunction finite(n){ return typeof n === 'number' && isFinite(n); }\n// Grouped digits, rounded. A dash for anything that is not a number, so a\n// missing input never renders as a confident 0.\nfunction fmtInt(n){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  try { return Math.round(n).toLocaleString(numLocaleTag()); } catch(e){ return String(Math.round(n)); }\n}\n// Exactly d decimals, in the player's separators.\nfunction fmtDec(n, d){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  d = d == null ? 2 : d;\n  try { return n.toLocaleString(numLocaleTag(), { minimumFractionDigits:d, maximumFractionDigits:d }); }\n  catch(e){ return n.toFixed(d); }\n}\n// A fraction as a percentage: 0.1234 -> \"12.34%\".\nfunction fmtPct(frac, d){ return finite(frac) ? fmtDec(frac * 100, d == null ? 2 : d) + '%' : '\\u2014'; }\n// The game's own rule: below 1e6 standard (with up to `small` decimals for\n// small non-integers), from 1e6 letters / exponential / standard.\nfunction fmtNum(n, small){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  if (n === 0) return '0';\n  var mode = numMode(), abs = Math.abs(n);\n  if (abs < 1e6 || mode === 'standard'){\n    if (abs < 1000 && small && Math.round(n) !== n){\n      var dd = abs < 10 ? small : Math.max(0, small - 1);\n      try { return n.toLocaleString(numLocaleTag(), { maximumFractionDigits:dd }); } catch(e){ return n.toFixed(dd); }\n    }\n    return fmtInt(n);\n  }\n  if (mode === 'exponential') return n.toExponential(2);\n  var i = Math.min(LADDER.length - 1, Math.floor(Math.log10(abs) / 3) - 1);\n  var v = n / Math.pow(1000, i + 1);\n  // Always two decimals: the game's own letter form (NumberDisplay, CODE;\n  // data/tables/number-display.json display.letterFormat.threshold). Cost\n  // Tables showed one decimal from 100 up until 2026-09-23, which the game never does.\n  return fmtDec(v, 2) + LADDER[i];\n}\n// Reads what a person typed, in the player's separators, with the game's\n// letter suffixes (\"4.18t\"). null when it is not a number, never 0.\nfunction parseNum(str){\n  if (typeof str === 'number') return finite(str) ? str : null;\n  if (typeof str !== 'string') return null;\n  var t = str.trim().toLowerCase().replace(/[\\s%]/g, '');\n  if (!t) return null;\n  var mult = 1, m = t.match(/(qa|qi|sx|sp|oc|no|dc|ud|k|m|b|t)$/);\n  if (m){ mult = Math.pow(1000, LADDER.indexOf(m[1]) + 1); t = t.slice(0, -m[1].length); }\n  var dec = fmtDec(1.5, 1).replace(/[0-9]/g, '') || '.';\n  var group = dec === ',' ? '.' : ',';\n  t = t.split(group).join('');\n  if (dec !== '.') t = t.replace(dec, '.');\n  if (!/^[-+]?\\d*\\.?\\d+(e[-+]?\\d+)?$/.test(t)) return null;\n  var v = parseFloat(t) * mult;\n  return finite(v) ? v : null;\n}\nfunction numberNote(){\n  var inh = inheritedNumber(), parts = [];\n  if (!local.numMode) parts.push(inh.mode ? 'format from game' : 'format: letters (not opened from the game)');\n  if (!local.numLocale) parts.push(inh.locale ? 'separators from game' : 'separators: browser');\n  return parts.join(' \\u00b7 ');\n}\n\n// Fonts: Settings > Fonts in Core sets the tools' faces for every tool, and\n// since 2026-09-23 each tool's gear can override them for that tool alone\n// (the maintainer asked for the number font in every settings menu). \"Match\n// AWOO+\" hands the choice back to Core. A face outside the page's own\n// stylesheet link is fetched only when chosen.\nfunction loadFamily(family){\n  if (!family || document.querySelector('link[data-awoo-font=\"' + family + '\"]')) return;\n  var l = document.createElement('link');\n  l.rel = 'stylesheet';\n  l.href = 'https://fonts.googleapis.com/css2?family=' + family + '&display=swap';\n  l.setAttribute('data-awoo-font', family);\n  (document.head || root).appendChild(l);\n}\nfunction fontIds(){\n  var f = inherited().fonts;\n  var tools = f && (f.tools || f);\n  return {\n    text: local.fontText || (tools && FONT_TEXT[tools.text] ? tools.text : null),\n    num: local.fontNum || (tools && FONT_NUM[tools.num] ? tools.num : null)\n  };\n}\nfunction applyFonts(){\n  var ids = fontIds();\n  var text = ids.text && FONT_TEXT[ids.text];\n  var num = ids.num && FONT_NUM[ids.num];\n  if (text){\n    loadFamily(text.family);\n    root.style.setProperty('--font-body', text.stack);\n    root.style.setProperty('--font-display', text.stack);\n  }\n  if (num){\n    loadFamily(num.family);\n    root.style.setProperty('--font-num', num.stack);\n  }\n  // Switching back to \"Match AWOO+\" with nothing inherited must undo an\n  // override, not leave the last one painted.\n  var rm = root.style && typeof root.style.removeProperty === 'function' ? function(k){ root.style.removeProperty(k); } : function(){};\n  if (!text){ rm('--font-body'); rm('--font-display'); }\n  if (!num) rm('--font-num');\n}\nvar FONT_LABEL = { public:'Public Sans', open:'Open Sans', figtree:'Figtree', roboto:'Roboto Mono (marked 0)' };\n\n/* NUMBER INPUTS (2026-09-23). A box marked data-num shows thousands\n   separators while you are not in it, and plain digits while you edit (so the\n   caret never fights a separator). What you paste may carry separators, as\n   long as they are your format's; letter suffixes (\"4.18t\") work too.\n   num.read(el) is how a page reads one: the value, or null, never 0 for a\n   box that is empty or not a number. */\nfunction showNum(el, v){\n  if (v === null || v === undefined){ return; }\n  var dig = el.getAttribute('data-num-digits');\n  var max = dig !== null ? parseInt(dig, 10) : 6;\n  var focused = document.activeElement === el;\n  try {\n    el.value = focused\n      ? v.toLocaleString(numLocaleTag(), { useGrouping:false, maximumFractionDigits:max })\n      : v.toLocaleString(numLocaleTag(), { maximumFractionDigits:max });\n  } catch(e){ el.value = String(v); }\n}\nfunction readNum(el){ return el ? parseNum(el.value) : null; }\nfunction enhanceNum(el){\n  if (!el || el.__awooNum) return;\n  el.__awooNum = true;\n  if (el.type === 'number') el.type = 'text';\n  el.setAttribute('inputmode', 'decimal');\n  el.setAttribute('autocomplete', 'off');\n  el.addEventListener('focus', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });\n  el.addEventListener('blur', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });\n  var v0 = readNum(el);\n  if (v0 === null && el.value){ var raw = parseFloat(el.value); if (isFinite(raw)) v0 = raw; }\n  if (v0 !== null) showNum(el, v0);\n}\nfunction enhanceAll(scope){\n  var list = (scope || document).querySelectorAll('input[data-num]');\n  for (var i = 0; i < list.length; i++) enhanceNum(list[i]);\n}\nfunction reformatAll(){\n  var list = document.querySelectorAll('input[data-num]');\n  for (var i = 0; i < list.length; i++){ if (document.activeElement !== list[i]){ var v = readNum(list[i]); if (v !== null) showNum(list[i], v); } }\n}\n\n// Sidebar pinning (see tool-settings.css). A page marks its sidebar with\n// data-awoo-sidebar, the viewport width from which it sits BESIDE the content\n// (data-side-min) and the pinned offset (data-side-top, e.g. below a sticky\n// top bar). Below that width the layout is one column and nothing is pinned.\nfunction sidebar(){ return document.querySelector('[data-awoo-sidebar]'); }\nfunction layoutSidebar(){\n  var el = sidebar();\n  if (!el) return;\n  var min = parseInt(el.getAttribute('data-side-min'), 10) || 0;\n  var top = parseInt(el.getAttribute('data-side-top'), 10) || 20;\n  el.style.setProperty('--side-top', top + 'px');\n  var mode;\n  if (window.innerWidth < min) mode = 'static';\n  else if (local.sideScroll) mode = 'scroll';\n  // scrollHeight is the content's own height whatever max-height says, so\n  // the measurement does not depend on the mode it is choosing between.\n  else mode = el.scrollHeight <= window.innerHeight - top - 16 ? 'sticky' : 'static';\n  if (el.getAttribute('data-side-mode') !== mode) el.setAttribute('data-side-mode', mode);\n}\nfunction watchSidebar(){\n  var el = sidebar();\n  if (!el) return;\n  layoutSidebar();\n  window.addEventListener('resize', layoutSidebar);\n  // Content grows and shrinks (a details panel opens, live data arrives), so\n  // the fit is re-measured on the element's own size changes too.\n  if (window.ResizeObserver) new ResizeObserver(layoutSidebar).observe(el);\n}\n\nvar listeners = [];\nfunction changed(){ for (var i = 0; i < listeners.length; i++){ try { listeners[i](); } catch(e){ /* one page bug must not stop the others */ } } }\n\n// Painted immediately, at parse time, so the page never flashes the base\n// theme before the stored or inherited one.\napplyTheme(); applyDev(); applyFonts();\n\nfunction el(tag, attrs, text){\n  var n = document.createElement(tag);\n  for (var k in attrs) n.setAttribute(k, attrs[k]);\n  if (text != null) n.textContent = text;\n  return n;\n}\n\n/* The gear menu. `host` is an empty element in the page's top bar; `opts.extra`\n   is an optional node of page-specific rows (Cost Tables' number format),\n   placed between Theme and Show developer info. `opts.up` opens it upward. */\nfunction mount(host, opts){\n  opts = opts || {};\n  if (!host) return;\n  host.classList.add('awoo-gear');\n  host.textContent = '';\n\n  var btn = el('button', { type:'button', 'class':'awoo-gear-btn', 'aria-expanded':'false',\n    'aria-controls':'awooGearMenu', 'aria-label':'Settings', title:'Settings' }, '⚙');\n  var menu = el('div', { id:'awooGearMenu', 'class':'awoo-gear-menu' + (opts.up ? ' up' : '') });\n  menu.hidden = true;\n\n  var themeRow = el('div', { 'class':'awoo-gear-row' });\n  themeRow.appendChild(el('label', { 'for':'awooThemeSel' }, 'Theme'));\n  var sel = el('select', { id:'awooThemeSel' });\n  var matchOpt = el('option', { value:'' }, 'Match game');\n  sel.appendChild(matchOpt);\n  THEMES.forEach(function(t){ sel.appendChild(el('option', { value:t[0] }, t[1])); });\n  themeRow.appendChild(sel);\n  menu.appendChild(themeRow);\n  var themeNote = el('div', { 'class':'awoo-gear-note' });\n  menu.appendChild(themeNote);\n\n  // Numbers and separators: in every tool's gear, not one tool's extra rows.\n  var numRow = el('div', { 'class':'awoo-gear-row' });\n  numRow.appendChild(el('label', { 'for':'awooNumMode' }, 'Numbers'));\n  var numSel = el('select', { id:'awooNumMode' });\n  [['', 'Match game'], ['letters', '105.44b'], ['standard', '105,440,000,000'], ['exponential', '1.05e+11']]\n    .forEach(function(o){ numSel.appendChild(el('option', { value:o[0] }, o[1])); });\n  numRow.appendChild(numSel);\n  menu.appendChild(numRow);\n  var locRow = el('div', { 'class':'awoo-gear-row' });\n  locRow.appendChild(el('label', { 'for':'awooNumLocale' }, 'Decimal separator'));\n  var locSel = el('select', { id:'awooNumLocale' });\n  [['', 'Match game'], ['1,000.00', '1,000.00 \\u00b7 point'], ['1.000,00', '1.000,00 \\u00b7 comma'], ['Local', 'Browser default']]\n    .forEach(function(o){ locSel.appendChild(el('option', { value:o[0] }, o[1])); });\n  locRow.appendChild(locSel);\n  menu.appendChild(locRow);\n  var numNote = el('div', { 'class':'awoo-gear-note' });\n  menu.appendChild(numNote);\n\n  function fontRow(id, label, list){\n    var row = el('div', { 'class':'awoo-gear-row' });\n    row.appendChild(el('label', { 'for':id }, label));\n    var sel2 = el('select', { id:id });\n    sel2.appendChild(el('option', { value:'' }, 'Match AWOO+'));\n    Object.keys(list).forEach(function(k){ sel2.appendChild(el('option', { value:k }, FONT_LABEL[k] || k)); });\n    row.appendChild(sel2);\n    menu.appendChild(row);\n    return sel2;\n  }\n  var fontNumSel = fontRow('awooFontNum', 'Number font', FONT_NUM);\n  var fontTextSel = fontRow('awooFontText', 'Text font', FONT_TEXT);\n\n  if (opts.extra) menu.appendChild(opts.extra);\n\n  var devRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });\n  devRow.appendChild(el('label', { 'for':'awooDevToggle' }, 'Show developer info'));\n  var dev = el('input', { type:'checkbox', id:'awooDevToggle' });\n  devRow.appendChild(dev);\n  menu.appendChild(devRow);\n  menu.appendChild(el('div', { 'class':'awoo-gear-note' },\n    opts.devHint || 'Adds the evidence tier, source files and last-checked date.'));\n\n  var side = null;\n  if (sidebar()){\n    var sideRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });\n    sideRow.appendChild(el('label', { 'for':'awooSideScroll' }, 'Sidebar scrolls on its own'));\n    side = el('input', { type:'checkbox', id:'awooSideScroll' });\n    sideRow.appendChild(side);\n    menu.appendChild(sideRow);\n    side.addEventListener('change', function(){\n      local.sideScroll = side.checked;\n      persist(); layoutSidebar(); changed();\n    });\n  }\n\n  host.appendChild(btn);\n  host.appendChild(menu);\n  watchSidebar();\n\n  function render(){\n    var r = resolveTheme();\n    sel.value = local.theme || '';\n    // \"Match game\" says what it resolved to, so the reader never has to open\n    // the list to find out which theme they are looking at.\n    matchOpt.textContent = 'Match game' + (r.source === 'picked' ? '' :\n      ' · ' + (r.id ? labelOf(r.id) : 'system'));\n    themeNote.textContent = (r.source === 'picked') ? '' : r.note;\n    themeNote.classList.toggle('fallback', r.source === 'fallback');\n    dev.checked = devOn();\n    if (side) side.checked = !!local.sideScroll;\n    numSel.value = local.numMode || '';\n    locSel.value = local.numLocale || '';\n    numNote.textContent = numberNote();\n    var fi = fontIds();\n    fontNumSel.value = local.fontNum || '';\n    fontTextSel.value = local.fontText || '';\n    fontNumSel.options[0].textContent = 'Match AWOO+' + (!local.fontNum ? ' \\u00b7 ' + (FONT_LABEL[fi.num] || 'Public Sans') : '');\n    fontTextSel.options[0].textContent = 'Match AWOO+' + (!local.fontText ? ' \\u00b7 ' + (FONT_LABEL[fi.text] || 'Public Sans') : '');\n  }\n  render();\n\n  fontNumSel.addEventListener('change', function(){\n    local.fontNum = fontNumSel.value || null;\n    persist(); applyFonts(); render(); changed();\n  });\n  fontTextSel.addEventListener('change', function(){\n    local.fontText = fontTextSel.value || null;\n    persist(); applyFonts(); render(); changed();\n  });\n\n  numSel.addEventListener('change', function(){\n    local.numMode = numSel.value || null;\n    persist(); render(); reformatAll(); changed();\n  });\n  locSel.addEventListener('change', function(){\n    local.numLocale = locSel.value || null;\n    persist(); render(); reformatAll(); changed();\n  });\n  enhanceAll();\n\n  sel.addEventListener('change', function(){\n    local.theme = sel.value || null;\n    persist(); applyTheme(); render(); changed();\n  });\n  dev.addEventListener('change', function(){\n    local.dev = dev.checked;\n    persist(); applyDev(); changed();\n  });\n\n  // Closes on outside click and on Escape, because a panel that only closes\n  // by clicking the same button again is a panel people leave open.\n  function setOpen(open){\n    menu.hidden = !open;\n    btn.setAttribute('aria-expanded', String(open));\n  }\n  btn.addEventListener('click', function(e){ e.stopPropagation(); setOpen(menu.hidden); });\n  menu.addEventListener('click', function(e){ e.stopPropagation(); });\n  document.addEventListener('click', function(){ setOpen(false); });\n  document.addEventListener('keydown', function(e){\n    if (e.key === 'Escape' && !menu.hidden){ setOpen(false); btn.focus(); }\n  });\n  // The OS flipping light/dark only matters while nothing more specific is set.\n  if (window.matchMedia){\n    var mq = window.matchMedia('(prefers-color-scheme: dark)');\n    var onOs = function(){ render(); changed(); };\n    if (mq.addEventListener) mq.addEventListener('change', onOs);\n    else if (mq.addListener) mq.addListener(onOs);\n  }\n}\n\n/* The developer tier of a Formula panel: one line per generated fact, with its\n   evidence tier, source file and last-checked date. Read from\n   window.AWOO_FACTS_META, which build.mjs writes from the same data/ entries\n   it generates the functions from — so this list cannot disagree with the\n   code the page actually runs. Returns <li> markup; the caller wraps it in a\n   list marked data-dev-only. */\nfunction esc(v){ return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\nfunction sources(names){\n  var meta = window.AWOO_FACTS_META || {};\n  var keys = names || Object.keys(meta);\n  if (!keys.length) return '<li>This copy was opened without the generated facts block.</li>';\n  return keys.filter(function(k){ return meta[k]; }).map(function(k){\n    var m = meta[k];\n    return '<li><span class=\"devpill\">' + esc(m.confidence) + '</span> <code>' + esc(m.file) +\n      '</code> &middot; <code>' + esc(m.fact) + '</code>' +\n      (m.checked ? ' &middot; checked ' + esc(m.checked) : '') + '</li>';\n  }).join('');\n}\n\nwindow.AWOO_TOOL_SETTINGS = {\n  mount: mount,\n  // Number presentation, the same for every tool (see NUMBER PRESENTATION).\n  num: { mode:numMode, localeKey:numLocaleKey, localeTag:numLocaleTag,\n         fmt:fmtNum, int:fmtInt, dec:fmtDec, pct:fmtPct, parse:parseNum,\n         read:readNum, show:showNum, enhance:enhanceAll,\n         // A tool that stored its own override before this layer carried one\n         // hands it over once; an override already set here wins.\n         adopt:function(mode, locale){\n           var any = false;\n           if (!local.numMode && NUM_MODES.indexOf(mode) >= 0){ local.numMode = mode; any = true; }\n           if (!local.numLocale && Object.prototype.hasOwnProperty.call(LOCALE_MAP, locale)){ local.numLocale = locale; any = true; }\n           if (any) persist();\n         },\n         // Test seam.\n         _set:function(mode, locale){ local.numMode = mode || null; local.numLocale = locale || null; } },\n  sources: sources,\n  onChange: function(fn){ if (typeof fn === 'function') listeners.push(fn); },\n  theme: resolveTheme,\n  devOn: devOn,\n  themes: THEMES.slice(),\n  // Test seam: the resolution rules, callable without a DOM round-trip.\n  _resolve: function(localTheme, inheritedTheme){\n    var pl = local.theme, pa = window.AWOO_APPEARANCE;\n    local.theme = localTheme || null;\n    window.AWOO_APPEARANCE = inheritedTheme ? { theme:inheritedTheme } : undefined;\n    try { return resolveTheme(); } finally { local.theme = pl; window.AWOO_APPEARANCE = pa; }\n  },\n  _fonts: { text:FONT_TEXT, num:FONT_NUM }\n};\n})();\n\n</script>\n<script>\n/* ===========================================================================\n   AWOO+ TOOL SYNC — the profile, the four field states, the Live/Standard\n   switch and the one tooltip every tool shares (2026-09-23).\n\n   Hand-written. Injected by userscripts/build.mjs at <!-- @AWOO_TOOL_SETTINGS@ -->\n   right after tool-settings.js, so a tool that takes the gear menu takes this\n   too. NO-PROVENANCE: it moves the player's observations around and reads no\n   game fact; every formula stays in the tool that uses it.\n\n   WHERE THE PROFILE COMES FROM. A tool opens in its own tab, but that tab has\n   the game's origin (a blob URL), so the BroadcastChannel Core already speaks\n   ('awoo-profile') reaches it:\n     - window.AWOO_INITIAL_PROFILE: what Core handed over at open time, when\n       the tool's .release.json asks for it (prefill: [\"profile\"]);\n     - PROFILE_DELTA (Core v16, REGISTER.md R92): what each capture changed,\n       or saw again, section by section, merged here by observedAt exactly as\n       Core merges it between tabs (mergeDelta below);\n     - PROFILE_UPDATED: a whole profile. Every capture posted one up to Core\n       v15; v16 posts one only in answer to REQUEST_PROFILE_SYNC;\n     - REQUEST_PROFILE_SYNC: \"Sync now\" asks the game tabs to capture now and\n       the leading one to read the sections this tool uses\n       (window.AWOO_TOOL_USES, handed over at open time like the profile;\n       absent, every section).\n   Opening a tool from AWOO+ also asks, once (Core's openTool). Opened\n   anywhere else (a file, a preview), nothing arrives, and the card says so\n   rather than pretending.\n\n   THE FOUR FIELD STATES (REGISTER.md R48; ARTIFACT_STYLE_GUIDE.md Part III).\n   Every bound input carries a light, visible without hovering:\n     synced       read from the profile, fresh               filled, success\n     stale        read from the profile, older than the window filled, accent\n     edited       you typed it; a sync never overwrites it    filled, info\n     unavailable  never observed; the box holds your figure   hollow\n   Hover explains; a click hands that one field back to the profile. \"Reset\n   inputs\" on the card hands every field back at once.\n\n   A SYNC APPLIES ITSELF to every field you have not edited. That replaced the\n   old \"detect, then press Apply\" flow on purpose: R48 (the maintainer's own\n   note) asks that syncs update the fields and never the ones you changed, and\n   the light is the visibility the Apply step used to provide.\n\n   AGE IS PER SECTION. A reading's age is profile.meta.observedAt[section],\n   stamped by Profile Sync only for sections that capture actually saw. A\n   profile from an older AWOO+ has no stamps; its readings show as stale with\n   the age \"unknown\", never as fresh (R49 found a tool falling back to \"now\").\n\n   LIVE / STANDARD. A tool may offer the switch. Live: the account as it is.\n   Standard: a documented reference setup for the parts of the answer that\n   depend on one account's luck (a pet's rolls, a party's make-up), so two\n   runs, or two players, compare like with like. What Standard swaps is the\n   TOOL's decision, stated in the tool; this file only holds the state and\n   hides whatever a page marks data-mode-only=\"live\" or \"standard\".\n   =========================================================================== */\n(function(){\n'use strict';\n\nvar root = document.documentElement;\nvar meta = document.querySelector('meta[name=\"awoo-tool\"]');\nvar TOOL = (meta && meta.getAttribute('content')) || 'tool';\nvar LS = 'awoo:tool:' + TOOL + ':sync';\nvar DEFAULT_STALE_MS = 6 * 60 * 60 * 1000;\nvar NO_ANSWER_MS = 4000;\n\nfunction settings(){ return window.AWOO_TOOL_SETTINGS || null; }\n\nvar saved = { edited:{}, mode:null };\ntry {\n  var raw = localStorage.getItem(LS);\n  if (raw){ var o = JSON.parse(raw); if (o && typeof o === 'object'){\n    if (o.edited && typeof o.edited === 'object') saved.edited = o.edited;\n    if (o.mode === 'live' || o.mode === 'standard') saved.mode = o.mode;\n  } }\n} catch(e){ /* storage blocked: nothing remembered, everything still works */ }\nfunction persist(){ try { localStorage.setItem(LS, JSON.stringify(saved)); } catch(e){ /* not durable */ } }\n\n/* ---------------------------------------------------------------- profile */\nvar profile = (window.AWOO_INITIAL_PROFILE && typeof window.AWOO_INITIAL_PROFILE === 'object') ? window.AWOO_INITIAL_PROFILE : null;\nvar connected = !!profile;           // has anything ever arrived?\nvar requestedAt = null;              // last \"Sync now\", for the no-answer state\nvar profileListeners = [];\n\nfunction setProfile(p){\n  if (!p || typeof p !== 'object') return;\n  profile = p; connected = true; requestedAt = null;\n  applyAll();\n  for (var i = 0; i < profileListeners.length; i++){ try { profileListeners[i](profile); } catch(e){ /* one page bug must not stop the others */ } }\n  renderCards();\n}\n\n// The sections this tool reads (its release.json `uses`), when whoever opened\n// it said (tool-shelf.js, or the module carrying it). Only names, never\n// guessed: absent, \"Sync now\" asks for everything, as it always did.\nvar USES = (function(){\n  var u = window.AWOO_TOOL_USES;\n  if (!u || typeof u.length !== 'number') return null;\n  var out = [];\n  for (var i = 0; i < u.length; i++) if (typeof u[i] === 'string' && u[i] && out.indexOf(u[i]) < 0) out.push(u[i]);\n  return out.length ? out : null;\n})();\n\n/* MERGING WHAT ARRIVES (REGISTER.md R92). The same rule as Core's own\n   mergeBySection between tabs (core.js), so a tool never believes anything\n   the game tab would not:\n     - another character's message is ignored (ids when both carry one, else\n       names): a tab on your other character is not news about this one;\n     - per section, the newer observedAt wins; a reading whose age is known\n       beats one whose age is not; a section arriving with no stamp only\n       fills a hole; a section absent, or null with no stamp, is \"not\n       observed\" and never erases what is here;\n     - meta: queryAt and the timestamp take the latest; the rest (name,\n       level, ids) comes from the newer message, and a null never erases a\n       name or an id.\n   A whole PROFILE_UPDATED goes through the same merge, since the tab that\n   answers a \"Sync now\" may hold an older copy of a section than a delta\n   already brought; one for ANOTHER character replaces the profile, because\n   Core only answers with its own, current, character (you switched). */\nvar META_KEEP = { characterId:1, characterName:1, characterLevel:1 };\nfunction num(v){ return (typeof v === 'number' && isFinite(v)) ? v : null; }\nfunction who(meta, k){ var v = meta ? meta[k] : null; return (typeof v === 'string' && v) ? v : null; }\nfunction sameCharacter(a, b){\n  var ia = who(a, 'characterId'), ib = who(b, 'characterId');\n  if (ia && ib) return ia === ib;\n  var na = who(a, 'characterName'), nb = who(b, 'characterName');\n  if (na && nb) return na === nb;\n  return true;\n}\nfunction copy(o){ var out = {}; if (o && typeof o === 'object') for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) out[k] = o[k]; return out; }\n// base: the profile held; sections/meta: what arrived (meta carries the\n// observedAt/observedOn/queryAt maps). Returns a new profile.\nfunction mergeInto(base, sections, meta, schemaVersion){\n  var bm = (base && base.meta) || {};\n  var bSeen = bm.observedAt || {}, iSeen = meta.observedAt || {};\n  var bOn = bm.observedOn || {}, iOn = meta.observedOn || {};\n  var out = copy(base);\n  if (out.schemaVersion === undefined && schemaVersion !== undefined) out.schemaVersion = schemaVersion;\n  var seen = copy(bSeen), on = copy(bOn);\n  for (var k in sections){\n    if (!Object.prototype.hasOwnProperty.call(sections, k) || k === 'meta' || k === 'schemaVersion') continue;\n    var v = sections[k], is = num(iSeen[k]), bs = num(bSeen[k]), b = out[k];\n    var take;\n    if (v === undefined || (v === null && is === null)) take = false;\n    else if (is !== null && bs !== null) take = is > bs;\n    else if (is !== null || bs !== null) take = is !== null;\n    else take = b === undefined || b === null;\n    if (!take) continue;\n    out[k] = v;\n    if (is !== null) seen[k] = is;\n    if (iOn[k] != null) on[k] = iOn[k];\n  }\n  var m = copy(bm);\n  var newer = (num(meta.timestamp) || 0) > (num(bm.timestamp) || 0);\n  for (var f in meta){\n    if (!Object.prototype.hasOwnProperty.call(meta, f)) continue;\n    if (f === 'observedAt' || f === 'observedOn' || f === 'queryAt' || f === 'timestamp') continue;\n    var mv = meta[f];\n    if (mv === undefined) continue;\n    if (mv === null && META_KEEP[f] && m[f] != null) continue;\n    if (newer || m[f] === undefined || (m[f] === null && META_KEEP[f])) m[f] = mv;\n  }\n  var ts = Math.max(num(bm.timestamp) || 0, num(meta.timestamp) || 0);\n  if (ts) m.timestamp = ts;\n  m.observedAt = seen;\n  m.observedOn = on;\n  var qa = copy(bm.queryAt), iq = meta.queryAt || {};\n  for (var q in iq) if (num(iq[q]) !== null && !(num(qa[q]) >= iq[q])) qa[q] = iq[q];\n  m.queryAt = qa;\n  out.meta = m;\n  return out;\n}\n// PROFILE_DELTA v1 (core.js postProfileNow): { characterId, characterName,\n// sections, observedAt, observedOn, meta, queryAt?, schemaVersion? }.\nfunction mergeDelta(d){\n  var meta = copy(d.meta);\n  if (typeof d.characterId === 'string' && d.characterId) meta.characterId = d.characterId;\n  if (typeof d.characterName === 'string' && d.characterName) meta.characterName = d.characterName;\n  meta.observedAt = (d.observedAt && typeof d.observedAt === 'object') ? d.observedAt : {};\n  meta.observedOn = (d.observedOn && typeof d.observedOn === 'object') ? d.observedOn : {};\n  if (d.queryAt && typeof d.queryAt === 'object') meta.queryAt = d.queryAt;\n  if (profile && !sameCharacter(profile.meta, meta)) return;\n  setProfile(mergeInto(profile, (d.sections && typeof d.sections === 'object') ? d.sections : {}, meta, d.schemaVersion));\n}\nfunction mergeWhole(p){\n  if (!profile || !sameCharacter(profile.meta, p.meta)) { setProfile(p); return; }\n  var meta = copy(p.meta);\n  setProfile(mergeInto(profile, p, meta, p.schemaVersion));\n}\n\nvar bc = null;\ntry {\n  if (typeof BroadcastChannel !== 'undefined'){\n    bc = new BroadcastChannel('awoo-profile');\n    bc.onmessage = function(ev){\n      var d = ev && ev.data;\n      if (!d || typeof d !== 'object') return;\n      if (d.type === 'PROFILE_DELTA' && d.v === 1) mergeDelta(d);\n      else if (d.type === 'PROFILE_UPDATED' && d.profile && typeof d.profile === 'object') mergeWhole(d.profile);\n    };\n  }\n} catch(e){ bc = null; }\n\nfunction request(){\n  requestedAt = Date.now();\n  var msg = { type:'REQUEST_PROFILE_SYNC', timestamp:requestedAt };\n  if (USES) msg.sections = USES.slice();\n  if (bc){ try { bc.postMessage(msg); } catch(e){ /* closed */ } }\n  renderCards();\n  setTimeout(renderCards, NO_ANSWER_MS + 50);\n}\n\n// A dotted path into the profile; null for anything absent. Never 0.\nfunction get(path, p){\n  var cur = p || profile;\n  if (!cur || !path) return null;\n  var parts = String(path).split('.');\n  for (var i = 0; i < parts.length; i++){\n    if (cur == null || typeof cur !== 'object') return null;\n    cur = cur[parts[i]];\n  }\n  return cur === undefined ? null : cur;\n}\nfunction sectionAge(section){\n  var at = get('meta.observedAt.' + section);\n  return (typeof at === 'number' && isFinite(at)) ? at : null;\n}\n\n/* ----------------------------------------------------------------- fields */\nvar fields = [];\nvar byKey = {};\nvar applyListeners = [];\nvar applying = false;\n\n// f.local: the field reads a source of the page's own (another module's\n// handover) and is read even before any profile arrives; f.observedAt()\n// then dates it.\nfunction readField(f){\n  if (!profile && !f.local) return null;\n  var v;\n  try { v = typeof f.read === 'function' ? f.read(profile, get) : get(f.read); } catch(e){ v = null; }\n  if (v === undefined || v === null) return null;\n  if (typeof v === 'number' && !isFinite(v)) return null;\n  return v;\n}\nfunction modeAllows(f){ return !f.modes || f.modes.indexOf(mode()) >= 0; }\n\nfunction state(f){\n  if (saved.edited[f.key]) return 'edited';\n  var v = readField(f);\n  if (v === null) return 'unavailable';\n  var at = fieldAge(f);\n  if (at === null) return 'stale';\n  return (Date.now() - at) > (f.staleMs || DEFAULT_STALE_MS) ? 'stale' : 'synced';\n}\nfunction fieldAge(f){\n  if (typeof f.observedAt === 'function'){ var t = f.observedAt(profile); if (typeof t === 'number' && isFinite(t)) return t; }\n  return sectionAge(f.section || String(f.read).split('.')[0]);\n}\nfunction ago(at){\n  if (at === null) return 'unknown';\n  var s = Math.max(0, Math.round((Date.now() - at) / 1000));\n  if (s < 60) return s + 's';\n  var m = Math.round(s / 60); if (m < 60) return m + 'm';\n  var h = Math.round(m / 60); if (h < 48) return h + 'h';\n  return Math.round(h / 24) + 'd';\n}\nvar STATE_TIP = {\n  synced: 'Synced from the game. Click to re-sync.',\n  stale: 'Synced, but old. Click to re-sync.',\n  edited: 'Typed by you; a sync keeps it. Click to sync it again.',\n  unavailable: 'Not synced yet. This is your own figure.'\n};\nfunction lightTip(f, st){\n  var t = (st === 'unavailable' && f.unavailableTip) ? f.unavailableTip : STATE_TIP[st];\n  if (st === 'synced' || st === 'stale') t += ' (' + ago(fieldAge(f)) + ' old)';\n  if (f.source && (st === 'synced' || st === 'stale')){ var src = f.source(profile); if (src) t += ' From ' + src + '.'; }\n  if (!modeAllows(f)) t = 'Not used in ' + (mode() === 'standard' ? 'Standard' : 'Live') + ' mode.';\n  return t;\n}\nfunction devTip(f){\n  return 'Profile: ' + (f.path || (typeof f.read === 'string' ? f.read : f.key));\n}\n\nfunction setInput(f, v){\n  var el = f.el;\n  applying = true;\n  try {\n    var S = settings();\n    if (el.type === 'checkbox') el.checked = !!v;\n    else if (f.fmt) el.value = f.fmt(v);\n    else if (el.hasAttribute('data-num') && typeof v === 'number' && S && S.num) S.num.show(el, v);\n    else el.value = String(v);\n  } finally { applying = false; }\n}\nfunction renderLight(f){\n  if (!f.light) return;\n  var st = state(f);\n  f.light.setAttribute('data-state', st);\n  f.light.setAttribute('data-off', modeAllows(f) ? 'false' : 'true');\n  f.light.setAttribute('data-tip', lightTip(f, st));\n  f.light.setAttribute('data-tip-dev', devTip(f));\n  f.light.setAttribute('aria-label', 'Sync: ' + st);\n}\nfunction applyOne(f){\n  if (saved.edited[f.key] || !modeAllows(f)) return false;\n  var v = readField(f);\n  if (v === null) return false;\n  setInput(f, v);\n  return true;\n}\nfunction notifyApplied(){\n  for (var i = 0; i < applyListeners.length; i++){ try { applyListeners[i](); } catch(e){ /* keep going */ } }\n}\nfunction applyAll(){\n  var any = false;\n  for (var i = 0; i < fields.length; i++) any = applyOne(fields[i]) || any;\n  for (var j = 0; j < fields.length; j++) renderLight(fields[j]);\n  if (any) notifyApplied();\n  return any;\n}\n\nfunction labelFor(el){\n  if (el.id){ var l = document.querySelector('label[for=\"' + el.id + '\"]'); if (l) return l; }\n  return el.closest ? el.closest('label') : null;\n}\n\n/* bind(def) — def: { key, el, read: 'dotted.path' | function(profile, get),\n   section?, fmt?, staleMs?, modes?: ['live'] , label? }. Returns the field. */\nfunction bind(def){\n  if (!def || !def.el || !def.key) return null;\n  if (byKey[def.key]) return byKey[def.key];\n  var f = def;\n  if (!f.path && typeof f.read === 'string') f.path = f.read;\n  var host = f.label || labelFor(f.el);\n  var light = document.createElement('button');\n  light.type = 'button';\n  light.className = 'awoo-light';\n  if (host) host.insertBefore(light, host.firstChild);\n  f.light = light;\n  light.addEventListener('click', function(e){\n    e.preventDefault(); e.stopPropagation();\n    delete saved.edited[f.key]; persist();\n    if (!connected) request();\n    if (applyOne(f)) notifyApplied();\n    renderLight(f); renderCards();\n  });\n  var onEdit = function(){\n    if (applying) return;\n    saved.edited[f.key] = true; persist();\n    renderLight(f); renderCards();\n  };\n  f.el.addEventListener('input', onEdit);\n  f.el.addEventListener('change', onEdit);\n  fields.push(f); byKey[f.key] = f;\n  applyOne(f);\n  renderLight(f);\n  return f;\n}\nfunction resetAll(){\n  for (var x = 0; x < extensions.length; x++){ try { if (extensions[x].reset) extensions[x].reset(); } catch(e){ /* keep going */ } }\n  saved.edited = {}; persist();\n  if (!connected) request();\n  applyAll();\n  for (var j = 0; j < fields.length; j++) renderLight(fields[j]);\n  notifyApplied();\n  renderCards();\n}\n\n/* ------------------------------------------------------------------- mode */\nvar modeListeners = [];\nvar modeOffered = false;\nfunction mode(){ return modeOffered ? (saved.mode || 'live') : 'live'; }\nfunction setMode(m){\n  if (m !== 'live' && m !== 'standard') return;\n  saved.mode = m; persist();\n  root.setAttribute('data-sync-mode', mode());\n  applyAll();\n  for (var i = 0; i < modeListeners.length; i++){ try { modeListeners[i](mode()); } catch(e){ /* keep going */ } }\n  for (var j = 0; j < fields.length; j++) renderLight(fields[j]);\n  renderCards();\n}\n\n/* ------------------------------------------------------------------- card */\nvar cards = [];\nfunction el(tag, attrs, text){\n  var n = document.createElement(tag);\n  for (var k in attrs) n.setAttribute(k, attrs[k]);\n  if (text != null) n.textContent = text;\n  return n;\n}\n// A tool that keeps its own per-field state (Cost Tables re-renders its inputs\n// per subject, so it cannot bind a lasting element) reports through this: its\n// counts join the card, and the card's Reset reaches it.\nvar extensions = [];\nfunction summary(){\n  var total = 0, synced = 0, stale = 0, edited = 0;\n  for (var x = 0; x < extensions.length; x++){\n    var e = extensions[x].summary ? extensions[x].summary() : null;\n    if (e){ total += e.total || 0; synced += e.synced || 0; stale += e.stale || 0; edited += e.edited || 0; }\n  }\n  for (var i = 0; i < fields.length; i++){\n    if (!modeAllows(fields[i])) continue;\n    total++;\n    var st = state(fields[i]);\n    if (st === 'synced') synced++; else if (st === 'stale') stale++; else if (st === 'edited') edited++;\n  }\n  return { total:total, synced:synced, stale:stale, edited:edited };\n}\nfunction renderCards(){\n  for (var i = 0; i < cards.length; i++) renderCard(cards[i]);\n}\nfunction renderCard(c){\n  var s = summary();\n  var st, label, tip;\n  if (connected || s.synced || s.stale){\n    st = s.synced ? 'synced' : (s.stale ? 'stale' : 'unavailable');\n    label = s.synced || s.stale ? 'Synced' : 'Connected';\n    tip = 'Fields follow the game tab. ' + (s.synced + s.stale) + ' of ' + s.total + ' read' +\n      (s.edited ? ', ' + s.edited + ' typed by you' : '') + '.';\n  } else if (requestedAt && Date.now() - requestedAt < NO_ANSWER_MS){\n    st = 'stale'; label = 'Asking the game…'; tip = 'Waiting for an open Queslar tab to answer.';\n  } else if (requestedAt){\n    st = 'unavailable'; label = 'No game tab'; tip = 'No Queslar tab with AWOO+ answered. Open the game in this browser, then Sync.';\n  } else {\n    st = 'unavailable'; label = 'Not synced'; tip = 'Open this tool from AWOO+ in the game, or keep the game open and press Sync.';\n  }\n  c.box.setAttribute('data-state', st);\n  c.light.setAttribute('data-state', st);\n  c.state.textContent = label;\n  c.state.setAttribute('data-tip', tip);\n  var at = get('meta.timestamp');\n  c.age.textContent = (connected || s.synced || s.stale) ? (s.total ? (s.synced + s.stale) + '/' + s.total : '') + (at ? ' · ' + ago(at) : '') : '';\n  c.reset.disabled = !s.edited;\n  if (c.seg){\n    var m = mode();\n    c.seg.live.setAttribute('aria-pressed', String(m === 'live'));\n    c.seg.standard.setAttribute('aria-pressed', String(m === 'standard'));\n  }\n}\n/* card(host, { modes?: { live:tip, standard:tip } }) */\nfunction card(host, opts){\n  if (!host) return;\n  opts = opts || {};\n  host.textContent = '';\n  var box = el('div', { 'class':'awoo-sync', 'data-state':'unavailable' });\n  var head = el('div', { 'class':'awoo-sync-head' });\n  var light = el('span', { 'class':'awoo-light', 'data-state':'unavailable', 'aria-hidden':'true' });\n  var stEl = el('span', { 'class':'awoo-sync-state' });\n  var age = el('span', { 'class':'awoo-sync-age' });\n  head.appendChild(light); head.appendChild(stEl); head.appendChild(age);\n  box.appendChild(head);\n  var c = { box:box, light:light, state:stEl, age:age };\n  if (opts.modes){\n    modeOffered = true;\n    root.setAttribute('data-sync-mode', mode());\n    var seg = el('div', { 'class':'awoo-seg', role:'group', 'aria-label':'Mode' });\n    var live = el('button', { type:'button', 'data-tip':opts.modes.live || 'Your account, as synced.' }, 'Live');\n    var std = el('button', { type:'button', 'data-tip':opts.modes.standard || 'A fixed reference setup, for fair comparisons.' }, 'Standard');\n    live.addEventListener('click', function(){ setMode('live'); });\n    std.addEventListener('click', function(){ setMode('standard'); });\n    seg.appendChild(live); seg.appendChild(std);\n    box.appendChild(seg);\n    c.seg = { live:live, standard:std };\n  }\n  var actions = el('div', { 'class':'awoo-sync-actions' });\n  var syncBtn = el('button', { type:'button', 'class':'awoo-btn awoo-btn-primary', 'data-tip':'Ask the open game tab for a fresh reading.' }, 'Sync');\n  var reset = el('button', { type:'button', 'class':'awoo-btn', 'data-tip':'Hand every field you typed back to the game.' }, 'Reset inputs');\n  syncBtn.addEventListener('click', request);\n  reset.addEventListener('click', resetAll);\n  actions.appendChild(syncBtn); actions.appendChild(reset);\n  box.appendChild(actions);\n  c.reset = reset;\n  host.appendChild(box);\n  cards.push(c);\n  renderCard(c);\n  return c;\n}\n// Ages and staleness move with the clock, not only with events.\nsetInterval(function(){ renderCards(); for (var j = 0; j < fields.length; j++) renderLight(fields[j]); }, 30000);\n\n// One quiet request on load when Core handed nothing over: an already-open\n// game tab answers within a moment, and the card says so when none does.\nsetTimeout(function(){ if (!connected && bc) request(); }, 300);\n\n/* ---------------------------------------------------------------- tooltip */\n// ONE fixed-position element on <body> (the Core lesson, DESIGN.md: a\n// pseudo-element or an absolutely-positioned child is clipped by scroll\n// containers and inherits an ancestor's opacity). data-tip is for the\n// player; data-tip-dev is appended only with \"Show developer info\" on, in\n// the --dev tint (R67).\nvar tipEl = null, tipFor = null;\nfunction ensureTip(){\n  if (tipEl || !document.body) return tipEl;\n  tipEl = document.createElement('div');\n  tipEl.id = 'awooTip';\n  tipEl.setAttribute('role', 'tooltip');\n  document.body.appendChild(tipEl);\n  return tipEl;\n}\nfunction showTip(t){\n  var text = t.getAttribute('data-tip');\n  var s = settings();\n  var dev = s && s.devOn && s.devOn() ? t.getAttribute('data-tip-dev') : null;\n  if (!text && !dev) return;\n  var tip = ensureTip(); if (!tip) return;\n  tipFor = t;\n  tip.textContent = text || '';\n  if (dev){ var d = document.createElement('span'); d.className = 'awoo-tip-dev'; d.textContent = dev; tip.appendChild(d); }\n  tip.classList.add('on');\n  var r = t.getBoundingClientRect(), b = tip.getBoundingClientRect();\n  var left = Math.min(Math.max(8, r.left + r.width / 2 - b.width / 2), window.innerWidth - b.width - 8);\n  var top = r.top - b.height - 8;\n  if (top < 8) top = r.bottom + 8;\n  tip.style.left = Math.round(left) + 'px';\n  tip.style.top = Math.round(top) + 'px';\n}\nfunction hideTip(){ tipFor = null; if (tipEl) tipEl.classList.remove('on'); }\nfunction tipTarget(e){ return e.target && e.target.closest ? e.target.closest('[data-tip],[data-tip-dev]') : null; }\ndocument.addEventListener('mouseover', function(e){ var t = tipTarget(e); if (t) showTip(t); });\ndocument.addEventListener('mouseout', function(e){ var t = tipTarget(e); if (t && t === tipFor) hideTip(); });\ndocument.addEventListener('focusin', function(e){ var t = tipTarget(e); if (t) showTip(t); });\ndocument.addEventListener('focusout', hideTip);\nwindow.addEventListener('scroll', hideTip, true);\n\nwindow.AWOO_SYNC = {\n  profile: function(){ return profile; },\n  connected: function(){ return connected; },\n  get: get,\n  age: sectionAge,\n  onProfile: function(fn){ if (typeof fn === 'function') profileListeners.push(fn); },\n  onApply: function(fn){ if (typeof fn === 'function') applyListeners.push(fn); },\n  request: request,\n  bind: bind,\n  field: function(key){ return byKey[key] || null; },\n  state: function(key){ var f = byKey[key]; return f ? state(f) : null; },\n  isEdited: function(key){ return !!saved.edited[key]; },\n  resetAll: resetAll,\n  refresh: function(){ applyAll(); renderCards(); },\n  card: card,\n  extend: function(ext){ if (ext && typeof ext === 'object'){ extensions.push(ext); renderCards(); } },\n  renderCards: renderCards,\n  ago: ago,\n  mode: mode,\n  setMode: setMode,\n  onMode: function(fn){ if (typeof fn === 'function') modeListeners.push(fn); },\n  // Test seam: push a profile as if Core had broadcast it.\n  _receive: setProfile\n};\n})();\n\n</script>\n\n<style>\n*{box-sizing:border-box}\n[hidden]{display:none!important}\nbody{\n  margin:0; background:var(--ground); color:var(--ink);\n  font-family:var(--font-body); font-size:14px; line-height:1.5;\n  -webkit-font-smoothing:antialiased;\n}\nbutton,input,select{font-family:inherit;font-size:inherit;color:inherit}\n:focus-visible{outline:2px solid var(--brass-fill);outline-offset:2px;border-radius:3px}\n\n/* The title block and the gear live at the top of the sidebar, like every\n   other tool (2026-09-23; this page had its own top bar until then). */\n.btn{\n  background:var(--surface-2); border:1px solid var(--border-control);\n  border-radius:4px; padding:5px 11px; cursor:pointer;\n  font-size:.78rem; font-weight:600; letter-spacing:.02em;\n  transition:background .12s,border-color .12s;\n}\n.btn:hover{background:var(--surface-3);border-color:var(--brass-fill)}\n.btn.primary{background:var(--brass-fill);border-color:var(--brass-fill);color:var(--on-brass)}\n.btn.primary:hover{filter:brightness(1.07)}\n.btn.ghost{background:transparent}\n.btn.sm{padding:3px 8px;font-size:.72rem}\n\n/* --- shell ---------------------------------------------------------- */\n.shell{\n  max-width:1400px; margin:0 auto; padding:18px 20px 60px;\n  display:grid; grid-template-columns:288px minmax(0,1fr); gap:18px; align-items:start;\n}\n/* One column: the title, sync card and subject list first, as in every tool. */\n@media (max-width:1040px){\n  .shell{grid-template-columns:minmax(0,1fr)}\n}\n\n/* Pinned or not is the shared settings layer's call (tool-settings.js,\n   \"Sidebar scrolls on its own\"): by default the sidebar scrolls with the page\n   and is pinned only while it fits on screen. */\n.side{display:flex; flex-direction:column; gap:10px}\n.panel{\n  background:var(--surface); border:1px solid var(--border);\n  border-radius:6px; box-shadow:var(--shadow);\n}\n.panel > .ph{\n  font-family:var(--font-display); font-size:.7rem; font-weight:700;\n  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-soft);\n  padding:7px var(--pad-panel); border-bottom:1px solid var(--border);\n  display:flex; align-items:center; gap:8px;\n}\n.panel .pb{padding:8px var(--pad-panel)}\n\n/* --- nav ------------------------------------------------------------ */\n.navgroup{padding:5px 0 4px}\n.navgroup + .navgroup{border-top:1px solid var(--border)}\n.navgroup h3{\n  margin:0 0 3px; padding:0 12px;\n  font-family:var(--font-head); font-size:.66rem; font-weight:600;\n  letter-spacing:.13em; text-transform:uppercase; color:var(--ink-mute);\n  display:flex; align-items:baseline; gap:6px;\n}\n/* The character level the group's system unlocks at. It is why the list is in\n   this order, so it may as well say so. */\n.navgroup h3 .gu{\n  margin-left:auto; font-family:var(--font-mono); font-size:.6rem;\n  letter-spacing:.02em; text-transform:none; color:var(--ink-mute); opacity:.8;\n}\n.ctl-inline{display:flex;align-items:center;gap:6px}\n.ctl-inline label{\n  font-size:.64rem;font-weight:600;letter-spacing:.09em;\n  text-transform:uppercase;color:var(--ink-mute);\n}\n.ctl-inline select{\n  background:var(--surface-2); border:1px solid var(--border-control);\n  border-radius:4px; padding:3px 6px; font-size:.74rem;\n}\n.navbtn{\n  display:flex; align-items:center; gap:8px; width:100%;\n  background:none; border:0; border-left:3px solid transparent;\n  padding:var(--nav-y) 12px var(--nav-y) 9px; text-align:left; cursor:pointer;\n  font-size:.79rem; color:var(--ink-soft); line-height:1.35;\n}\n.navbtn:hover{background:var(--surface-2);color:var(--ink)}\n.navbtn[aria-current=\"true\"]{\n  background:var(--bg-brass); border-left-color:var(--brass-fill);\n  color:var(--ink); font-weight:600;\n}\n.navbtn .nlv{\n  margin-left:auto; font-family:var(--font-mono); font-size:.7rem;\n  color:var(--ink-mute); font-variant-numeric:tabular-nums;\n}\n.navbtn[aria-current=\"true\"] .nlv{color:var(--brass)}\n\n/* --- options -------------------------------------------------------- */\n.optrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:3px 0}\n.optrow label{font-size:.78rem;color:var(--ink-soft)}\n.switch{display:flex;border:1px solid var(--border-strong);border-radius:4px;overflow:hidden}\n.switch button{\n  background:var(--surface-2);border:0;padding:3px 9px;cursor:pointer;\n  font-size:.72rem;font-weight:600;color:var(--ink-mute);\n}\n.switch button + button{border-left:1px solid var(--border-strong)}\n.switch button[aria-pressed=\"true\"]{background:var(--brass-fill);color:var(--on-brass)}\n\n/* --- main system panel ---------------------------------------------- */\n.syshead{\n  display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;\n  padding:11px 14px; border-bottom:1px solid var(--border);\n}\n.syshead h2{\n  font-family:var(--font-head); font-size:1.32rem; font-weight:600;\n  letter-spacing:.045em; text-transform:uppercase; margin:0; line-height:1.15;\n}\n.syshead .desc{flex-basis:100%;margin:0;font-size:.83rem;color:var(--ink-soft);max-width:72ch}\n.pill{\n  display:inline-flex;align-items:center;gap:5px;\n  font-family:var(--font-mono); font-size:.66rem; font-weight:600;\n  letter-spacing:.06em; padding:2px 7px; border-radius:3px;\n  background:var(--bg-steel); color:var(--steel); white-space:nowrap;\n}\n.pill.code{background:var(--bg-moss);color:var(--moss)}\n.pill.cross{background:var(--bg-brass);color:var(--brass-text)}\n.pill.live{background:var(--bg-moss);color:var(--moss)}\n.pill.open{background:var(--bg-violet);color:var(--violet)}\n.pill.cur{background:var(--bg-steel);color:var(--steel)}\n\n/* control strip */\n.controls{\n  display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;\n  padding:9px 14px; background:var(--surface-2); border-bottom:1px solid var(--border);\n}\n.field{display:flex;flex-direction:column;gap:3px}\n.field > .lab{\n  font-size:.66rem; font-weight:600; letter-spacing:.09em;\n  text-transform:uppercase; color:var(--ink-mute);\n  display:flex; align-items:center; gap:5px;\n}\n.field input, .field select{width:var(--ctl-w)}\n.field select{width:auto;min-width:112px}\n.field > .lab .awoo-light{margin:0}\n\n/* summary strip */\n.summary{\n  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));\n  gap:1px; background:var(--border); border-bottom:1px solid var(--border);\n}\n.stat{background:var(--surface);padding:8px 14px}\n.stat .k{\n  font-size:.64rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;\n  color:var(--ink-mute);display:block;margin-bottom:2px;\n}\n.stat .v{\n  font-family:var(--font-num); font-size:1.02rem; font-weight:600;\n  font-variant-numeric:tabular-nums; font-feature-settings:\"zero\" 0;\n  color:var(--ink); word-break:break-word;\n}\n.stat .v.accent{color:var(--brass)}\n.stat .u{font-size:.68rem;color:var(--ink-mute);font-weight:400;margin-left:3px}\n\n/* the rest of the bill, for systems that charge in more than one currency */\n.billstrip{\n  display:flex; align-items:center; gap:8px; flex-wrap:wrap;\n  padding:8px 16px; background:var(--surface-2); border-bottom:1px solid var(--border);\n}\n.billstrip .bk{\n  font-size:.64rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase;\n  color:var(--ink-mute);\n}\n.billstrip .bv{\n  font-family:var(--font-mono); font-size:.76rem; font-variant-numeric:tabular-nums;\n  background:var(--surface); border:1px solid var(--border);\n  border-radius:3px; padding:1px 7px; color:var(--ink-soft);\n}\n\n/* table */\n.tablewrap{overflow-x:auto;overflow-y:auto}\ntable{border-collapse:collapse;width:100%;min-width:560px}\nthead th{\n  position:sticky; top:0; z-index:2; background:var(--surface-3);\n  font-family:var(--font-display); font-size:.64rem; font-weight:700;\n  letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft);\n  text-align:right; padding:5px var(--row-x); line-height:1.4;\n  border-bottom:1px solid var(--border-strong);\n  white-space:nowrap;\n}\nthead th:first-child{text-align:left}\nthead th .hsub{\n  display:block;font-family:var(--font-body);font-size:.64rem;\n  letter-spacing:.01em;text-transform:none;color:var(--ink-mute);font-weight:400;\n}\ntbody td{\n  padding:var(--row-y) var(--row-x); text-align:right;\n  border-bottom:1px solid var(--border);\n  font-family:var(--font-num); font-size:.8rem; line-height:1.7;\n  font-variant-numeric:tabular-nums;\n  white-space:nowrap;\n}\n/* Only the level itself is emphasised. Every figure bold made the whole table\n   read as bold, which is the same as none of it being emphasised. */\ntbody td:first-child{text-align:left;font-weight:600}\ntbody tr.past td{color:var(--ink-mute);background:var(--surface-2)}\n/* Fill treatment BC, settled 2026-09-21: the accent tint carries the state,\n   a SOFT edge gives it a shape. --accent-edge, never --accent-fill: a\n   full-strength ring reads as a frame around the row rather than emphasis on\n   it, which is exactly what it looked like at full strength. */\n/* The tint already says \"you are here\"; bolding every figure in the row on top\n   of it is the third signal for one fact. Only the level stays bold. */\ntbody tr.current td{\n  background:var(--bg-accent);\n  border-top:1px solid var(--accent-edge); border-bottom:1px solid var(--accent-edge);\n}\ntbody tr.current td:first-child{font-weight:700}\ntbody tr.current td:first-child::after{\n  content:'YOU'; margin-left:8px; font-family:var(--font-body);\n  font-size:.6rem; letter-spacing:.09em; color:var(--brass-text);\n  background:var(--surface); padding:1px 5px; border-radius:3px; font-weight:600;\n}\ntbody tr.target td{\n  background:var(--bg-success);\n  border-top:1px solid var(--accent-edge); border-bottom:1px solid var(--accent-edge);\n}\ntbody tr.target td:first-child{font-weight:700}\ntbody tr.target td:first-child::after{\n  content:'TARGET'; margin-left:8px; font-family:var(--font-body);\n  font-size:.6rem; letter-spacing:.09em; color:var(--moss);\n  background:var(--surface); padding:1px 5px; border-radius:3px; font-weight:600;\n}\ntbody tr:hover td{background:var(--surface-3)}\ntbody tr.current:hover td{background:var(--bg-brass)}\ntbody tr.target:hover td{background:var(--bg-moss)}\ntbody td.dash{color:var(--ink-mute)}\ntbody tr.bp td{background:var(--bg-info);border-top:1px solid var(--info)}\ntbody tr.bp:hover td{background:var(--bg-violet)}\ntbody td .bpnote{\n  font-family:var(--font-body);font-size:.6rem;letter-spacing:.06em;\n  color:var(--violet);margin-left:8px;text-transform:uppercase;font-weight:600;\n  border-bottom:1px dotted currentColor;cursor:help;\n}\n\n/* BREAKPOINTS (2026-09-23): every place the formula changes shape, listed\n   above the table whatever the step, with what changes there. Click one to\n   make it the target. */\n.bpstrip{\n  display:flex; align-items:center; gap:6px; flex-wrap:wrap;\n  padding:8px 14px; border-bottom:1px solid var(--border); background:var(--surface);\n}\n.bpstrip .bk{font-size:.64rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-mute);margin-right:2px}\n.bpchip{\n  display:inline-flex; align-items:baseline; gap:5px; cursor:pointer;\n  font-size:.72rem; color:var(--ink-soft); background:var(--bg-info);\n  border:1px solid color-mix(in srgb,var(--info) 35%,transparent); border-radius:4px; padding:2px 7px;\n}\n.bpchip b{font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--info);font-weight:700}\n.bpchip:hover{border-color:var(--info);color:var(--ink)}\n.bpchip.passed{background:var(--surface-2);border-color:var(--border);opacity:.7}\n.bpchip.passed b{color:var(--ink-mute)}\n.bpnone{font-size:.72rem;color:var(--ink-mute)}\n\n.rowctl{\n  display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;\n  padding:7px 14px; border-top:1px solid var(--border); background:var(--surface-2);\n}\n.rowctl .hint{margin-right:auto;font-size:.72rem;color:var(--ink-mute)}\n.rowctl input{width:64px}\n.rowctl label{font-size:.72rem;color:var(--ink-soft)}\n\n/* notes */\ndetails.notes{border-top:1px solid var(--border)}\ndetails.notes > summary{\n  cursor:pointer; padding:9px 16px; list-style:none;\n  font-family:var(--font-head); font-size:.72rem; font-weight:600;\n  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft);\n  display:flex; align-items:center; gap:8px;\n}\ndetails.notes > summary::-webkit-details-marker{display:none}\ndetails.notes > summary::before{content:'▸';color:var(--brass);font-size:.8rem}\ndetails.notes[open] > summary::before{content:'▾'}\n.notebody{padding:0 16px 14px;font-size:.82rem;color:var(--ink-soft);max-width:82ch}\n.notebody p{margin:.5em 0}\n.notebody code, .formula{\n  font-family:var(--font-mono);font-size:.78rem;\n  background:var(--surface-3);padding:1px 5px;border-radius:3px;color:var(--ink);\n}\n.formula{display:block;padding:8px 11px;margin:.6em 0;white-space:pre-wrap;line-height:1.55;border-left:2px solid var(--brass-fill)}\n.srcline{\n  display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:9px;\n  border-top:1px dashed var(--border);\n}\n.srcline .pill{background:var(--surface-3);color:var(--ink-mute)}\n\n/* Tooltips are the shared kit's (tool-sync.js): one fixed element, never\n   clipped by the table's scroll box. .tip only marks what has one. */\n.tip{cursor:help;border-bottom:1px dotted var(--ink-mute)}\n.banner{\n  display:flex;gap:9px;align-items:flex-start;\n  padding:9px 12px;border-radius:5px;font-size:.78rem;line-height:1.45;\n  background:var(--bg-violet); color:var(--ink); border:1px solid var(--violet);\n}\n.banner.warn{background:var(--bg-ember);border-color:var(--ember)}\n.banner b{font-weight:700}\n.foot{\n  max-width:1400px;margin:0 auto;padding:0 20px 40px;\n  font-size:.74rem;color:var(--ink-mute);line-height:1.6;\n}\n/* Standing default 5: one control that grows the table to the viewport,\n   not a drag handle and not incremental steps. */\n.expandbtn{margin-left:auto}\n\n/* v4 baseline: back-to-top, shown only once scrolled AND collapsed to one\n   column — on the wide sticky-sidebar layout the inputs never leave the\n   screen, so it would be redundant chrome. */\n#backTop{\n  position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom,0px));\n  z-index:40; width:40px; height:40px; border-radius:50%;\n  background:var(--brass-fill); color:var(--on-brass);\n  border:1px solid var(--brass); box-shadow:var(--shadow);\n  font-size:1.05rem; line-height:1; cursor:pointer;\n}\n#backTop[hidden]{display:none!important}\n\n@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}\n</style>\n\n<script>\n/* Helpers the generated facts below call but do not define. `triangular` is\n   the shared arithmetic-series cost primitive (village strengths, relic\n   boosts, cave tools, sculptures all use it); `geomCost` is the geometric one\n   (village buildings and the village boss). Both are quoted from\n   engine/costs/primitives.js, and both are on window deliberately: the facts\n   are emitted into their own IIFE and resolve these through global scope,\n   exactly as those facts' own comments assume. */\n/* Function DECLARATIONS, not window assignments: an emitted fact resolves\n   `triangular` as a bare identifier, and a declaration in a classic script is\n   a real global binding in every environment, where `window.x = ...` only\n   happens to be one in a browser. Also mirrored onto window for the page's\n   own use. */\nfunction triangular(a, b, mult) { return ((a + b) * (b - a) * mult) / 2; }\nfunction geomCost(currentLevel, newLevel, base, ratio) {\n  ratio = ratio || 1.15;\n  var start = currentLevel + 1, count = newLevel - currentLevel;\n  return Math.round((base * Math.pow(ratio, start) * (Math.pow(ratio, count) - 1)) / (ratio - 1));\n}\nwindow.triangular = triangular;\nwindow.geomCost = geomCost;\n</script>\n\n<script>\n/* GENERATED from data/ by userscripts/build.mjs — do not edit. */\nwindow.AWOO_FACTS = (function () {\n  /* tables/sanctum-nodes.json :: sanctumNodes.formula.status  [CROSS] */\n  function sanctumNodeCost(currentLevel, newLevel) { const RATE = 125000, EXP = 5; let total = 0; for (let n = currentLevel + 1; n <= newLevel; n++) { total += RATE * Math.pow(n, EXP) + n * RATE * 100; } return { currency: 'gold', value: total }; } // costTable's per-node figures = round(sanctumNodeCost(n-1, n).value / 1e9), i.e. the table is in BILLIONS of gold, rounded\n  /* formulas/pets.json :: pets.slotUpgrade.costFormula  [CODE] */\n  function petSlotUpgradeCost(currentLevel, newLevel) { let total = 0; for (let r = currentLevel + 1; r <= newLevel; r++) total += r <= 150 ? Math.floor(500000 * r**3) : Math.floor(500000 * 150**3 * (r/150)**15); return { currency: 'gold', value: total }; } // per-level marginal cost at level L->L+1: floor(500000*(L+1)^3) while L+1<=150, else floor(500000*150^3*((L+1)/150)^15). Exactly continuous at the seam: both branches evaluate to floor(500000*150^3) = 1,687,500,000,000 at r=150.\n  /* formulas/equipment.json :: equipment.slotUpgrade.costFormula  [CODE] */\n  function slotUpgradeCost(currentLevel, newLevel) { let ratio = 1.1; let count = newLevel - currentLevel; if (count <= 0) return 0; let cost = Math.round(250 * ratio**(currentLevel+1) * (ratio**count - 1) / (ratio - 1)); return { meat: cost, iron: cost, wood: cost, stone: cost }; }\n  /* formulas/leveling.json :: leveling.genericExpRequired.formula  [CODE] */\n  function expRequired(level, type) { if (type === 'sanctum') level += 500; if (level < 10) return level * 150; if (level < 20) return level * 250; if (level < 40) return level * 400; if (level < 50) return level * 600; if (level < 100 || type === 'crafting') return level * 1000; let base = 20000 * Math.sqrt(level); if (level <= 500) return Math.round(base); let n = level - 500; let extra = 2500 * n**1.25; if (level > 10000) { n = level - 10000; extra += 100000 * n**1.4; } return Math.round(base + extra); }\n  /* formulas/partners.json :: partner.level.expFormula  [CODE] */\n  function partnerLevelExp(level) { if (level < 10) return level * 150; if (level < 20) return level * 200; if (level < 40) return level * 300; if (level < 50) return level * 400; let base = Math.round(25000 * level**0.5); if (level <= 1500) return Math.round(base); let n = level - 1500; let extra = 250 * n**1.25; if (level > 6000) { n = level - 6000; extra += 2500 * n**1.4; } return Math.round(base + extra); }\n  /* formulas/partners.json :: partner.boostUpgradeCost.formula  [CODE] */\n  function partnerBoostUpgradeCost(currentLevel, targetLevel) { const tri = (a, b, mult) => (a + b) * (b - a) / 2 * mult; if (targetLevel < 10) return tri(currentLevel, targetLevel, 150); let total = tri(Math.max(currentLevel - 9, 0), Math.max(targetLevel - 9, 1), 15000); const brackets = [[1000, 10000], [2000, 100000], [3500, 500000]]; for (const [threshold, mult] of brackets) { const a = Math.max(currentLevel, threshold), b = Math.max(targetLevel, threshold); if (a <= b) total += tri(a, b, mult); } return { currency: 'gold', value: total }; }\n  /* formulas/relic-boosts.json :: relicBoost.bracketSurcharge  [CODE] */\n  function bracketSurcharge(currentLevel, newLevel) { const series = (x, m) => x * (x + 1) / 2 * m; if (newLevel <= 5000) return 0; let sum = 0; const first = Math.floor((Math.max(currentLevel, 5001) - 5001) / 1000), last = Math.floor((newLevel - 5001) / 1000); for (let o = first; o <= last; o++) { const bracketStart = 5001 + o * 1000, bracketEnd = Math.min(5000 + (o + 1) * 1000, newLevel); const rate = o < 5 ? 20 : 20 + (o - 4) * 10; const lo = Math.max(currentLevel + 1, bracketStart), hi = bracketEnd; if (hi >= lo) sum += series(hi - 5000, rate) - series(lo - 5000 - 1, rate); } return sum; }\n  /* formulas/relic-boosts.json :: relicBoost.veryHighLevelSurcharge  [CODE] */\n  function veryHighLevelSurcharge(currentLevel, newLevel) { let low = Math.max(currentLevel, 50000); let high = Math.max(newLevel, 50000); if (low > high) return 0; return triangular(low - 50000, high - 50000, 50000); }\n  /* formulas/relic-boosts.json :: relicBoost.costFormula  [CODE] */\n  function boostCost(currentLevel, newLevel, boostType) { const series = (x, m) => x * (x + 1) / 2 * m; if (boostType==='defenseFlat' || boostType==='damageFlat') { let cost = series(newLevel, 100) - series(currentLevel, 100) + bracketSurcharge(currentLevel, newLevel); return {currency:'gold', value: Math.round(cost)}; } let cost = series(newLevel, 10) - series(currentLevel, 10) + bracketSurcharge(currentLevel, newLevel) + veryHighLevelSurcharge(currentLevel, newLevel); return {currency:'relics', value: Math.round(cost)}; }\n  /* formulas/sculptures.json :: sculptures.tileUpgradeCost  [CODE] */\n  function tileUpgradeCost(currentLevel, newLevel) { const series = (x, m) => x * (x + 1) / 2 * m; const a = Math.max(currentLevel, 2500), b = Math.max(newLevel, 2500); const past2500 = a <= b ? triangular(a - 2500, b - 2500, 2500000) : 0; return Math.round(series(newLevel, 25000) - series(currentLevel, 25000) + past2500); }  // level L costs 25,000*L, plus (L-2500-0.5)*2,500,000 past 2500\n  /* formulas/village-boss.json :: villageBoss.costFormula  [CODE] */\n  function villageBossCost(currentLevel, newLevel, base, ratio=1.15) { let start = currentLevel+1; let count = newLevel-currentLevel; return Math.round(base * ratio**start * (ratio**count - 1) / (ratio-1)); }\n  /* formulas/village.json :: village.buildings.costFormula.implementation  [CODE] */\n  function villageBuildingCost(currentLevel, newLevel) { const ratio = 1.15, start = currentLevel + 1, count = newLevel - currentLevel, ratioToStart = ratio ** start; const geomCost = (base) => Math.round(base * ratioToStart * (ratio ** count - 1) / (ratio - 1)); const out = [{currency: 'gold', value: geomCost(200000)}, {currency: 'meat', value: geomCost(4000)}, {currency: 'iron', value: geomCost(4000)}, {currency: 'wood', value: geomCost(4000)}, {currency: 'stone', value: geomCost(4000)}]; if (newLevel > 40) { const relicStart = Math.max(start, 41), relicCount = newLevel - relicStart + 1; if (relicCount > 0) out.push({currency: 'relics', value: Math.round(3000 * (ratio ** relicStart) * (ratio ** relicCount - 1) / (ratio - 1))}); } return out; }\n  /* formulas/caves.json :: caves.toolUpgradeCost.formula  [CODE] */\n  function caveToolUpgradeCost(currentLevel, targetLevel, toolName) { const tri = (a, b, mult) => (a + b) * (b - a) / 2 * mult; if (toolName === 'repeater') return { currency: 'diamonds', value: Math.round(1000 * (2 ** (targetLevel + 1) - 2 ** (currentLevel + 1)) / 9) }; const base = tri(currentLevel, targetLevel, 4000); const a = Math.max(currentLevel, 100), o = Math.max(targetLevel, 100), tier100 = a <= o ? tri(a, o, 4000) : 0; const c = Math.max(currentLevel, 200), l = Math.max(targetLevel, 200), tier200 = c <= l ? tri(c - 200, l - 200, 400000) : 0; const d = Math.max(currentLevel, 600), f = Math.max(targetLevel, 600), tier600 = d <= f ? tri(d - 600, f - 600, 2000000) : 0; const resourceCost = Math.round(base + tier100 + tier200 + tier600); const diamondCost = Math.round(tri(currentLevel, targetLevel, 1)); return { meat: resourceCost, iron: resourceCost, wood: resourceCost, stone: resourceCost, diamonds: diamondCost }; }\n  /* formulas/dungeons.json :: dungeon.fighterSlotCost.formula  [CODE] */\n  function fighterSlotCost(currentCount, targetCount) { if (targetCount <= currentCount) return { currency: 'gold', value: 0 }; return { currency: 'gold', value: 10000 * (Math.pow(10, targetCount + 1) - Math.pow(10, currentCount + 1)) / 9 }; }\n  /* tables/house-upgrades.json :: house.resourceCost.formula  [CODE] */\n  function houseUpgradeCost(currentLevel, newLevel) { const perLevel = (lvl) => 5000 + Math.round(5000 * Math.pow(lvl, 1.25)); let total = 0; for (let lvl = currentLevel + 1; lvl <= newLevel; lvl++) total += perLevel(lvl); let extra = 0; if (newLevel > 50) extra = (newLevel - Math.max(currentLevel, 50)) * 1e6; return { meat: total + extra, iron: total + extra, wood: total + extra, stone: total + extra }; }\n  return { sanctumNodeCost, petSlotUpgradeCost, slotUpgradeCost, expRequired, partnerLevelExp, partnerBoostUpgradeCost, bracketSurcharge, veryHighLevelSurcharge, boostCost, tileUpgradeCost, villageBossCost, villageBuildingCost, caveToolUpgradeCost, fighterSlotCost, houseUpgradeCost };\n})();\nwindow.AWOO_FACTS_META = {\"sanctumNodeCost\":{\"file\":\"tables/sanctum-nodes.json\",\"fact\":\"sanctumNodes.formula.status\",\"confidence\":\"CROSS\",\"checked\":\"2026-08-23\"},\"petSlotUpgradeCost\":{\"file\":\"formulas/pets.json\",\"fact\":\"pets.slotUpgrade.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-09-07\"},\"slotUpgradeCost\":{\"file\":\"formulas/equipment.json\",\"fact\":\"equipment.slotUpgrade.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"expRequired\":{\"file\":\"formulas/leveling.json\",\"fact\":\"leveling.genericExpRequired.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"partnerLevelExp\":{\"file\":\"formulas/partners.json\",\"fact\":\"partner.level.expFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"partnerBoostUpgradeCost\":{\"file\":\"formulas/partners.json\",\"fact\":\"partner.boostUpgradeCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"bracketSurcharge\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.bracketSurcharge\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"veryHighLevelSurcharge\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.veryHighLevelSurcharge\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"boostCost\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"tileUpgradeCost\":{\"file\":\"formulas/sculptures.json\",\"fact\":\"sculptures.tileUpgradeCost\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageBossCost\":{\"file\":\"formulas/village-boss.json\",\"fact\":\"villageBoss.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageBuildingCost\":{\"file\":\"formulas/village.json\",\"fact\":\"village.buildings.costFormula.implementation\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"caveToolUpgradeCost\":{\"file\":\"formulas/caves.json\",\"fact\":\"caves.toolUpgradeCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"fighterSlotCost\":{\"file\":\"formulas/dungeons.json\",\"fact\":\"dungeon.fighterSlotCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"houseUpgradeCost\":{\"file\":\"tables/house-upgrades.json\",\"fact\":\"house.resourceCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"}};\n</script>\n\n<div class=\"shell\">\n  <aside class=\"side\" data-awoo-sidebar data-side-min=\"1041\" data-side-top=\"20\">\n    <div class=\"awoo-head\">\n      <div id=\"gear\"></div>\n      <div class=\"awoo-eyebrow\">Upgrade pricing &middot; 15 systems</div>\n      <h1 class=\"awoo-title\">Cost Tables</h1>\n      <p class=\"awoo-sub\">What the next levels cost, from where you are to where you want to be.</p>\n    </div>\n    <div id=\"syncCard\"></div>\n    <nav class=\"panel\" id=\"nav\" aria-label=\"Cost systems\"></nav>\n    <button class=\"btn ghost sm\" type=\"button\" id=\"resetAllBtn\" data-tip=\"Current levels, targets, steps and row counts back to their defaults, for every subject.\">Reset every subject</button>\n\n    <div class=\"panel\">\n      <div class=\"ph\">Legend</div>\n      <div class=\"pb\" style=\"display:flex;flex-direction:column;gap:6px;font-size:.76rem;color:var(--ink-soft)\">\n        <div><span class=\"pill live\">LIVE</span> checked against the real game</div>\n        <div><span class=\"pill code\">CODE</span> read from the shipped bundle</div>\n        <div><span class=\"pill cross\">CROSS</span> matches a known table, small drift</div>\n        <div><span class=\"pill open\">OPEN</span> something here is unresolved</div>\n      </div>\n    </div>\n  </aside>\n\n  <main class=\"panel\" id=\"main\"></main>\n</div>\n\n<button id=\"backTop\" type=\"button\" aria-label=\"Back to top\" hidden>↑</button>\n\n<div class=\"foot\">\n  Formulas are generated from the AWOO+ core (<code>core/data/formulas/</code>) and\n  were last checked against the game's own code (1.2.3.12) on 2026-09-23. Confidence tags are that core's own evidence\n  tiers, not a generic severity scale — a <b>CROSS</b> or <b>OPEN</b> table is\n  telling you something real about how far to trust the number.\n</div>\n\n<script>\n(function(){\n'use strict';\n\n/* =====================================================================\n   NUMBER FORMATTING — the shared settings layer's (tool-settings.js,\n   2026-09-23). The game's own two settings, inherited through AWOO+ and\n   overridable in the gear menu, the same in every tool. This page carried\n   its own copy of that until then; its saved override is handed over once\n   (see load()).\n   ===================================================================== */\nvar NUM = window.AWOO_TOOL_SETTINGS.num;\nfunction fmtInt(n){ return NUM.int(n); }\nfunction fmtNum(n){ return NUM.fmt(n); }\n\n/* =====================================================================\n   COST FORMULAS — verbatim ports. Each system exposes range(a,b,variant)\n   returning a currency->amount map, NOT a per-level marginal that the\n   page then sums. That matters: several of these are bracketed\n   triangular sums whose own range function is the authority, and at\n   least one (partner boosts) is provably non-additive across its\n   level-10 seam. Summing marginals would quietly disagree with the game.\n   ===================================================================== */\nvar F = (typeof window !== 'undefined' && window.AWOO_FACTS) || null;\nvar triangular = window.triangular, geomCost = window.geomCost;\n\n// Every generated fact returns one of three shapes: a bare number, a\n// { currency, value } pair, or a map of currency -> amount. One normaliser,\n// so the emitted text is never edited to fit this page.\nfunction asCost(out, fallbackCurrency){\n  if (out == null) return {};\n  if (typeof out === 'number'){ var o = {}; o[fallbackCurrency] = out; return o; }\n  // Some facts return an ARRAY of {currency,value} (village buildings bills in\n  // six currencies that way); others a single such pair; others a plain map.\n  if (Array.isArray(out)){\n    var m = {};\n    for (var i=0;i<out.length;i++){ if (out[i] && out[i].currency) m[out[i].currency] = out[i].value; }\n    return m;\n  }\n  if (typeof out.currency === 'string'){ var p = {}; p[out.currency] = out.value; return p; }\n  return out;\n}\n// A fact that failed to generate must not silently become zero. If the build\n// did not inject it, the page says so rather than pricing everything free.\nfunction fact(name){\n  if (!F || typeof F[name] !== 'function') {\n    throw new Error('Cost Tables: generated fact \"' + name + '\" is missing — the page was opened unbuilt.');\n  }\n  return F[name];\n}\n\n// partner.slotUnlock.formula and dungeon.fighterSlotCost.formula are the same\n// base-10 closed form. The dungeon one generates; the partner one is recorded\n// as prose, so it is hand-written here against that shared shape.\nfunction base10Series(a,b){ return (10000*(Math.pow(10,b+1)-Math.pow(10,a+1)))/9; }\n\n/* GENERATED: tables/sanctum-nodes.json :: sanctumNodes.formula.status */\nfunction sanctumNodeCost(a,b){ return asCost(fact('sanctumNodeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/pets.json :: pets.slotUpgrade.costFormula */\nfunction petSlotCost(a,b){ return asCost(fact('petSlotUpgradeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/partners.json :: partner.boostUpgradeCost.formula */\nfunction partnerBoostCost(a,b){ return asCost(fact('partnerBoostUpgradeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/partners.json :: partner.level.expFormula */\nfunction partnerLevelExpAt(level){ return fact('partnerLevelExp')(level); }\n/* GENERATED: formulas/leveling.json :: leveling.genericExpRequired.formula */\nfunction levelExp(level,type){ return fact('expRequired')(level, type || 'battling'); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.bracketSurcharge.\n   Hand-translated here until 2026-09-21, when the fact's pseudocode was\n   rewritten as real JavaScript (pinned against the engine's loop in\n   tests/income-relic-boosts-vs-known-captures.mjs). */\nfunction relicBracketSurcharge(a,b){ return fact('bracketSurcharge')(a,b); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.costFormula — all three\n   layers, priced by the game's own boostCost rather than re-assembled here. */\nfunction relicBoostCost(a,b,boostType){ return fact('boostCost')(a,b,boostType); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.veryHighLevelSurcharge */\nfunction relicVeryHigh(a,b){ return fact('veryHighLevelSurcharge')(a,b); }\n/* GENERATED: formulas/caves.json :: caves.toolUpgradeCost.formula */\nfunction caveToolCost(a,b,tool){ return asCost(fact('caveToolUpgradeCost')(a,b,tool),'meat'); }\n/* GENERATED: tables/house-upgrades.json :: house.resourceCost.formula */\nfunction houseCost(a,b){ return asCost(fact('houseUpgradeCost')(a,b),'meat'); }\n/* GENERATED: formulas/village.json :: village.buildings.costFormula.implementation */\nfunction villageBuildingCost(a,b){ return asCost(fact('villageBuildingCost')(a,b),'gold'); }\n\n/* =====================================================================\n   SYSTEM REGISTRY\n   ===================================================================== */\nvar CUR = {\n  gold:{label:'Gold'}, relics:{label:'Relics'}, diamonds:{label:'Diamonds'},\n  meat:{label:'Meat'}, iron:{label:'Iron'}, wood:{label:'Wood'}, stone:{label:'Stone'},\n  exp:{label:'EXP'}, essence:{label:'Boss essence'},\n  tileres:{label:'Tile resource'},\n  unrecorded:{label:'Unrecorded currency'}\n};\n\nvar SYSTEMS = [\n{\n  id:'sanctum', group:'Character', name:'Sanctum skill tree', tier:'CROSS',\n  unit:'nodes bought', unitShort:'Nodes', def:25, min:0, max:84, view:84, expandBy:0, step:1, checked:'2026-08-23',\n  maxNote:'84 is the whole tree — counted from the node graph in tables/skill-tree.json, not estimated.',\n  desc:'Priced on the TOTAL number of nodes you have bought tree-wide — not on any one node’s level. Node 26 costs the same whichever node you spend it on.',\n  cur:['gold'],\n  range:function(a,b){ return { gold: sanctumNodeCost(a,b) }; },\n  formula:'cost(n) = 125,000 · n⁵  +  12,500,000 · n      (n = the nth node bought)',\n  userNote:'Every node costs the same wherever you spend it — the price is set by how many you have bought in total, so the cheapest node is always the next one.',\n  devNote:'Reproduces the known cost table <b>exactly</b> for nodes 6–15, then runs 0.3–0.4% <b>low</b> from node 16 onward (computed 996 vs table 999 at node 24). Budget slightly above what this table says. Reading one real per-node price off the Skill Tree page past node 24 would settle what the drift actually is. Checked against the 1.2.3.12 bundle 2026-09-23: unchanged.',\n  srcs:['tables/sanctum-nodes.json','engine/income/sanctum.js'],\n  alias:'Called \"sanctum nodes\" in game, but 81 of its 84 nodes have nothing to do with sanctums.',\n  noBreaks:'One smooth curve: no breakpoints.'\n},\n{\n  id:'petslot', group:'Pets', name:'Pet slot', tier:'LIVE',\n  unit:'slot level', unitShort:'Level', def:100, min:0, max:300, view:30, expandBy:30, step:1, checked:'2026-09-07',\n  desc:'Each of the three slots levels and is paid for separately. Gold only — pet slots never cost village resources.',\n  variants:{ label:'Slot', options:[{id:'combat',label:'Combat'},{id:'utility',label:'Utility'},{id:'gathering',label:'Gathering'}] },\n  defByVariant:{ combat:136, utility:51, gathering:71 },\n  cur:['gold'],\n  breaks:[\n    { at:31, short:'boost ×2 rate', tip:'From here each level adds 2% boost instead of 1%. The rate steps up every 30 levels.' },\n    { at:61, short:'boost ×3 rate', tip:'Each level now adds 3% boost.' },\n    { at:91, short:'boost ×4 rate', tip:'Each level now adds 4% boost.' },\n    { at:121, short:'boost ×5 rate', tip:'Each level now adds 5% boost.' },\n    { at:151, short:'cost ×5 curve', tip:'Past 150 the cost exponent jumps from 3 to 15 (the patch notes call it \"x5 scaling\"). The boost still adds 6% a level up to 179.', dev:'pets.slotUpgrade.costFormula: floor(500,000 · 150³ · (L/150)^15) for L > 150.' },\n    { at:180, short:'boost falls to +450%', tip:'The pet boost saw-tooths from here: 179 gives +624%, 180 gives +450%, and it climbs 6% a level back to +624% at 209. Buying 179 → 180 lowers your boost; so does every 30th level after.', dev:'pets.slotUpgrade.boostFormula: the block term freezes at block 5 (0.3·5·6/2 = 4.5) while intoBlock keeps cycling.' }\n  ],\n  range:function(a,b){ return { gold: petSlotCost(a,b) }; },\n  formula:'level ≤ 150:  floor(500,000 · level³)\\nlevel > 150:  floor(500,000 · 150³ · (level/150)¹⁵)',\n  userNote:'Gold only, and each of the three slots is priced separately. Past level 150 the cost climbs far faster — the exponent jumps from 3 to 15, which is the dev’s “x5 scaling” note, while from level 180 the boost falls back to +450% every 30 levels.',\n  devNote:'The cubic branch is <b>live-verified</b> at three points on a real account (combat 135→136, utility 50→51, gathering 70→71 — all exact). The post-150 branch is <b>bundle-only</b>: no tracked account has reached 150 yet.',\n  srcs:['formulas/pets.json','engine/income/profile.js']\n},\n{\n  id:'equipslot', group:'Character', name:'Equipment slot', tier:'CODE',\n  unit:'slot level', unitShort:'Level', def:60, min:1, max:300, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Character equipment slots, each levelled on its own. Costs the same amount of all four village resources at once — no gold.',\n  variants:{ label:'Slot', options:[{id:'head',label:'Head'},{id:'body',label:'Body'},{id:'legs',label:'Legs'},{id:'hands',label:'Hands'},{id:'feet',label:'Feet'},{id:'leftHand',label:'Left hand'},{id:'rightHand',label:'Right hand'}] },\n  cur:['meat','iron','wood','stone'],\n  breaks:[\n    { at:31, short:'boost ×2 rate', tip:'The boost these levels buy accelerates in 30-level blocks: from here each level adds 2%.' },\n    { at:61, short:'boost ×3 rate', tip:'Each level now adds 3%.' },\n    { at:91, short:'boost ×4 rate', tip:'Each level now adds 4%.' },\n    { at:121, short:'boost ×5 rate', tip:'Each level now adds 5%.' },\n    { at:151, short:'boost ×6 rate', tip:'Each level now adds 6%. Unlike pets, equipment keeps climbing past 150.' },\n    { at:181, short:'boost ×7 rate', tip:'Each level now adds 7%.' },\n    { at:211, short:'boost ×8 rate', tip:'Each level now adds 8%.' },\n    { at:241, short:'boost ×9 rate', tip:'Each level now adds 9%.' },\n    { at:271, short:'boost ×10 rate', tip:'Each level now adds 10%.' }\n  ],\n  range:function(a,b){ return asCost(fact('slotUpgradeCost')(a,b),'meat'); },  /* GENERATED: equipment.slotUpgrade.costFormula */\n  formula:'geometric series, base 250, ratio 1.10 per level, charged in each of meat / iron / wood / stone',\n  userNote:'Costs the same amount of all four village resources at once, and no gold. The cost itself has no breakpoints; the boost these levels buy steps up every 30 levels — level 30 gives +30%, 60 gives +90%, 90 gives +180%.',\n  devNote:'A different curve from pet slots, and deliberately so — the level-150 cap the dev added to pets was gated on a pet-only branch and never touched equipment.',\n  srcs:['formulas/equipment.json','engine/income/profile.js']\n},\n{\n  id:'charlevel', group:'Character', name:'Level EXP', tier:'CODE',\n  unit:'level', unitShort:'Level', def:300, min:1, max:20000, view:2000, expandBy:2000, step:10, checked:'2026-09-23',\n  desc:'One curve backs three tracks. Crafting never leaves the flat stair-step; sanctum shifts the level by +500 before applying the same curve, so sanctum level N costs what battling level N+500 costs.',\n  variants:{ label:'Which level', options:[{id:'battling',label:'Character level'},{id:'crafting',label:'Crafting / forging level'},{id:'sanctum',label:'Sanctum level'}] },\n  defByVariant:{ battling:300, crafting:300, sanctum:120 },\n  cur:['exp'],\n  breaks:function(v){\n    var stairs = [\n      { at:10, short:'250 per level', tip:'Levels 10–19 cost 250 EXP × level.' },\n      { at:20, short:'400 per level', tip:'Levels 20–39 cost 400 EXP × level.' },\n      { at:40, short:'600 per level', tip:'Levels 40–49 cost 600 EXP × level.' },\n      { at:50, short:'1,000 per level', tip:'Levels 50–99 cost 1,000 EXP × level.' }\n    ];\n    if (v === 'crafting') return stairs.concat([{ at:100, short:'stays flat', tip:'Crafting never leaves the flat 1,000 × level stair-step.' }]);\n    var tail = [\n      { at:100, short:'√ curve', tip:'From here: 20,000 · √level.' },\n      { at:501, short:'+ power tail', tip:'Adds 2,500 · (level − 500)^1.25.' },\n      { at:10001, short:'+ steep tail', tip:'Adds 100,000 · (level − 10,000)^1.4 — the steepest part of the curve.', dev:'Changed in 1.2.3.11 from 10,000 · (level − 10,000)^1.35; this table used the old tail until 2026-09-23.' }\n    ];\n    if (v === 'sanctum') return [\n      { at:1, short:'starts on the √ curve', tip:'Sanctum level N is priced as character level N + 500, so it starts past the stair-steps, on the √ curve with its first tail.' },\n      { at:9501, short:'+ steep tail', tip:'Sanctum 9,501 is character-curve level 10,001: the steep tail starts here.' }\n    ];\n    return stairs.concat(tail);\n  },\n  range:function(a,b,v){ var t=0; for(var n=a+1;n<=b;n++) t+=levelExp(n,v||'battling'); return {exp:t}; },\n  formula:'<10: L·150   <20: L·250   <40: L·400   <50: L·600   <100: L·1000\\n≥100: 20,000·√L  (+ 2,500·(L−500)^1.25 past 500, + 100,000·(L−10,000)^1.4 past 10,000)',\n  userNote:'This is EXP required, not currency — the “cost” columns count experience. Crafting never leaves the flat stair-step; a sanctum level costs what a character level 500 higher would.',\n  devNote:'<b>Corrected 2026-09-23</b>: the past-10,000 tail changed in 1.2.3.11 (was 10,000·(L−10,000)^1.35). Every figure above level 10,000 in this table was low until then — about a sixth of the real value at 11,500. The sanctum +500 shift was read from the bundle only and has not been checked against a live sanctum level.',\n  srcs:['formulas/leveling.json','engine/income/leveling.js']\n},\n\n{\n  id:'partnerboost', group:'Partners', name:'Speed / intelligence boost', tier:'CODE',\n  unit:'boost level', unitShort:'Level', def:900, min:0, max:5000, view:200, expandBy:200, step:10, checked:'2026-08-25',\n  desc:'Per partner, per boost. The same function priced at current level 0 is what the game shows you as the refund when you reset a partner’s boosts.',\n  variants:{ label:'Boost', options:[{id:'speed',label:'Speed'},{id:'intelligence',label:'Intelligence'}] },\n  cur:['gold'],\n  breaks:[\n    { at:10, short:'rate 15,000', tip:'From level 10 each level costs about 15,000 × (level − 9). One purchase across this seam is slightly cheaper than two.', dev:'Known discontinuity: cost(5→15) = 270,000 but cost(5→9) + cost(9→15) = 274,200.' },\n    { at:1001, short:'+10,000/level', tip:'Past 1,000 each level adds about 10,000 × level on top.' },\n    { at:2001, short:'+100,000/level', tip:'Past 2,000 each level adds about 100,000 × level on top.' },\n    { at:3501, short:'+500,000/level', tip:'Past 3,500 each level adds about 500,000 × level on top: the steepest stretch.' }\n  ],\n  range:function(a,b){ return { gold: partnerBoostCost(a,b) }; },\n  formula:'below 10:  triangular(a, b, 150)\\nfrom 10:   triangular(max(a−9,0), max(b−9,1), 15,000)\\n+ triangular past 1,000 @ 10,000 · past 2,000 @ 100,000 · past 3,500 @ 500,000',\n  userNote:'Per partner, per boost: buying a level for every partner costs this times your partner count. The same figure priced from level 0 is what the game shows you as the refund when you reset a partner’s boosts.',\n  devNote:'<b>Known discontinuity at level 10.</b> One purchase spanning the seam is cheaper than the same range bought as two: cost(5→15) = 270,000, but cost(5→9) + cost(9→15) = 274,200. The ≥10 branch re-indexes by −9 and clamps at zero, so every starting level from 0 to 9 lands on the same point. A real property of the game’s formula, not a transcription slip — and the reason this page always prices a range with the range function rather than adding up single levels. The other three thresholds are properly additive. Synced level = your LOWEST partner’s, the one you would buy next to keep them even.',\n  srcs:['formulas/partners.json','engine/income/partners.js']\n},\n{\n  id:'partnerhire', group:'Partners', name:'Hire a partner', tier:'CODE',\n  unit:'partners owned', unitShort:'Partners', def:5, min:0, max:12, view:12, expandBy:0, step:1, checked:'2026-08-23',\n  desc:'Unlocking the next partner slot. Ten times the previous one, every time — the single steepest curve in the game.',\n  cur:['gold'],\n  range:function(a,b){ return { gold: base10Series(a,b) }; },\n  formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',\n  userNote:'Ten times the previous one, every time — the steepest curve in the game. <b>Whether partners cap at all is unknown</b>; this table stops at 12 for a technical reason, not a game one.',\n  devNote:'It stops at 12 because that is where the cost passes what a double-precision number represents exactly. Byte-for-byte the same closed form as the fighter-slot cost, one shared primitive across two unrelated systems; fighter slots are known to cap at 6.',\n  srcs:['formulas/partners.json','engine/income/partners.js'],\n  noBreaks:'No breakpoints: every partner costs exactly ten times the one before.'\n},\n{\n  id:'partnerlevel', group:'Partners', name:'Partner level EXP', tier:'CODE',\n  unit:'partner level', unitShort:'Level', def:400, min:0, max:10000, view:500, expandBy:500, step:10, checked:'2026-09-23',\n  desc:'A sibling of the character curve with its own coefficients — same √ + power-tail family, different numbers.',\n  cur:['exp'],\n  breaks:[\n    { at:10, short:'200 per level', tip:'Levels 10–19 cost 200 EXP × level.' },\n    { at:20, short:'300 per level', tip:'Levels 20–39 cost 300 EXP × level.' },\n    { at:40, short:'400 per level', tip:'Levels 40–49 cost 400 EXP × level.' },\n    { at:50, short:'√ curve', tip:'From here: 25,000 · √level.' },\n    { at:1501, short:'+ power tail', tip:'Adds 250 · (level − 1,500)^1.25.' },\n    { at:6001, short:'+ steep tail', tip:'Adds 2,500 · (level − 6,000)^1.4.', dev:'The game’s own formula label still prints 1.35 here; the code charges 1.4 (since 1.2.3.11).' }\n  ],\n  range:function(a,b){ var t=0; for(var n=a+1;n<=b;n++) t+=partnerLevelExpAt(n); return {exp:t}; },\n  formula:'<10: L·150   <20: L·200   <40: L·300   <50: L·400\\n≥50: 25,000·√L  (+ 250·(L−1500)^1.25 past 1500, + 2,500·(L−6000)^1.4 past 6000)',\n  userNote:'A partner’s four <i>skills</i> level on this curve. They are not the same thing as its four base <i>stats</i>. Every skill level also raises that partner’s own income multiplier.',\n  devNote:'<b>Corrected 2026-09-23</b>: the past-6000 exponent is 1.4 since 1.2.3.11 (the Partners page label still says 1.35). The live checks all sit between 1,500 and 6,000, where the two agree. How partner stats grow is still unknown; the dev’s own wiki page for it reads “coming soon”.',\n  srcs:['formulas/partners.json','engine/income/partners.js']\n},\n\n{\n  id:'villagebuilding', group:'Village', name:'Buildings', tier:'LIVE',\n  unit:'building level', unitShort:'Level', def:38, min:1, max:200, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Every building shares one price curve. Gold and all four resources at once, on the same geometric curve at different bases. Relics join the bill only past level 40.',\n  variants:{ label:'Building', options:[{id:'market',label:'Market'},{id:'stable',label:'Stable'},{id:'tavern',label:'Tavern'},{id:'well',label:'Well'},{id:'mill',label:'Mill'},{id:'granary',label:'Granary'},{id:'shrine',label:'Shrine'},{id:'treasury',label:'Treasury'},{id:'warehouse',label:'Warehouse'}] },\n  cur:['gold','meat','iron','wood','stone','relics'],\n  breaks:[{ at:41, short:'relics join the bill', tip:'From level 41 every level also costs relics (base 3,000, ratio 1.15).' }],\n  range:villageBuildingCost,\n  formula:'gold: geometric base 200,000 · ratio 1.15\\nmeat / iron / wood / stone: geometric base 4,000 · ratio 1.15\\nrelics: geometric base 3,000, pivoted at level 41, nothing below',\n  userNote:'Every building shares one curve: pick yours to see your own level. Gold and all four resources at once; relics join the bill only past level 40.',\n  devNote:'<b>Live-verified end to end</b> across all six currencies against a real Village → Upgrades price, which also settled a long-standing 3,000-vs-8,000 disagreement in the relic coefficient in favour of 3,000.',\n  srcs:['formulas/village.json','engine/costs/village.js']\n},\n{\n  id:'villagestrength', group:'Village', name:'Strengths', tier:'OPEN',\n  unit:'strength level', unitShort:'Level', def:20, min:0, max:500, view:50, expandBy:50, step:1, checked:'2026-08-23',\n  desc:'Brave / Wealthy / Bold / Swift / Trailblazer / Potent all cost ×2. Loyal alone costs ×10 — five times any other strength, per level.',\n  variants:{ label:'Strength', options:[{id:'brave',label:'Brave (×2)'},{id:'wealthy',label:'Wealthy (×2)'},{id:'bold',label:'Bold (×2)'},{id:'swift',label:'Swift (×2)'},{id:'trailblazer',label:'Trailblazer (×2)'},{id:'potent',label:'Potent (×2)'},{id:'loyal',label:'Loyal (×10)'}] },\n  cur:['unrecorded'],\n  range:function(a,b,v){ return { unrecorded: Math.round(triangular(a,b, v==='loyal'?10:2)) }; },\n  formula:'cost(a → b) = triangular(a, b) × 10 for Loyal, × 2 for every other strength',\n  userNote:'Loyal costs five times what any other strength costs per level. The bonus side is simpler: level × 1% for the six, while Loyal returns the bare level.',\n  devNote:'<b>What this is paid in is not recorded anywhere in the core</b> — the bundle gives the arithmetic and not the currency, so the column is labelled “Cost” rather than guessed at. The bonus formula is cross-confirmed exactly against six live readings on two different characters.',\n  srcs:['formulas/village.json','engine/costs/village.js'],\n  noBreaks:'No breakpoints: one triangular curve.'\n},\n{\n  id:'villageboss', group:'Village', name:'Boss upgrades', tier:'CODE',\n  unit:'upgrade level', unitShort:'Level', def:15, min:0, max:200, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Four upgrade types, four different currencies, one shared curve — and an identical +2% per level whichever you buy.',\n  variants:{ label:'Upgrade', options:[\n    {id:'health',label:'Health (gold)'},{id:'attackSpeed',label:'Attack speed (relics)'},\n    {id:'dropQuality',label:'Drop quality (essence)'},{id:'duration',label:'Duration (4 resources)'}]},\n  cur:['gold','relics','essence','meat','iron','wood','stone'],\n  range:function(a,b,v){\n    var cfg={health:[200000,'gold'],attackSpeed:[3000,'relics'],dropQuality:[3000,'essence'],duration:[4000,'res']}[v||'health'];\n    var c=fact('villageBossCost')(a,b,cfg[0]);  /* GENERATED: villageBoss.costFormula */\n    if (cfg[1]==='res') return {meat:c,iron:c,wood:c,stone:c};\n    var o={}; o[cfg[1]]=c; return o;\n  },\n  formula:'geometric series, ratio 1.15, base 200,000 (gold) / 3,000 (relics) / 3,000 (essence) / 4,000 (each of four resources)',\n  userNote:'Four upgrade types, four different currencies, one shared curve — and every type gives the same +2% per level. The only real decision is which currency you would rather spend.',\n  devNote:'Confirmed to be literally the same helper function as Buildings, not merely a similar shape.',\n  srcs:['formulas/village-boss.json','engine/costs/village.js'],\n  noBreaks:'No breakpoints: one geometric curve (×1.15 per level).'\n},\n\n{\n  id:'sculpture', group:'Sculpture', name:'Sculpture tile', tier:'LIVE',\n  unit:'tile level', unitShort:'Level', def:223, min:0, max:3000, view:300, expandBy:300, step:25, checked:'2026-09-23',\n  desc:'Which resource a tile bills you in is fixed by its position on a 2×2 checkerboard — 16 of the 64 tiles on each resource. The price is the same wherever it sits.',\n  cur:['tileres'],\n  breaks:[{ at:2501, short:'+2.5m per level', tip:'Past level 2,500 every level also pays (level − 2,500) × 2,500,000 on top: the cost climbs a hundred times faster.', dev:'New in 1.2.3.11; this table did not know it until 2026-09-23.' }],\n  range:function(a,b){ return { tileres: fact('tileUpgradeCost')(a,b) }; },  /* GENERATED: sculptures.tileUpgradeCost */\n  formula:'level L costs 25,000 · L\\n+ past 2,500: (L − 2,500 − ½) · 2,500,000, in the same resource',\n  userNote:'Which resource a tile bills you in is fixed by its position on the grid; the price is the same wherever it sits. The slot boost these levels feed has diminishing returns, so the last levels cost the most and give the least.',\n  devNote:'<b>Corrected 2026-09-23.</b> Level L costs 25,000 × L exactly: 223 → 224 is 5,600,000, the live-observed “5.60m”. This table used triangular(a, b, 25,000), which prices it at 5,587,500 (“5.59m”) and was wrongly recorded as a match. The past-2,500 surcharge is from 1.2.3.11.',\n  srcs:['formulas/sculptures.json','engine/income/sculptures.js'],\n  curNote:'meat / iron / wood / stone — set by the tile’s coordinates'\n},\n{\n  id:'cavetool', group:'Caves', name:'Cave tools', tier:'LIVE',\n  unit:'tool level', unitShort:'Level', def:150, min:0, max:500, view:300, expandBy:100, step:5, checked:'2026-08-25',\n  desc:'Every tool but the repeater costs four resources plus a gentle diamond fee. The repeater is diamonds only, and doubles.',\n  variants:{ label:'Tool', options:[{id:'standard',label:'Any tool except repeater'},{id:'repeater',label:'Repeater (diamonds, ×2/level)'}] },\n  cur:['meat','iron','wood','stone','diamonds'],\n  breaks:function(v){\n    if (v === 'repeater') return [];\n    return [\n      { at:101, short:'+4,000 layer', tip:'Past level 100 a second 4,000-per-level layer is added to the resource cost.' },\n      { at:201, short:'+400,000 layer', tip:'Past level 200 a 400,000-per-level layer is added.' },\n      { at:601, short:'+2m layer', tip:'Past level 600 a 2,000,000-per-level layer is added.' }\n    ];\n  },\n  range:function(a,b,v){ return caveToolCost(a,b,v==='repeater'?'repeater':'standard'); },\n  formula:'resources: triangular @ 4,000, + 4,000 from level 100, + 400,000 from 200, + 2,000,000 from 600\\ndiamonds: triangular @ 1  (≈ the target level per single upgrade)\\nrepeater: 1,000 · (2^(b+1) − 2^(a+1)) / 9, diamonds only',\n  userNote:'Every tool but the repeater costs four resources plus a gentle diamond fee; the repeater is diamonds only, and doubles. Worth knowing before you spend: resetting a tool refunds all four resources and none of the diamonds — so the repeater refunds nothing at all.',\n  devNote:'<b>Live-verified exact</b> against four real upgrade prices. Checked against the 1.2.3.12 bundle 2026-09-23: unchanged.',\n  srcs:['formulas/caves.json','engine/income/caves.js']\n},\n{\n  id:'house', group:'Caves', name:'House', tier:'CROSS',\n  unit:'house level', unitShort:'Level', def:40, min:0, max:100, view:100, expandBy:50, step:1, checked:'2026-08-27',\n  desc:'All four resources at the same value each, on a gentle power curve — until level 50, where a flat million per level per resource lands on top.',\n  cur:['meat','iron','wood','stone'],\n  breaks:[{ at:51, short:'+1m per level', tip:'From level 51 every level also costs a flat 1,000,000 of each resource.' }],\n  range:houseCost,\n  formula:'per level: 5,000 + round(5,000 · level^1.25)\\npast level 50: + 1,000,000 per level, to each of the four resources',\n  userNote:'All four resources at the same value each, on a gentle curve — until level 50, where a flat million per level per resource lands on top.',\n  devNote:'26 of 32 known table rows match exactly; the six that miss look like transcription noise in the source table rather than a second branch.',\n  srcs:['tables/house-upgrades.json','engine/income/house.js']\n},\n{\n  id:'relicboost', group:'Relics', name:'Relic boost shop', tier:'CODE',\n  unit:'boost level', unitShort:'Level', def:2000, min:0, max:60000, view:2000, expandBy:2000, step:100, checked:'2026-09-23',\n  desc:'Defense and damage flat are gold and skip the top surcharge layer. Everything else is relic-paid and carries all three layers.',\n  variants:{ label:'Boost', options:[\n    {id:'critChance',label:'Crit chance'},{id:'critDamage',label:'Crit damage'},{id:'multistrike',label:'Multistrike'},\n    {id:'healing',label:'Healing'},{id:'defense',label:'Defense'},\n    {id:'huntingBoost',label:'Hunting'},{id:'miningBoost',label:'Mining'},{id:'woodcuttingBoost',label:'Woodcutting'},{id:'stonecarvingBoost',label:'Stonecarving'},\n    {id:'damageFlat',label:'Damage flat (gold)'},{id:'defenseFlat',label:'Defense flat (gold)'}]},\n  defByVariant:{ damageFlat:1000, defenseFlat:1000 },\n  cur:['relics','gold'],\n  breaks:function(v){\n    var gold = v === 'damageFlat' || v === 'defenseFlat';\n    var out = [\n      { at:5001, short:'+20 × (L−5,000)', tip:'Past 5,000 every level pays an extra (level − 5,000) × 20.' },\n      { at:10001, short:'rate +10 per 1,000', tip:'From 10,001 that extra rate climbs by 10 every 1,000 levels (30, 40, 50, …).' }\n    ];\n    if (!gold) out.push({ at:50001, short:'+50,000 layer', tip:'Past 50,000 relic-paid boosts add a third layer at 50,000 per level.', dev:'50,000 since 1.2.3.11; this table used 1.2.3.7’s 20,000 until 2026-09-23.' });\n    return out;\n  },\n  range:function(a,b,v){\n    var gold = v==='damageFlat' || v==='defenseFlat';\n    var out = relicBoostCost(a, b, gold ? 'damageFlat' : 'critChance');\n    return asCost(out, gold ? 'gold' : 'relics');\n  },\n  formula:'layer 1: level L costs L · 100 (gold types) or L · 10 (relic types)\\nlayer 2, past 5,000: (L − 5,000) · rate — 20 through 10,000, then +10 per 1,000 levels\\nlayer 3, past 50,000, relic types only: triangular @ 50,000/level',\n  userNote:'Defense and damage flat are gold-paid; everything else costs relics, and every relic type is priced the same. What a level buys: +10 flat for the gold types, level/5,000 for attack speed, level/2,000 for everything else.',\n  devNote:'<b>Corrected 2026-09-23</b> against the 1.2.3.12 function: layers 1 and 2 are arithmetic-series differences (level L costs L·rate; the old triangular form charged (L−½)·rate), and layer 3 charges 50,000 since 1.2.3.11 (was 20,000). The shattered-relics discount the game shows is server-side and not modelled.',\n  srcs:['formulas/relic-boosts.json','engine/income/relicBoosts.js']\n},\n{\n  id:'fighterslot', group:'Fighters', name:'Fighter slot', tier:'LIVE', generated:true,\n  unit:'fighter slots', unitShort:'Slots', def:5, min:0, max:6, view:6, expandBy:0, step:1, checked:'2026-08-23',\n  desc:'Expanding the fighter roster for dungeons. Six slots is the cap, and each one costs ten times the last.',\n  cur:['gold'],\n  range:function(a,b){ return asCost(fact('fighterSlotCost')(a,b),'gold'); },  /* GENERATED: dungeon.fighterSlotCost.formula */\n  formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',\n  userNote:'Six slots is the cap, and each one costs ten times the last.',\n  devNote:'The cap of 6 is from the maintainer (2026-09-21). The arithmetic is certain, but <b>what it buys is inferred</b> from the function’s shape and where it sits in the bundle, not from watching a slot get bought — if you expand one and the price does not match this row, that is the more interesting finding.',\n  srcs:['formulas/dungeons.json','engine/costs/dungeon.js'],\n  noBreaks:'No breakpoints: each slot costs ten times the last, to the cap of 6.'\n}\n];\n\n// Groups are ordered by when a player unlocks the system, from\n// data/tables/feature-unlock-levels.json — not alphabetically and not by build\n// order. A newer player meets them top to bottom.\n// Ordered by roughly when a player meets each system (unlock levels are in\n// data/tables/feature-unlock-levels.json) - but the level itself is not shown.\n// It explains the order to whoever maintains this list; it is noise to a\n// reader who just wants the cost of their next pet slot.\nvar GROUPS = [\n  { id:'Character', label:'Character' },\n  { id:'Partners',  label:'Partners' },\n  { id:'Village',   label:'Village' },\n  { id:'Fighters',  label:'Fighters' },\n  { id:'Pets',      label:'Pets' },\n  { id:'Caves',     label:'Caves & house' },\n  { id:'Relics',    label:'Relics' },\n  { id:'Sculpture', label:'Sculptures' }\n];\n// Within a group, the order a player meets them: the thing you level first,\n// then what it gates. Explicit, because build order is not a meaning.\nvar ORDER = ['charlevel','equipslot','sanctum',\n             'partnerhire','partnerboost','partnerlevel',\n             'villagebuilding','villagestrength','villageboss',\n             'fighterslot',\n             'petslot',\n             'cavetool','house',\n             'relicboost',\n             'sculpture'];\nSYSTEMS.sort(function(a,b){\n  var ia = GROUPS.findIndex(function(g){ return g.id===a.group; });\n  var ib = GROUPS.findIndex(function(g){ return g.id===b.group; });\n  return ia !== ib ? ia - ib : ORDER.indexOf(a.id) - ORDER.indexOf(b.id);\n});\n\nvar BY_ID = {};\nSYSTEMS.forEach(function(s){ BY_ID[s.id]=s; });\n\n/* =====================================================================\n   PROFILE SYNC — live since 2026-09-23, through the shared kit\n   (tool-sync.js: the profile Core hands over and every capture after it).\n\n   Each subject key (\"<systemId>\" or \"<systemId>:<variantId>\") names what it\n   reads and which profile section dates it. A key with no entry is never\n   synced: its level is always yours to type. The four states are the kit's\n   (synced / stale / edited / unavailable); this page keeps its own record of\n   which keys you typed, because its inputs are rebuilt for every subject.\n   ===================================================================== */\nvar SYNC = window.AWOO_SYNC;\nvar STALE_MS = 6*60*60*1000;\nfunction g(path){ return SYNC.get(path); }\n// The lowest of your partners' speed or intelligence: the level you would buy\n// next to keep them even, which is the price this table can honestly quote.\nfunction lowestPartner(boost){\n  return function(){\n    var r = g('partner.roster');\n    if (!Array.isArray(r) || !r.length) return null;\n    var min = null;\n    for (var i = 0; i < r.length; i++){ var v = r[i] && r[i][boost]; if (typeof v === 'number' && (min === null || v < min)) min = v; }\n    return min;\n  };\n}\nvar PROFILE_READS = {\n  'charlevel:battling':   ['levels', function(){ var v = g('levels.battling'); return v != null ? v : g('core.level'); }],\n  'charlevel:crafting':   ['levels', 'levels.crafting'],\n  'charlevel:sanctum':    ['levels', 'levels.sanctum'],\n  'petslot:combat':       ['pets', 'pets.combat.slotLevel'],\n  'petslot:utility':      ['pets', 'pets.utility.slotLevel'],\n  'petslot:gathering':    ['pets', 'pets.gathering.slotLevel'],\n  'partnerboost:speed':        ['partner', lowestPartner('speed')],\n  'partnerboost:intelligence': ['partner', lowestPartner('intelligence')],\n  'partnerhire':          ['partner', 'partner.count']\n};\n['head','body','legs','hands','feet','leftHand','rightHand'].forEach(function(k){ PROFILE_READS['equipslot:' + k] = ['equipment', 'equipment.slots.' + k + 'Level']; });\n['market','stable','tavern','well','mill','granary','shrine','treasury','warehouse'].forEach(function(k){ PROFILE_READS['villagebuilding:' + k] = ['village', 'village.buildings.' + k]; });\n['brave','wealthy','bold','swift','trailblazer','potent','loyal'].forEach(function(k){ PROFILE_READS['villagestrength:' + k] = ['village', 'village.strengths.' + k]; });\n['critChance','critDamage','multistrike','healing','defense','huntingBoost','miningBoost','woodcuttingBoost','stonecarvingBoost','damageFlat','defenseFlat'].forEach(function(k){ PROFILE_READS['relicboost:' + k] = ['relicBoosts', 'relicBoosts.' + k]; });\n\n// key -> { value, observedAt } | null. Never 0 for \"not observed\".\nfunction profileValue(key){\n  var spec = PROFILE_READS[key];\n  if (!spec || !SYNC) return null;\n  var v = typeof spec[1] === 'function' ? spec[1]() : g(spec[1]);\n  if (typeof v !== 'number' || !isFinite(v)) return null;\n  return { value:v, observedAt:SYNC.age(spec[0]) };\n}\n\nvar edited = {};   // key -> true once the user types in that field\n\n/* state of one field: 'edited' | 'synced' | 'stale' | 'unavailable' */\nfunction fieldState(key){\n  if (edited[key]) return 'edited';\n  var p = profileValue(key);\n  if (!p) return 'unavailable';\n  if (p.observedAt === null || (Date.now() - p.observedAt) > STALE_MS) return 'stale';\n  return 'synced';\n}\nvar STATE_TEXT = {\n  edited:'Typed by you; a sync keeps it. Click to sync it again.',\n  synced:'Synced from the game. Click to re-sync.',\n  stale:'Synced, but over six hours old. Click to re-sync.',\n  unavailable:'Not synced: this is your own figure.'\n};\nfunction syncSummary(){\n  var out = { total:0, synced:0, stale:0, edited:0 };\n  for (var key in PROFILE_READS){\n    out.total++;\n    var st = fieldState(key);\n    if (st === 'synced') out.synced++; else if (st === 'stale') out.stale++; else if (st === 'edited') out.edited++;\n  }\n  return out;\n}\n\n/* =====================================================================\n   STATE\n   ===================================================================== */\n// Theme and \"Show developer info\" are the shared tool-settings layer's\n// (tool-settings.js): inherited from AWOO+ Core, overridable in the gear menu,\n// remembered per tool. Nothing here duplicates that.\n\nvar LS = 'awooCostTables.v1';\nvar state = { active:'charlevel', levels:{}, variants:{}, rows:{}, targets:{}, currency:{}, steps:{}, expanded:false };\n\n// Every system that HAS variants gets one selected before the first render.\n// Leaving it undefined would split the field key (\"petslot\") from the variant\n// the table is actually priced with (\"petslot:combat\") — a level typed into\n// one would be read back under the other, and no profile reading would match.\nSYSTEMS.forEach(function(s){\n  if (s.variants && !state.variants[s.id]) state.variants[s.id] = s.variants.options[0].id;\n});\n\nfunction keyFor(sys){\n  var v = state.variants[sys.id];\n  return (sys.variants && v) ? sys.id + ':' + v : sys.id;\n}\nfunction clampLevel(sys, v){\n  if (!isFinite(v)) return sys.min;\n  return Math.max(sys.min, Math.min(sys.max, Math.round(v)));\n}\nfunction stepFor(sys){\n  var v = state.steps[keyFor(sys)];\n  return (v && v > 0) ? Math.round(v) : sys.step;\n}\nfunction targetLevel(sys){\n  var k = keyFor(sys), lv = currentLevel(sys);\n  var t = state.targets[k];\n  if (t == null || t <= lv) return Math.min(lv + 10, sys.max);\n  return Math.min(t, sys.max);\n}\nfunction defaultLevel(sys){\n  var v = state.variants[sys.id];\n  if (sys.defByVariant && v && sys.defByVariant[v] != null) return sys.defByVariant[v];\n  return sys.def;\n}\nfunction currentLevel(sys){\n  var k = keyFor(sys);\n  if (edited[k] && state.levels[k] != null) return clampLevel(sys, state.levels[k]);\n  var p = profileValue(k);\n  if (p) return clampLevel(sys, p.value);\n  if (state.levels[k] != null) return clampLevel(sys, state.levels[k]);\n  return clampLevel(sys, defaultLevel(sys));\n}\n\nfunction load(){\n  try {\n    var raw = localStorage.getItem(LS);\n    if (!raw) return;\n    var o = JSON.parse(raw);\n    if (o.levels) state.levels = o.levels;\n    if (o.variants) state.variants = o.variants;\n    if (o.currency) state.currency = o.currency;\n    if (o.edited) edited = o.edited;\n    if (o.targets) state.targets = o.targets;\n    if (o.steps) state.steps = o.steps;\n    // This page kept its own number override until 2026-09-23; hand it to\n    // the shared layer once, where every tool now keeps it.\n    if (o.numberMode || o.numberLocale) NUM.adopt(o.numberMode, o.numberLocale);\n    if (o.expanded) state.expanded = true;\n    if (o.active && BY_ID[o.active]) state.active = o.active;\n  } catch(e){}\n}\nvar saveTimer = null;\nfunction save(){\n  clearTimeout(saveTimer);\n  saveTimer = setTimeout(function(){\n    try {\n      localStorage.setItem(LS, JSON.stringify({\n        levels:state.levels, variants:state.variants, currency:state.currency,\n        targets:state.targets, expanded:state.expanded,\n        steps:state.steps, edited:edited, active:state.active\n      }));\n    } catch(e){}\n  }, 700);\n}\n\n/* =====================================================================\n   RENDER\n   ===================================================================== */\nfunction esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;'); }\n\nfunction activeCurrency(sys){\n  var c = state.currency[sys.id];\n  if (c && sys.cur.indexOf(c) >= 0) return c;\n  return sys.cur[0];\n}\n\nfunction renderNav(){\n  var html = '', lastGroup = null;\n  SYSTEMS.forEach(function(s){\n    if (s.group !== lastGroup){\n      if (lastGroup !== null) html += '</div>';\n      var g = GROUPS.filter(function(x){ return x.id===s.group; })[0] || { label:s.group };\n      html += '<div class=\"navgroup\"><h3>' + esc(g.label) + '</h3>';\n      lastGroup = s.group;\n    }\n    var lv = currentLevel(s);\n    html += '<button class=\"navbtn\" type=\"button\" data-sys=\"' + s.id + '\"' +\n            (s.id===state.active ? ' aria-current=\"true\"' : '') + '>' +\n            esc(s.name) + '<span class=\"nlv\">' + fmtInt(lv) + '</span></button>';\n  });\n  html += '</div>';\n  document.getElementById('nav').innerHTML = html;\n}\n\nfunction costCell(amounts, cur){\n  var v = amounts[cur];\n  if (v == null) return '<td class=\"dash\">—</td>';\n  return '<td>' + fmtNum(v) + '</td>';\n}\n\nfunction renderSystem(){\n  var sys = BY_ID[state.active];\n  var cur = activeCurrency(sys);\n  var lv  = currentLevel(sys);\n  var key = keyFor(sys);\n  var fstate = fieldState(key);\n  var tgt = targetLevel(sys);\n  var step = stepFor(sys);\n  var rowsTo = state.rows[key];\n  if (rowsTo == null || rowsTo <= lv) rowsTo = Math.min(Math.max(lv + sys.view, tgt), sys.max);\n  rowsTo = Math.min(rowsTo, sys.max);\n  var from = Math.max(sys.min, lv - 3*step);\n  var variant = state.variants[sys.id] || (sys.variants ? sys.variants.options[0].id : null);\n\n  var h = '';\n\n  /* header */\n  h += '<div class=\"syshead\">';\n  h += '<h2>' + esc(sys.name) + '</h2>';\n  h += '<span class=\"pill ' + sys.tier.toLowerCase() + '\">' + sys.tier + '</span>';\n  h += '<span class=\"pill cur\">' + esc(sys.cur.map(function(c){return CUR[c].label;}).join(' · ')) + '</span>';\n  h += '<p class=\"desc\">' + sys.desc + (sys.alias ? ' <span class=\"tip\" data-tip=\"' + esc(sys.alias) + '\">Naming note.</span>' : '') + '</p>';\n  h += '</div>';\n\n  /* controls */\n  h += '<div class=\"controls\">';\n  h += '<div class=\"field\"><span class=\"lab\">' +\n       (PROFILE_READS[key]\n         ? '<button class=\"awoo-light\" type=\"button\" id=\"stateLight\" data-state=\"' + fstate + '\" aria-label=\"Sync: ' + fstate + '\" data-tip=\"' + esc(STATE_TEXT[fstate]) + '\" data-tip-dev=\"' + esc('Profile: ' + (typeof PROFILE_READS[key][1] === 'string' ? PROFILE_READS[key][1] : PROFILE_READS[key][0])) + '\"></button>'\n         : '<span class=\"awoo-light\" data-state=\"unavailable\" data-tip=\"Not something the game sync reads. Type your own level.\"></span>') +\n       '<span>Current ' + esc(sys.unit) + '</span></span>' +\n       '<input type=\"text\" data-num data-num-digits=\"0\" id=\"lvInput\" value=\"' + lv + '\" min=\"' + sys.min + '\" max=\"' + sys.max + '\" step=\"1\"></div>';\n  h += '<div class=\"field\"><span class=\"lab\"><span class=\"tip\" data-tip=\"' +\n       esc('Where you want to get to. Sets the headline total, and grows the table to reach it.') +\n       '\">Target</span></span>' +\n       '<input type=\"text\" data-num data-num-digits=\"0\" id=\"tgtInput\" value=\"' + tgt + '\" min=\"' + (lv+1) + '\" max=\"' + sys.max + '\" step=\"1\"></div>';\n  if (sys.variants){\n    h += '<div class=\"field\"><span class=\"lab\">' + esc(sys.variants.label) + '</span><select id=\"varSel\">';\n    sys.variants.options.forEach(function(o){\n      h += '<option value=\"' + o.id + '\"' + (o.id===variant?' selected':'') + '>' + esc(o.label) + '</option>';\n    });\n    h += '</select></div>';\n  }\n  if (sys.cur.length > 1){\n    h += '<div class=\"field\"><span class=\"lab\">Show cost in</span><select id=\"curSel\">';\n    sys.cur.forEach(function(c){\n      h += '<option value=\"' + c + '\"' + (c===cur?' selected':'') + '>' + esc(CUR[c].label) + '</option>';\n    });\n    h += '</select></div>';\n  }\n  h += '<div class=\"field\"><span class=\"lab\"><span class=\"tip\" data-tip=\"' +\n       esc('Rows advance by this many levels. A subject that runs to thousands is unreadable at 1.') +\n       '\">Step</span></span>' +\n       '<input type=\"text\" data-num data-num-digits=\"0\" id=\"stepInput\" value=\"' + step + '\" min=\"1\" max=\"' + Math.max(1, sys.max) + '\" step=\"1\"></div>';\n  h += '<button class=\"btn\" type=\"button\" id=\"resetSysBtn\">Reset this subject</button>';\n  h += '</div>';\n\n  /* summary — the headline is the question this page exists to answer:\n     what does it cost to get from where I am to where I want to be. */\n  var toTarget = sys.range(lv, tgt, variant);\n  var next1 = sys.range(lv, Math.min(lv+1, sys.max), variant);\n  var next5 = sys.range(lv, Math.min(lv+5, sys.max), variant);\n  var spent = sys.range(sys.min, lv, variant);\n  h += '<div class=\"summary\">';\n  h += '<div class=\"stat\"><span class=\"k\">' + fmtInt(lv) + ' → ' + fmtInt(tgt) + '</span><span class=\"v accent\">' +\n       fmtNum(toTarget[cur]||0) + '<span class=\"u\">' + esc(CUR[cur].label.toLowerCase()) + '</span></span></div>';\n  h += '<div class=\"stat\"><span class=\"k\">Next level</span><span class=\"v\">' + fmtNum(next1[cur]||0) + '</span></div>';\n  h += '<div class=\"stat\"><span class=\"k\">Next 5 → ' + fmtInt(Math.min(lv+5, sys.max)) + '</span><span class=\"v\">' + fmtNum(next5[cur]||0) + '</span></div>';\n  h += '<div class=\"stat\"><span class=\"k\">Sunk to ' + fmtInt(lv) + '</span><span class=\"v\">' + fmtNum(spent[cur]||0) + '</span></div>';\n  h += '</div>';\n\n  // The full bill for the target, when a system charges in more than one\n  // currency. The table can only show one column at a time; a village\n  // building upgrade you cannot actually afford in wood is not a detail.\n  var others = [];\n  for (var ck in toTarget){ if (ck !== cur && toTarget[ck]) others.push(CUR[ck].label + ' ' + fmtNum(toTarget[ck])); }\n  if (others.length){\n    h += '<div class=\"billstrip\"><span class=\"bk\">' + fmtInt(lv) + ' → ' + fmtInt(tgt) + ' also charges</span>' +\n         others.map(function(o){ return '<span class=\"bv\">' + esc(o) + '</span>'; }).join('') + '</div>';\n  }\n\n  /* breakpoints: every one, whatever the step, with what changes there */\n  var bps = breaksFor(sys, variant);\n  h += '<div class=\"bpstrip\"><span class=\"bk\">Breakpoints</span>';\n  if (bps.length){\n    bps.forEach(function(b){\n      h += '<button type=\"button\" class=\"bpchip' + (b.at <= lv ? ' passed' : '') + '\" data-bp=\"' + b.at + '\" data-tip=\"' +\n           esc(b.tip + (b.at <= lv ? ' (Behind you.)' : ' Click to make it your target.')) + '\"' +\n           (b.dev ? ' data-tip-dev=\"' + esc(b.dev) + '\"' : '') + '><b>' + fmtInt(b.at) + '</b>' + esc(b.short) + '</button>';\n    });\n  } else {\n    h += '<span class=\"bpnone\">' + esc(sys.noBreaks || 'None.') + '</span>';\n  }\n  h += '</div>';\n\n  if (sys.curNote){\n    h += '<div style=\"padding:10px 16px 0\"><div class=\"banner\"><span>' + sys.curNote + '</span></div></div>';\n  }\n\n  /* table */\n  h += '<div class=\"tablewrap\"><table><thead><tr>' +\n       '<th>' + esc(sys.unitShort) + '</th>' +\n       '<th>Cost<span class=\"hsub\">' +\n       (step === 1 ? 'this level alone' : 'this ' + step + '-level step') + '</span></th>' +\n       '<th>Cumulative<span class=\"hsub\">from ' + sys.min + '</span></th>' +\n       '<th>From level ' + fmtInt(lv) + '<span class=\"hsub\">what you still owe</span></th>' +\n       '</tr></thead><tbody>';\n\n  // Rows advance by `step`, and always include the current and target levels\n  // even when they do not land on a step boundary - a table that hides the two\n  // rows the reader came for is worse than an unaligned one.\n  var marks = {};\n  for (var q = Math.max(from, sys.min + 1); q <= rowsTo; q += step) marks[q] = true;\n  if (lv > sys.min) marks[lv] = true;\n  if (tgt > sys.min && tgt <= rowsTo) marks[tgt] = true;\n  // Breakpoint rows are always shown in range, even off-step: a table that\n  // steps past the level where the formula changes hides the one row that\n  // explains the jump.\n  var bpAt = {};\n  bps.forEach(function(b){ bpAt[b.at] = b; if (b.at > sys.min && b.at >= from && b.at <= rowsTo) marks[b.at] = true; });\n  var rowLevels = Object.keys(marks).map(Number).sort(function(a,b){ return a-b; });\n\n  for (var ri = 0; ri < rowLevels.length; ri++){\n    var n = rowLevels[ri];\n    var prev = ri > 0 ? rowLevels[ri-1] : Math.max(sys.min, n - step);\n    var cls = n === lv ? 'current' : (n < lv ? 'past' : '');\n    if (n === tgt && n !== lv) cls += ' target';\n    var bp = bpAt[n] || null;\n    if (bp) cls += ' bp';\n    var stepCost = sys.range(prev, n, variant);\n    var cum  = sys.range(sys.min, n, variant);\n    h += '<tr class=\"' + cls + '\"' + (n===lv ? ' id=\"curRow\"' : '') + '>';\n    h += '<td>' + fmtInt(n) + (bp ? '<span class=\"bpnote\" data-tip=\"' + esc(bp.tip) + '\">' + esc(bp.short) + '</span>' : '') + '</td>';\n    h += costCell(stepCost, cur);\n    h += costCell(cum, cur);\n    if (n <= lv) h += '<td class=\"dash\">—</td>';\n    else h += costCell(sys.range(lv, n, variant), cur);\n    h += '</tr>';\n  }\n  h += '</tbody></table></div>';\n\n  /* row controls */\n  h += '<div class=\"rowctl\">';\n  h += '<span class=\"hint\">Showing ' + Math.max(from, sys.min+1) + '–' + rowsTo +\n       ' of ' + sys.min + '–' + fmtInt(sys.max) + ', every ' + step + '.' +\n       (sys.maxNote ? ' ' + sys.maxNote : '') +\n       (bps.length ? ' Violet rows mark where the formula changes shape.' : '') + '</span>';\n  h += '<button class=\"btn sm expandbtn\" type=\"button\" id=\"expandBtn\" aria-pressed=\"' +\n       (state.expanded ? 'true' : 'false') + '\">' +\n       (state.expanded ? 'Shrink table' : 'Expand table') + '</button>';\n  if (rowsTo < sys.max && sys.expandBy) h += '<button class=\"btn sm\" type=\"button\" id=\"more30\">+' + sys.expandBy + ' levels</button>';\n  else h += '<span style=\"font-size:.72rem;color:var(--ink-mute)\">Showing the full range.</span>';\n  h += '</div>';\n\n  /* notes */\n  // Two audiences, one panel. A player wants the formula and the sentence that\n  // says what it means; the evidence tier, the source files and the\n  // last-checked date are for whoever maintains the numbers. The developer half\n  // is hidden unless \"Show developer info\" is on, and tinted with --dev when\n  // it is, so the two are never confused. DESIGN.md §7, register R67.\n  h += '<details class=\"notes\"><summary>Formula' +\n       '<span data-dev-only> &amp; source</span></summary><div class=\"notebody\">';\n  h += '<span class=\"formula\">' + esc(sys.formula) + '</span>';\n  h += '<p>' + sys.userNote + '</p>';\n  if (sys.devNote) h += '<p data-dev-only><span class=\"devpill\">dev</span> ' + sys.devNote + '</p>';\n  h += '<div class=\"srcline\" data-dev-only>' +\n       '<span class=\"devpill\">' + sys.tier + '</span>';\n  sys.srcs.forEach(function(x){ h += '<span class=\"devpill\">' + esc(x) + '</span>'; });\n  h += '<span class=\"devpill\">last checked ' + esc(sys.checked) + '</span>';\n  h += '</div></div></details>';\n\n  document.getElementById('main').innerHTML = h;\n  NUM.enhance(document.getElementById('main'));\n  wireSystem(sys);\n}\n\nfunction breaksFor(sys, variant){\n  var b = typeof sys.breaks === 'function' ? sys.breaks(variant) : (sys.breaks || []);\n  return b.filter(function(x){ return x.at >= sys.min && x.at <= sys.max; }).sort(function(x, y){ return x.at - y.at; });\n}\n\nfunction wireSystem(sys){\n  var key = keyFor(sys);\n\n  Array.prototype.forEach.call(document.querySelectorAll('.bpchip'), function(chip){\n    chip.addEventListener('click', function(){\n      var at = parseInt(chip.getAttribute('data-bp'), 10);\n      if (at > currentLevel(sys)){ state.targets[key] = at; delete state.rows[key]; save(); }\n      renderSystem(); sizeTable(); scrollRowIntoView(at);\n    });\n  });\n\n  var lvInput = document.getElementById('lvInput');\n  lvInput.addEventListener('input', function(){\n    var v = NUM.read(lvInput); if (v !== null) v = Math.round(v);\n    if (v === null || v < sys.min || v > sys.max) return;\n    state.levels[key] = v;\n    edited[key] = true;\n    save();\n    renderAll('lvInput');\n  });\n\n  var tgtInput = document.getElementById('tgtInput');\n  tgtInput.addEventListener('input', function(){\n    var v = NUM.read(tgtInput); if (v !== null) v = Math.round(v);\n    if (v === null || v <= currentLevel(sys) || v > sys.max) return;\n    state.targets[key] = v;\n    delete state.rows[key];\n    save();\n    renderAll('tgtInput');\n  });\n\n  var light = document.getElementById('stateLight');\n  if (light) light.addEventListener('click', function(){\n    delete edited[key];\n    delete state.levels[key];\n    save();\n    if (!SYNC.connected()) SYNC.request();\n    renderAll();\n  });\n\n  document.getElementById('resetSysBtn').addEventListener('click', function(){\n    delete edited[key];\n    delete state.levels[key];\n    delete state.rows[key];\n    delete state.targets[key];\n    delete state.steps[key];\n    save();\n    renderAll();\n  });\n\n  var varSel = document.getElementById('varSel');\n  if (varSel) varSel.addEventListener('change', function(){\n    state.variants[sys.id] = varSel.value;\n    save(); renderAll();\n  });\n\n  var curSel = document.getElementById('curSel');\n  if (curSel) curSel.addEventListener('change', function(){\n    state.currency[sys.id] = curSel.value;\n    save(); renderSystem();\n  });\n\n  var stepInput = document.getElementById('stepInput');\n  stepInput.addEventListener('input', function(){\n    var v = NUM.read(stepInput); if (v !== null) v = Math.round(v);\n    if (v === null || v < 1 || v > sys.max) return;\n    state.steps[key] = v;\n    save(); renderAll('stepInput');\n  });\n\n  document.getElementById('expandBtn').addEventListener('click', function(){\n    state.expanded = !state.expanded;\n    save(); renderSystem(); sizeTable(); scrollCurrentIntoView();\n  });\n\n  var more = document.getElementById('more30');\n  if (more) more.addEventListener('click', function(){\n    var lv = currentLevel(sys);\n    var now = state.rows[key] || Math.max(lv + sys.view, targetLevel(sys));\n    state.rows[key] = Math.min(now + sys.expandBy, sys.max);\n    save(); renderSystem();\n  });\n}\n\nfunction renderAll(refocusId, forceScrollY){\n  var scrollY = forceScrollY != null ? forceScrollY : window.scrollY;\n  var caret = null;\n  if (refocusId){\n    var was = document.getElementById(refocusId);\n    if (was) { try { caret = was.selectionStart; } catch(e){} }\n  }\n  renderNav();\n  if (SYNC) SYNC.renderCards();\n  renderSystem();\n  if (refocusId){\n    var el = document.getElementById(refocusId);\n    if (el){\n      el.focus();\n      // Put the caret back where the user left it. Jamming it to the end\n      // makes editing the middle of a number impossible.\n      try { if (caret != null) el.setSelectionRange(caret, caret); } catch(e){}\n    }\n  }\n  window.scrollTo(0, scrollY);\n  sizeTable();\n  scrollCurrentIntoView();\n}\n\n// The table gets a real height so \"scroll the current row into view\" means\n// something — sized to the viewport, not a fixed pixel count. Re-applied on\n// every render, because renderSystem() replaces the element.\nfunction sizeTable(){\n  var w = document.querySelector('.tablewrap');\n  if (!w) return;\n  var reserve = state.expanded ? 150 : 380;\n  w.style.maxHeight = Math.max(320, window.innerHeight - reserve) + 'px';\n}\n\nfunction scrollRowIntoView(level){\n  var wrap = document.querySelector('.tablewrap');\n  if (!wrap) return;\n  var rows = wrap.querySelectorAll('tbody tr');\n  for (var i = 0; i < rows.length; i++){\n    var c = rows[i].firstChild;\n    if (c && parseInt(c.textContent.replace(/[^0-9]/g, ''), 10) === level){\n      var delta = rows[i].getBoundingClientRect().top - wrap.getBoundingClientRect().top;\n      wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * rows[i].offsetHeight);\n      return;\n    }\n  }\n}\n\nfunction scrollCurrentIntoView(){\n  var wrap = document.querySelector('.tablewrap');\n  var row = document.getElementById('curRow');\n  if (!wrap || !row) return;\n  // A few rows above the current one, the rest below — the decision is about\n  // what comes next, not what is already paid for. Measured rather than read\n  // off offsetTop, whose offsetParent is the panel here, not the scroller.\n  var delta = row.getBoundingClientRect().top - wrap.getBoundingClientRect().top;\n  wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * row.offsetHeight);\n}\n\n/* =====================================================================\n   BOOT\n   ===================================================================== */\nfunction init(){\n  load();\n\n  document.getElementById('nav').addEventListener('click', function(e){\n    var b = e.target.closest('.navbtn');\n    if (!b) return;\n    state.active = b.getAttribute('data-sys');\n    save();\n    renderAll(null, 0);\n  });\n\n  document.getElementById('resetAllBtn').addEventListener('click', function(){\n    state.levels = {}; state.rows = {}; state.targets = {}; state.steps = {}; edited = {};\n    save(); renderAll();\n  });\n\n  AWOO_TOOL_SETTINGS.mount(document.getElementById('gear'), {\n    devHint: 'Adds the evidence tier, source files and last-checked date to each Formula panel.'\n  });\n  // Numbers and theme re-render the page; the gear menu says when they change.\n  AWOO_TOOL_SETTINGS.onChange(function(){ renderAll(); });\n\n  // The shared sync card, with this page's own per-subject state reported\n  // into it: its counts, and its Reset.\n  SYNC.card(document.getElementById('syncCard'));\n  SYNC.extend({\n    summary: syncSummary,\n    reset: function(){\n      for (var k in edited){ if (PROFILE_READS[k]) { delete edited[k]; delete state.levels[k]; } }\n      save(); renderAll();\n    }\n  });\n  // A live capture re-prices the page, but never under someone's typing: an\n  // input with focus waits for blur.\n  var pendingProfile = false;\n  SYNC.onProfile(function(){\n    var a = document.activeElement;\n    if (a && a.closest && a.closest('#main') && /INPUT|SELECT/.test(a.tagName)){ pendingProfile = true; return; }\n    renderAll();\n  });\n  document.addEventListener('focusout', function(){\n    if (pendingProfile){ pendingProfile = false; setTimeout(function(){ renderAll(); }, 0); }\n  });\n\n  var backTop = document.getElementById('backTop');\n  backTop.addEventListener('click', function(){ window.scrollTo({ top:0, behavior:'smooth' }); });\n  // Cheap enough not to need rAF gating, and a plain handler is verifiable in\n  // an automated browser where an rAF-gated one is not (style guide, Lessons).\n  var updateBackTop = function(){\n    backTop.hidden = !(window.scrollY > 320 && window.innerWidth <= 1040);\n  };\n  window.addEventListener('scroll', updateBackTop);\n  window.addEventListener('resize', function(){ sizeTable(); scrollCurrentIntoView(); updateBackTop(); });\n  updateBackTop();\n\n  renderAll();\n}\n\n/* The test seam, and the profile reads for inspection. */\nwindow.AWOO_COST_TABLES = {\n  refresh: function(){ renderAll(); return syncSummary(); },\n  reads: PROFILE_READS,\n  systems: SYSTEMS,\n  breaks: breaksFor\n};\nwindow.__AWOO_COST_TABLES_FOR_TEST = {\n  sanctumNodeCost:sanctumNodeCost, petSlotCost:petSlotCost,\n  partnerBoostCost:partnerBoostCost, levelExp:levelExp, houseCost:houseCost,\n  caveToolCost:caveToolCost, villageBuildingCost:villageBuildingCost,\n  relicBracketSurcharge:relicBracketSurcharge, triangular:triangular,\n  geomCost:geomCost, base10Series:base10Series,\n  fmtNum:function(n, mode, localeKey){\n    NUM._set(mode || 'letters', localeKey);\n    try { return fmtNum(n); } finally { NUM._set(null, null); }\n  },\n  profileValue:profileValue, fieldState:fieldState, breaksFor:breaksFor\n};\n\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);\nelse init();\n})();\n</script>\n";
 
   // ---- Core intake shim (generated) ----
   // Requires the "AWOO+" userscript. Without it this module does nothing.
@@ -11459,7 +13523,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.7", function (Core) {
+  })("awoo-tools-public", "7.0.8", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
@@ -11519,13 +13583,20 @@ if (document.body) {
 
   // `about` is the tool's own declaration (description, uses); an older
   // Core ignores the extra fields.
+  //
+  // The page is told its own `uses` too (window.AWOO_TOOL_USES, R92), so its
+  // "Sync now" asks the game tab for those sections only (tools/tool-sync.js).
+  // Opening it from AWOO+ asks for them once already: Core's openTool calls
+  // Core.profile.request with the same list, which is why that is not done
+  // here as well.
   function shelve(id, label, html, prefill, about) {
     let url = null;
+    const uses = (about && Array.isArray(about.uses)) ? about.uses.slice() : [];
     Core.registerLink({
       id,
       label,
       description: (about && about.description) || '',
-      uses: (about && about.uses) || [],
+      uses,
       open() {
         if (url) { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }
         const extra = {};
@@ -11533,6 +13604,7 @@ if (document.body) {
           const v = PREFILL[p] ? PREFILL[p]() : null;
           if (v != null) extra[PREFILL_GLOBAL[p]] = v;
         }
+        if (uses.length) extra.AWOO_TOOL_USES = uses.slice();
         url = URL.createObjectURL(new Blob([toolPayload(html, extra)], { type: 'text/html' }));
         return url;
       },

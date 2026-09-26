@@ -1135,10 +1135,18 @@ window.AWOO_TOOL_SETTINGS = {
    ('awoo-profile') reaches it:
      - window.AWOO_INITIAL_PROFILE: what Core handed over at open time, when
        the tool's .release.json asks for it (prefill: ["profile"]);
-     - PROFILE_UPDATED: every capture Core makes afterwards, pushed live;
-     - REQUEST_PROFILE_SYNC: "Sync now" asks the game tab to capture now.
-   Opened anywhere else (a file, a preview), nothing arrives, and the card
-   says so rather than pretending.
+     - PROFILE_DELTA (Core v16, REGISTER.md R92): what each capture changed,
+       or saw again, section by section, merged here by observedAt exactly as
+       Core merges it between tabs (mergeDelta below);
+     - PROFILE_UPDATED: a whole profile. Every capture posted one up to Core
+       v15; v16 posts one only in answer to REQUEST_PROFILE_SYNC;
+     - REQUEST_PROFILE_SYNC: "Sync now" asks the game tabs to capture now and
+       the leading one to read the sections this tool uses
+       (window.AWOO_TOOL_USES, handed over at open time like the profile;
+       absent, every section).
+   Opening a tool from AWOO+ also asks, once (Core's openTool). Opened
+   anywhere else (a file, a preview), nothing arrives, and the card says so
+   rather than pretending.
 
    THE FOUR FIELD STATES (REGISTER.md R48; ARTIFACT_STYLE_GUIDE.md Part III).
    Every bound input carries a light, visible without hovering:
@@ -1202,20 +1210,122 @@ function setProfile(p){
   renderCards();
 }
 
+// The sections this tool reads (its release.json `uses`), when whoever opened
+// it said (tool-shelf.js, or the module carrying it). Only names, never
+// guessed: absent, "Sync now" asks for everything, as it always did.
+var USES = (function(){
+  var u = window.AWOO_TOOL_USES;
+  if (!u || typeof u.length !== 'number') return null;
+  var out = [];
+  for (var i = 0; i < u.length; i++) if (typeof u[i] === 'string' && u[i] && out.indexOf(u[i]) < 0) out.push(u[i]);
+  return out.length ? out : null;
+})();
+
+/* MERGING WHAT ARRIVES (REGISTER.md R92). The same rule as Core's own
+   mergeBySection between tabs (core.js), so a tool never believes anything
+   the game tab would not:
+     - another character's message is ignored (ids when both carry one, else
+       names): a tab on your other character is not news about this one;
+     - per section, the newer observedAt wins; a reading whose age is known
+       beats one whose age is not; a section arriving with no stamp only
+       fills a hole; a section absent, or null with no stamp, is "not
+       observed" and never erases what is here;
+     - meta: queryAt and the timestamp take the latest; the rest (name,
+       level, ids) comes from the newer message, and a null never erases a
+       name or an id.
+   A whole PROFILE_UPDATED goes through the same merge, since the tab that
+   answers a "Sync now" may hold an older copy of a section than a delta
+   already brought; one for ANOTHER character replaces the profile, because
+   Core only answers with its own, current, character (you switched). */
+var META_KEEP = { characterId:1, characterName:1, characterLevel:1 };
+function num(v){ return (typeof v === 'number' && isFinite(v)) ? v : null; }
+function who(meta, k){ var v = meta ? meta[k] : null; return (typeof v === 'string' && v) ? v : null; }
+function sameCharacter(a, b){
+  var ia = who(a, 'characterId'), ib = who(b, 'characterId');
+  if (ia && ib) return ia === ib;
+  var na = who(a, 'characterName'), nb = who(b, 'characterName');
+  if (na && nb) return na === nb;
+  return true;
+}
+function copy(o){ var out = {}; if (o && typeof o === 'object') for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) out[k] = o[k]; return out; }
+// base: the profile held; sections/meta: what arrived (meta carries the
+// observedAt/observedOn/queryAt maps). Returns a new profile.
+function mergeInto(base, sections, meta, schemaVersion){
+  var bm = (base && base.meta) || {};
+  var bSeen = bm.observedAt || {}, iSeen = meta.observedAt || {};
+  var bOn = bm.observedOn || {}, iOn = meta.observedOn || {};
+  var out = copy(base);
+  if (out.schemaVersion === undefined && schemaVersion !== undefined) out.schemaVersion = schemaVersion;
+  var seen = copy(bSeen), on = copy(bOn);
+  for (var k in sections){
+    if (!Object.prototype.hasOwnProperty.call(sections, k) || k === 'meta' || k === 'schemaVersion') continue;
+    var v = sections[k], is = num(iSeen[k]), bs = num(bSeen[k]), b = out[k];
+    var take;
+    if (v === undefined || (v === null && is === null)) take = false;
+    else if (is !== null && bs !== null) take = is > bs;
+    else if (is !== null || bs !== null) take = is !== null;
+    else take = b === undefined || b === null;
+    if (!take) continue;
+    out[k] = v;
+    if (is !== null) seen[k] = is;
+    if (iOn[k] != null) on[k] = iOn[k];
+  }
+  var m = copy(bm);
+  var newer = (num(meta.timestamp) || 0) > (num(bm.timestamp) || 0);
+  for (var f in meta){
+    if (!Object.prototype.hasOwnProperty.call(meta, f)) continue;
+    if (f === 'observedAt' || f === 'observedOn' || f === 'queryAt' || f === 'timestamp') continue;
+    var mv = meta[f];
+    if (mv === undefined) continue;
+    if (mv === null && META_KEEP[f] && m[f] != null) continue;
+    if (newer || m[f] === undefined || (m[f] === null && META_KEEP[f])) m[f] = mv;
+  }
+  var ts = Math.max(num(bm.timestamp) || 0, num(meta.timestamp) || 0);
+  if (ts) m.timestamp = ts;
+  m.observedAt = seen;
+  m.observedOn = on;
+  var qa = copy(bm.queryAt), iq = meta.queryAt || {};
+  for (var q in iq) if (num(iq[q]) !== null && !(num(qa[q]) >= iq[q])) qa[q] = iq[q];
+  m.queryAt = qa;
+  out.meta = m;
+  return out;
+}
+// PROFILE_DELTA v1 (core.js postProfileNow): { characterId, characterName,
+// sections, observedAt, observedOn, meta, queryAt?, schemaVersion? }.
+function mergeDelta(d){
+  var meta = copy(d.meta);
+  if (typeof d.characterId === 'string' && d.characterId) meta.characterId = d.characterId;
+  if (typeof d.characterName === 'string' && d.characterName) meta.characterName = d.characterName;
+  meta.observedAt = (d.observedAt && typeof d.observedAt === 'object') ? d.observedAt : {};
+  meta.observedOn = (d.observedOn && typeof d.observedOn === 'object') ? d.observedOn : {};
+  if (d.queryAt && typeof d.queryAt === 'object') meta.queryAt = d.queryAt;
+  if (profile && !sameCharacter(profile.meta, meta)) return;
+  setProfile(mergeInto(profile, (d.sections && typeof d.sections === 'object') ? d.sections : {}, meta, d.schemaVersion));
+}
+function mergeWhole(p){
+  if (!profile || !sameCharacter(profile.meta, p.meta)) { setProfile(p); return; }
+  var meta = copy(p.meta);
+  setProfile(mergeInto(profile, p, meta, p.schemaVersion));
+}
+
 var bc = null;
 try {
   if (typeof BroadcastChannel !== 'undefined'){
     bc = new BroadcastChannel('awoo-profile');
     bc.onmessage = function(ev){
       var d = ev && ev.data;
-      if (d && d.type === 'PROFILE_UPDATED' && d.profile) setProfile(d.profile);
+      if (!d || typeof d !== 'object') return;
+      if (d.type === 'PROFILE_DELTA' && d.v === 1) mergeDelta(d);
+      else if (d.type === 'PROFILE_UPDATED' && d.profile && typeof d.profile === 'object') mergeWhole(d.profile);
     };
   }
 } catch(e){ bc = null; }
 
 function request(){
   requestedAt = Date.now();
-  if (bc){ try { bc.postMessage({ type:'REQUEST_PROFILE_SYNC', timestamp:requestedAt }); } catch(e){ /* closed */ } }
+  var msg = { type:'REQUEST_PROFILE_SYNC', timestamp:requestedAt };
+  if (USES) msg.sections = USES.slice();
+  if (bc){ try { bc.postMessage(msg); } catch(e){ /* closed */ } }
   renderCards();
   setTimeout(renderCards, NO_ANSWER_MS + 50);
 }
