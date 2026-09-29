@@ -552,6 +552,8 @@
 .awoo-light[data-state="synced"]{background:var(--success-fill);box-shadow:none}
 .awoo-light[data-state="stale"]{background:var(--accent-fill);box-shadow:none}
 .awoo-light[data-state="edited"]{background:var(--info);box-shadow:none}
+/* A newer reading is waiting (R125): the box keeps its value, the dot gets a ring. */
+.awoo-light[data-pending="true"]{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--accent-fill)}
 .awoo-light[data-off="true"]{opacity:.35}
 .awoo-light:focus-visible{outline:2px solid var(--accent-fill);outline-offset:2px}
 
@@ -1402,6 +1404,10 @@ window.AWOO_TOOL_SETTINGS = {
    and the field moves onto it. A page with per-subject state of its own and
    no lasting element (Cost Tables) reports through AWOO_SYNC.extend.
 
+   AFTER OPENING, NOTHING UPDATES BY ITSELF (R125, 2026-09-28): a box fills
+   once, then holds; a newer reading waits behind its light until Sync (all)
+   or the light's click (one). What follows describes the fill itself.
+
    A SYNC APPLIES ITSELF to every field you have not edited. That replaced the
    old "detect, then press Apply" flow on purpose: R48 (the maintainer's own
    note) asks that syncs update the fields and never the ones you changed, and
@@ -1430,14 +1436,20 @@ var TOOL = (meta && meta.getAttribute('content')) || 'tool';
 var LS = 'awoo:tool:' + TOOL + ':sync';
 var DEFAULT_STALE_MS = 6 * 60 * 60 * 1000;
 var NO_ANSWER_MS = 4000;
+// After Sync is pressed (or the page asks on load), what arrives within this
+// long lands in the boxes; outside it, an arriving reading only waits (R125).
+var SYNC_WINDOW_MS = 20000;
+var syncUntil = 0;
+function syncing(){ return Date.now() < syncUntil; }
 
 function settings(){ return window.AWOO_TOOL_SETTINGS || null; }
 
-var saved = { edited:{}, mode:null };
+var saved = { edited:{}, values:{}, mode:null };
 try {
   var raw = localStorage.getItem(LS);
   if (raw){ var o = JSON.parse(raw); if (o && typeof o === 'object'){
     if (o.edited && typeof o.edited === 'object') saved.edited = o.edited;
+    if (o.values && typeof o.values === 'object') saved.values = o.values;
     if (o.mode === 'live' || o.mode === 'standard') saved.mode = o.mode;
   } }
 } catch(e){ /* storage blocked: nothing remembered, everything still works */ }
@@ -1449,9 +1461,11 @@ var connected = !!profile;           // has anything ever arrived?
 var requestedAt = null;              // last "Sync now", for the no-answer state
 var profileListeners = [];
 
-function setProfile(p){
+function setProfile(p, fresh){
   if (!p || typeof p !== 'object') return;
   profile = p; connected = true; requestedAt = null;
+  // Another character (you switched): a new account, so the boxes fill afresh.
+  if (fresh) for (var i0 = 0; i0 < fields.length; i0++) fields[i0].filled = false;
   applyAll();
   for (var i = 0; i < profileListeners.length; i++){ try { profileListeners[i](profile); } catch(e){ /* one page bug must not stop the others */ } }
   renderCards();
@@ -1550,7 +1564,7 @@ function mergeDelta(d){
   setProfile(mergeInto(profile, (d.sections && typeof d.sections === 'object') ? d.sections : {}, meta, d.schemaVersion));
 }
 function mergeWhole(p){
-  if (!profile || !sameCharacter(profile.meta, p.meta)) { setProfile(p); return; }
+  if (!profile || !sameCharacter(profile.meta, p.meta)) { setProfile(p, true); return; }
   var meta = copy(p.meta);
   setProfile(mergeInto(profile, p, meta, p.schemaVersion));
 }
@@ -1570,6 +1584,7 @@ try {
 
 function request(){
   requestedAt = Date.now();
+  syncUntil = requestedAt + SYNC_WINDOW_MS;
   var msg = { type:'REQUEST_PROFILE_SYNC', timestamp:requestedAt };
   if (USES) msg.sections = USES.slice();
   if (bc){ try { bc.postMessage(msg); } catch(e){ /* closed */ } }
@@ -1597,6 +1612,7 @@ function sectionAge(section){
 var fields = [];
 var byKey = {};
 var applyListeners = [];
+var refreshListeners = [];
 var applying = false;
 
 // f.local: the field reads a source of the page's own (another module's
@@ -1712,6 +1728,23 @@ function setInput(f, v){
     else el.value = String(v);
   } finally { applying = false; }
 }
+// What a typed box holds, as a value to keep: a number where the box is a
+// number box, a boolean for a tick, else its text (R126).
+function readBox(f){
+  var el = f.el, S = settings();
+  if (el.type === 'checkbox') return !!el.checked;
+  if (el.hasAttribute('data-num') && S && S.num){ var n = S.num.read(el); return n === null ? el.value : n; }
+  return el.value;
+}
+function writeBox(f, v){
+  var el = f.el, S = settings();
+  applying = true;
+  try {
+    if (el.type === 'checkbox') el.checked = !!v;
+    else if (typeof v === 'number' && el.hasAttribute('data-num') && S && S.num) S.num.show(el, v);
+    else el.value = String(v);
+  } finally { applying = false; }
+}
 // A reading as a person reads it: its box's own display where it has one.
 function valueText(f, v){
   if (v === null || v === undefined) return '—';
@@ -1733,6 +1766,7 @@ function fieldTip(f, st){
     if (v === null) return 'Manual. Nothing synced to go back to.';
     return 'Manual. Synced: ' + valueText(f, v) + '\n' + when + ' ' + from + '\n↺ goes back to it.';
   }
+  if (pending(f)) return 'Newer: ' + valueText(f, v) + ' (waiting)\n' + when + ' ' + from + '\nClick the dot to use it, or press Sync.';
   return STATE_WORD[st] + ': ' + valueText(f, v) + '\n' + when + ' ' + from + '\nClick to edit.';
 }
 function devTip(f){
@@ -1757,12 +1791,14 @@ function renderField(f){
   if (f.light){
     setAttr(f.light, 'data-state', st);
     setAttr(f.light, 'data-off', on ? 'false' : 'true');
+    setAttr(f.light, 'data-pending', pending(f) ? 'true' : 'false');
     setAttr(f.light, 'data-tip', tip);
     setAttr(f.light, 'data-tip-dev', devTip(f));
     setAttr(f.light, 'aria-label', 'Sync: ' + STATE_WORD[st]);
   }
   var el = f.el;
   setAttr(el, 'data-sync', on ? st : 'off');
+  setAttr(el, 'data-pending', pending(f) ? 'true' : 'false');
   setAttr(el, 'data-tip', tip);
   setAttr(el, 'data-tip-dev', devTip(f));
   if (textBox(el)){
@@ -1783,22 +1819,55 @@ function applyOne(f, force){
   var v = readField(f);
   if (v === null) return false;
   if (!force && document.activeElement === f.el) return false;
+  f.filled = true;
   if (shows(f, v)) return false;
   setInput(f, v);
   return true;
 }
+/* HOLD WHAT IS SHOWN (2026-09-28, the maintainer: "Don't keep updating live
+   numbers after opening a tool. Only refresh when clicking sync. You can
+   visualise that a live input has a pending update with the dots at best.",
+   REGISTER.md R125). A box is filled once, by the first reading it can show
+   (f.filled). After that an arriving delta changes no box: the box keeps its
+   value and its light shows the newer one waiting (pending below). Sync
+   applies every waiting value, a light's click applies that one; what
+   arrives within a Sync's window (syncing) is applied as it comes, since it
+   IS the answer to the press. */
+function pending(f){
+  if (!f.filled || saved.edited[f.key] || f.unlocked || !modeAllows(f)) return false;
+  var v = readField(f);
+  return v !== null && !shows(f, v);
+}
+function pendingCount(){
+  var n = 0;
+  for (var i = 0; i < fields.length; i++) if (pending(fields[i])) n++;
+  return n;
+}
 function notifyApplied(){
   for (var i = 0; i < applyListeners.length; i++){ try { applyListeners[i](); } catch(e){ /* keep going */ } }
 }
-function applyAll(){
-  var any = false;
-  for (var i = 0; i < fields.length; i++) any = applyOne(fields[i]) || any;
+// explicit: the player asked (Sync, a mode switch, a reset); else only what
+// has never been filled, or what arrives inside a Sync's window.
+function applyAll(explicit){
+  var any = false, all = explicit === true || syncing();
+  for (var i = 0; i < fields.length; i++){
+    if (!all && fields[i].filled) continue;
+    any = applyOne(fields[i]) || any;
+  }
   for (var j = 0; j < fields.length; j++) renderField(fields[j]);
   if (any) notifyApplied();
   return any;
 }
+// The Sync button: everything waiting lands now, and the game is asked again.
+function syncNow(){
+  var any = applyAll(true);
+  for (var i = 0; i < refreshListeners.length; i++){ try { refreshListeners[i](); } catch(e){ /* keep going */ } }
+  request();
+  return any;
+}
 // One field back to the game: the light's click and the ↺ beside the box.
 function handBack(f){
+  delete saved.values[f.key];
   delete saved.edited[f.key]; f.unlocked = false; persist();
   if (!connected) request();
   if (applyOne(f, true)) notifyApplied();
@@ -1855,7 +1924,8 @@ function bind(def){
   if (f.el.classList) f.el.classList.add('awoo-field');
   var onEdit = function(){
     if (applying) return;
-    saved.edited[f.key] = true; f.unlocked = false; persist();
+    saved.edited[f.key] = true; f.unlocked = false;
+    saved.values[f.key] = readBox(f); persist();
     renderField(f); renderCards();
   };
   f.el.addEventListener('input', onEdit);
@@ -1868,21 +1938,30 @@ function bind(def){
   f.el.addEventListener('blur', function(){
     var was = f.unlocked;
     f.unlocked = false;
-    // Whatever arrived while the caret was in the box lands now.
-    if (applyOne(f)) notifyApplied();
+    // A box never filled yet takes what arrived while the caret was in it;
+    // a filled one keeps its value and shows the newer one waiting.
+    if (!f.filled && applyOne(f)) notifyApplied();
     if (was || !saved.edited[f.key]){ renderField(f); renderCards(); }
   });
   fields.push(f); byKey[f.key] = f;
+  // A typed value kept until Reset (R126): back into the box before anything
+  // else; one flagged manual by an older build has none stored, so the value
+  // the page restored is adopted.
+  if (saved.edited[f.key]){
+    if (Object.prototype.hasOwnProperty.call(saved.values, f.key)) writeBox(f, saved.values[f.key]);
+    else { saved.values[f.key] = readBox(f); persist(); }
+  }
   applyOne(f);
   renderField(f);
   return f;
 }
 function resetAll(){
   for (var x = 0; x < extensions.length; x++){ try { if (extensions[x].reset) extensions[x].reset(); } catch(e){ /* keep going */ } }
-  saved.edited = {}; persist();
+  saved.edited = {}; saved.values = {}; persist();
   for (var i = 0; i < fields.length; i++) fields[i].unlocked = false;
   if (!connected) request();
   for (var k = 0; k < fields.length; k++) applyOne(fields[k], true);
+  for (var r = 0; r < refreshListeners.length; r++){ try { refreshListeners[r](); } catch(e){ /* keep going */ } }
   for (var j = 0; j < fields.length; j++) renderField(fields[j]);
   notifyApplied();
   renderCards();
@@ -1896,7 +1975,7 @@ function setMode(m){
   if (m !== 'live' && m !== 'standard') return;
   saved.mode = m; persist();
   root.setAttribute('data-sync-mode', mode());
-  applyAll();
+  applyAll(true);
   for (var i = 0; i < modeListeners.length; i++){ try { modeListeners[i](mode()); } catch(e){ /* keep going */ } }
   for (var j = 0; j < fields.length; j++) renderField(fields[j]);
   renderCards();
@@ -1937,7 +2016,8 @@ function renderCard(c){
   if (connected || s.synced || s.stale){
     st = s.synced ? 'synced' : (s.stale ? 'stale' : 'unavailable');
     label = s.synced || s.stale ? 'Synced' : 'Connected';
-    tip = 'Fields follow the game tab. ' + (s.synced + s.stale) + ' of ' + s.total + ' read' +
+    var w = pendingCount();
+    tip = 'Fields keep the values they opened with; Sync brings newer ones. ' + (w ? w + ' newer waiting. ' : '') + (s.synced + s.stale) + ' of ' + s.total + ' read' +
       (s.edited ? ', ' + s.edited + ' typed by you' : '') + '.';
   } else if (requestedAt && Date.now() - requestedAt < NO_ANSWER_MS){
     st = 'stale'; label = 'Asking the game…'; tip = 'Waiting for an open Queslar tab to answer.';
@@ -1951,7 +2031,7 @@ function renderCard(c){
   c.state.textContent = label;
   c.state.setAttribute('data-tip', tip);
   var at = get('meta.timestamp');
-  c.age.textContent = (connected || s.synced || s.stale) ? (s.total ? (s.synced + s.stale) + '/' + s.total : '') + (at ? ' · ' + ago(at) : '') : '';
+  c.age.textContent = (connected || s.synced || s.stale) ? (s.total ? (s.synced + s.stale) + '/' + s.total : '') + (at ? ' · ' + ago(at) : '') + (pendingCount() ? ' · ' + pendingCount() + ' newer' : '') : '';
   c.reset.disabled = !s.edited;
   if (c.seg){
     var m = mode();
@@ -1985,9 +2065,9 @@ function card(host, opts){
     c.seg = { live:live, standard:std };
   }
   var actions = el('div', { 'class':'awoo-sync-actions' });
-  var syncBtn = el('button', { type:'button', 'class':'awoo-btn awoo-btn-primary', 'data-tip':'Ask the open game tab for a fresh reading.' }, 'Sync');
+  var syncBtn = el('button', { type:'button', 'class':'awoo-btn awoo-btn-primary', 'data-tip':'Use every newer value waiting, and ask the game tab for a fresh reading.' }, 'Sync');
   var reset = el('button', { type:'button', 'class':'awoo-btn', 'data-tip':'Hand every field you typed back to the game.' }, 'Reset inputs');
-  syncBtn.addEventListener('click', request);
+  syncBtn.addEventListener('click', syncNow);
   reset.addEventListener('click', resetAll);
   actions.appendChild(syncBtn); actions.appendChild(reset);
   box.appendChild(actions);
@@ -2059,7 +2139,11 @@ window.AWOO_SYNC = {
   // One field back to synced, as its ↺ does.
   handBack: function(key){ var f = byKey[key]; if (f) handBack(f); },
   resetAll: resetAll,
-  refresh: function(){ applyAll(); renderCards(); },
+  refresh: function(){ applyAll(true); renderCards(); },
+  // Sync pressed, as the button does it (a page that holds a snapshot re-takes it).
+  onRefresh: function(fn){ if (typeof fn === 'function') refreshListeners.push(fn); },
+  syncing: syncing,
+  pending: function(key){ var f = byKey[key]; return f ? pending(f) : false; },
   card: card,
   extend: function(ext){ if (ext && typeof ext === 'object'){ extensions.push(ext); renderCards(); } },
   renderCards: renderCards,
@@ -2919,7 +3003,14 @@ SYSTEMS.forEach(function(s){ BY_ID[s.id]=s; });
    ===================================================================== */
 var SYNC = window.AWOO_SYNC;
 var STALE_MS = 6*60*60*1000;
-function g(path){ return SYNC.get(path); }
+// HELD (R125, 2026-09-28: "Don't keep updating live numbers after opening a
+// tool. Only refresh when clicking sync."): the prices read the profile as it
+// was when the page opened, and again when Sync is pressed, never as each
+// capture arrives. The kit builds a new profile object per capture, so keeping
+// the object is keeping the moment.
+var held = null;
+function take(){ var p = SYNC.profile(); if (p) held = p; }
+function g(path){ return SYNC.get(path, held || undefined); }
 // The lowest of your partners' speed or intelligence: the level you would buy
 // next to keep them even, which is the price this table can honestly quote.
 function lowestPartner(boost){
@@ -2977,7 +3068,8 @@ function profileValue(key){
   if (!spec || !SYNC) return null;
   var v = typeof spec[1] === 'function' ? spec[1]() : g(spec[1]);
   if (typeof v !== 'number' || !isFinite(v)) return null;
-  return { value:v, observedAt:SYNC.age(spec[0]) };
+  var at = g('meta.observedAt.' + spec[0]);
+  return { value:v, observedAt:(typeof at === 'number' && isFinite(at)) ? at : null };
 }
 
 var edited = {};   // key -> true once the user types in that field
@@ -3341,6 +3433,7 @@ function wireSystem(sys){
     delete state.levels[key];
     save();
     if (!SYNC.connected()) SYNC.request();
+    take();   // the held moment is refreshed for this page as a whole
     renderAll();
   });
 
@@ -3485,7 +3578,13 @@ function init(){
   // A live capture re-prices the page, but never under someone's typing: an
   // input with focus waits for blur.
   var pendingProfile = false;
+  take();
+  // After the first reading, a capture changes no price (R125); Sync (the
+  // button, or what answers it) re-takes the moment and re-prices.
+  SYNC.onRefresh(function(){ take(); renderAll(); });
   SYNC.onProfile(function(){
+    if (held && !SYNC.syncing()) return;
+    take();
     var a = document.activeElement;
     if (a && a.closest && a.closest('#main') && /INPUT|SELECT/.test(a.tagName)){ pendingProfile = true; return; }
     renderAll();
