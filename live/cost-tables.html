@@ -2108,11 +2108,22 @@ function showTip(t){
   tipFor = t;
   tip.textContent = text || '';
   if (dev){ var d = document.createElement('span'); d.className = 'awoo-tip-dev'; d.textContent = dev; tip.appendChild(d); }
+  // Measured at the origin, not where the last tip was left (R34). A fixed
+  // box with no set width is only as wide as the room to the right of its
+  // `left`, so a tip measured where a short one sat by the right edge came
+  // out a thin column: placed from that width it opened to the right of its
+  // mark, and its height was wrong for the flip.
+  tip.style.left = '0px';
+  tip.style.top = '0px';
   tip.classList.add('on');
   var r = t.getBoundingClientRect(), b = tip.getBoundingClientRect();
-  var left = Math.min(Math.max(8, r.left + r.width / 2 - b.width / 2), window.innerWidth - b.width - 8);
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var left = Math.max(8, Math.min(r.left + r.width / 2 - b.width / 2, vw - b.width - 8));
+  // Above the mark; below it when there is no room above; and when neither
+  // fits, pulled up from the bottom edge rather than left hanging off it.
   var top = r.top - b.height - 8;
   if (top < 8) top = r.bottom + 8;
+  if (top + b.height > vh - 8) top = Math.max(8, vh - b.height - 8);
   tip.style.left = Math.round(left) + 'px';
   tip.style.top = Math.round(top) + 'px';
 }
@@ -2538,11 +2549,13 @@ window.AWOO_FACTS = (function () {
   function partnerHireCost(currentCount, targetCount) { if (targetCount <= currentCount) return { currency: 'gold', value: 0 }; return { currency: 'gold', value: 10000 * (Math.pow(10, targetCount + 1) - Math.pow(10, currentCount + 1)) / 9 }; }
   /* tables/house-upgrades.json :: house.resourceCost.formula  [CODE] */
   function houseUpgradeCost(currentLevel, newLevel) { const perLevel = (lvl) => 5000 + Math.round(5000 * Math.pow(lvl, 1.25)); let total = 0; for (let lvl = currentLevel + 1; lvl <= newLevel; lvl++) total += perLevel(lvl); let extra = 0; if (newLevel > 50) extra = (newLevel - Math.max(currentLevel, 50)) * 1e6; return { meat: total + extra, iron: total + extra, wood: total + extra, stone: total + extra }; }
+  /* formulas/village-boss.json :: villageBoss.upgradeTypes  [CODE] */
+  const villageBossUpgradeTypes = {"health":{"goldBase":200000,"currency":"gold","boostRatePerLevel":0.02},"attackSpeed":{"base":3000,"currency":"relics","boostRatePerLevel":0.02},"dropQuality":{"base":3000,"currency":"villageBossEssence","boostRatePerLevel":0.02},"duration":{"base":4000,"currency":"meat+iron+wood+stone (all four simultaneously, equal cost each)","boostRatePerLevel":0.02}};
   /* formulas/village.json :: village.strengths.currency  [CODE] */
   const villageStrengthCurrency = "strength";
-  return { sanctumNodeCost, petSlotUpgradeCost, slotUpgradeCost, expRequired, partnerLevelExp, partnerBoostUpgradeCost, bracketSurcharge, veryHighLevelSurcharge, boostCost, tileUpgradeCost, villageBossCost, villageBuildingCost, caveToolUpgradeCost, fighterSlotCost, partnerHireCost, houseUpgradeCost, villageStrengthCurrency };
+  return { sanctumNodeCost, petSlotUpgradeCost, slotUpgradeCost, expRequired, partnerLevelExp, partnerBoostUpgradeCost, bracketSurcharge, veryHighLevelSurcharge, boostCost, tileUpgradeCost, villageBossCost, villageBuildingCost, caveToolUpgradeCost, fighterSlotCost, partnerHireCost, houseUpgradeCost, villageBossUpgradeTypes, villageStrengthCurrency };
 })();
-window.AWOO_FACTS_META = {"sanctumNodeCost":{"file":"tables/sanctum-nodes.json","fact":"sanctumNodes.formula.status","confidence":"CROSS","checked":"2026-08-23"},"petSlotUpgradeCost":{"file":"formulas/pets.json","fact":"pets.slotUpgrade.costFormula","confidence":"CODE","checked":"2026-09-28"},"slotUpgradeCost":{"file":"formulas/equipment.json","fact":"equipment.slotUpgrade.costFormula","confidence":"CODE","checked":"2026-08-23"},"expRequired":{"file":"formulas/leveling.json","fact":"leveling.genericExpRequired.formula","confidence":"CODE","checked":"2026-08-23"},"partnerLevelExp":{"file":"formulas/partners.json","fact":"partner.level.expFormula","confidence":"CODE","checked":"2026-08-23"},"partnerBoostUpgradeCost":{"file":"formulas/partners.json","fact":"partner.boostUpgradeCost.formula","confidence":"CODE","checked":"2026-08-23"},"bracketSurcharge":{"file":"formulas/relic-boosts.json","fact":"relicBoost.bracketSurcharge","confidence":"CODE","checked":"2026-08-23"},"veryHighLevelSurcharge":{"file":"formulas/relic-boosts.json","fact":"relicBoost.veryHighLevelSurcharge","confidence":"CODE","checked":"2026-08-23"},"boostCost":{"file":"formulas/relic-boosts.json","fact":"relicBoost.costFormula","confidence":"CODE","checked":"2026-08-23"},"tileUpgradeCost":{"file":"formulas/sculptures.json","fact":"sculptures.tileUpgradeCost","confidence":"CODE","checked":"2026-08-23"},"villageBossCost":{"file":"formulas/village-boss.json","fact":"villageBoss.costFormula","confidence":"CODE","checked":"2026-08-23"},"villageBuildingCost":{"file":"formulas/village.json","fact":"village.buildings.costFormula.implementation","confidence":"CODE","checked":"2026-08-23"},"caveToolUpgradeCost":{"file":"formulas/caves.json","fact":"caves.toolUpgradeCost.formula","confidence":"CODE","checked":"2026-08-23"},"fighterSlotCost":{"file":"formulas/dungeons.json","fact":"dungeon.fighterSlotCost.formula","confidence":"CODE","checked":"2026-08-23"},"partnerHireCost":{"file":"formulas/partners.json","fact":"partner.slotUnlock.formula","confidence":"CODE","checked":"2026-08-23"},"houseUpgradeCost":{"file":"tables/house-upgrades.json","fact":"house.resourceCost.formula","confidence":"CODE","checked":"2026-08-23"},"villageStrengthCurrency":{"file":"formulas/village.json","fact":"village.strengths.currency","confidence":"CODE","checked":"2026-08-23"}};
+window.AWOO_FACTS_META = {"sanctumNodeCost":{"file":"tables/sanctum-nodes.json","fact":"sanctumNodes.formula.status","confidence":"CROSS","checked":"2026-08-23"},"petSlotUpgradeCost":{"file":"formulas/pets.json","fact":"pets.slotUpgrade.costFormula","confidence":"CODE","checked":"2026-09-28"},"slotUpgradeCost":{"file":"formulas/equipment.json","fact":"equipment.slotUpgrade.costFormula","confidence":"CODE","checked":"2026-08-23"},"expRequired":{"file":"formulas/leveling.json","fact":"leveling.genericExpRequired.formula","confidence":"CODE","checked":"2026-08-23"},"partnerLevelExp":{"file":"formulas/partners.json","fact":"partner.level.expFormula","confidence":"CODE","checked":"2026-08-23"},"partnerBoostUpgradeCost":{"file":"formulas/partners.json","fact":"partner.boostUpgradeCost.formula","confidence":"CODE","checked":"2026-08-23"},"bracketSurcharge":{"file":"formulas/relic-boosts.json","fact":"relicBoost.bracketSurcharge","confidence":"CODE","checked":"2026-08-23"},"veryHighLevelSurcharge":{"file":"formulas/relic-boosts.json","fact":"relicBoost.veryHighLevelSurcharge","confidence":"CODE","checked":"2026-08-23"},"boostCost":{"file":"formulas/relic-boosts.json","fact":"relicBoost.costFormula","confidence":"CODE","checked":"2026-08-23"},"tileUpgradeCost":{"file":"formulas/sculptures.json","fact":"sculptures.tileUpgradeCost","confidence":"CODE","checked":"2026-08-23"},"villageBossCost":{"file":"formulas/village-boss.json","fact":"villageBoss.costFormula","confidence":"CODE","checked":"2026-08-23"},"villageBuildingCost":{"file":"formulas/village.json","fact":"village.buildings.costFormula.implementation","confidence":"CODE","checked":"2026-08-23"},"caveToolUpgradeCost":{"file":"formulas/caves.json","fact":"caves.toolUpgradeCost.formula","confidence":"CODE","checked":"2026-08-23"},"fighterSlotCost":{"file":"formulas/dungeons.json","fact":"dungeon.fighterSlotCost.formula","confidence":"CODE","checked":"2026-08-23"},"partnerHireCost":{"file":"formulas/partners.json","fact":"partner.slotUnlock.formula","confidence":"CODE","checked":"2026-08-23"},"houseUpgradeCost":{"file":"tables/house-upgrades.json","fact":"house.resourceCost.formula","confidence":"CODE","checked":"2026-08-23"},"villageBossUpgradeTypes":{"file":"formulas/village-boss.json","fact":"villageBoss.upgradeTypes","confidence":"CODE","checked":"2026-08-23"},"villageStrengthCurrency":{"file":"formulas/village.json","fact":"village.strengths.currency","confidence":"CODE","checked":"2026-08-23"}};
 </script>
 
 <div class="shell">
@@ -2575,7 +2588,7 @@ window.AWOO_FACTS_META = {"sanctumNodeCost":{"file":"tables/sanctum-nodes.json",
 
 <div class="foot">
   Formulas are generated from the AWOO+ core (<code>core/data/formulas/</code>) and
-  were last checked against the game's own code (1.2.3.12) on 2026-09-23. Confidence tags are that core's own evidence
+  were last checked against the game's own code (1.2.3.13) on 2026-09-23. Confidence tags are that core's own evidence
   tiers, not a generic severity scale — a <b>CROSS</b> or <b>OPEN</b> table is
   telling you something real about how far to trust the number.
 </div>
@@ -2733,7 +2746,7 @@ var SYSTEMS = [
   range:function(a,b){ return asCost(fact('slotUpgradeCost')(a,b),'meat'); },  /* GENERATED: equipment.slotUpgrade.costFormula */
   formula:'geometric series, base 250, ratio 1.10 per level, charged in each of meat / iron / wood / stone',
   userNote:'Costs the same amount of all four village resources at once, and no gold. The cost itself has no breakpoints; the boost these levels buy steps up every 30 levels — level 30 gives +30%, 60 gives +90%, 90 gives +180%.',
-  devNote:'A different curve from pet slots, and deliberately so — the level-150 cap the dev added to pets was gated on a pet-only branch and never touched equipment.',
+  devNote:'A different curve from pet slots, and deliberately so — pets keep adding +6% a level past level 150 (patch 1.2.3.13); that was a pet-only branch and never touched equipment.',
   srcs:['formulas/equipment.json','engine/income/profile.js']
 },
 {
@@ -2854,7 +2867,8 @@ var SYSTEMS = [
     {id:'dropQuality',label:'Drop quality (essence)'},{id:'duration',label:'Duration (4 resources)'}]},
   cur:['gold','relics','essence','meat','iron','wood','stone'],
   range:function(a,b,v){
-    var cfg={health:[200000,'gold'],attackSpeed:[3000,'relics'],dropQuality:[3000,'essence'],duration:[4000,'res']}[v||'health'];
+    var U=F.villageBossUpgradeTypes;  /* GENERATED: villageBoss.upgradeTypes (the base costs) */
+    var cfg={health:[U.health.goldBase,'gold'],attackSpeed:[U.attackSpeed.base,'relics'],dropQuality:[U.dropQuality.base,'essence'],duration:[U.duration.base,'res']}[v||'health'];
     var c=fact('villageBossCost')(a,b,cfg[0]);  /* GENERATED: villageBoss.costFormula */
     if (cfg[1]==='res') return {meat:c,iron:c,wood:c,stone:c};
     var o={}; o[cfg[1]]=c; return o;
@@ -2944,7 +2958,7 @@ var SYSTEMS = [
 {
   id:'fighterslot', group:'Fighters', name:'Fighter slot', tier:'LIVE', generated:true,
   unit:'fighter slots', unitShort:'Slots', def:5, min:0, max:6, view:6, expandBy:0, step:1, checked:'2026-08-23',
-  desc:'Expanding the fighter roster for dungeons. Six slots is the cap, and each one costs ten times the last.',
+  desc:'Expanding the fighter roster for dungeons. Six slots is the cap, and each one costs ten times the last. Gold by default; the game\u2019s Toggle Fighter Gold switch can bill fighter gold instead.',
   cur:['gold'],
   range:function(a,b){ return asCost(fact('fighterSlotCost')(a,b),'gold'); },  /* GENERATED: dungeon.fighterSlotCost.formula */
   formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',
