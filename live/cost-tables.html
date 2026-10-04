@@ -3036,24 +3036,32 @@ function lowestPartner(boost){
     return min;
   };
 }
-// The lowest of every partner's four SKILLS (hunting/mining/woodcutting/
-// stonecarving — partner.roster[].skills, NOT the same thing as the speed/
-// intelligence boosts lowestPartner() reads above): the level you would buy
-// next to keep every partner's every skill even, mirroring lowestPartner's
-// reasoning for the row this table can honestly quote a single level for.
-function lowestPartnerSkill(){
+// Every partner's four SKILLS (hunting/mining/woodcutting/stonecarving —
+// partner.roster[].skills, NOT the speed/intelligence boosts lowestPartner()
+// reads above): the lowest, average and highest, plus how many were counted.
+// The Partner level EXP page starts from the AVERAGE (maintainer, 2026-10-04:
+// the lowest skill of any partner read as an odd number). A partner or skill
+// with no number is skipped, never counted as 0 (AGENTS.md rule 3).
+function partnerSkillStats(){
   var r = g('partner.roster');
   if (!Array.isArray(r) || !r.length) return null;
-  var min = null;
+  var lo = null, hi = null, sum = 0, n = 0;
   for (var i = 0; i < r.length; i++){
     var sk = r[i] && r[i].skills;
     if (!sk) continue;
     ['hunting','mining','woodcutting','stonecarving'].forEach(function(k){
       var v = sk[k];
-      if (typeof v === 'number' && (min === null || v < min)) min = v;
+      if (typeof v !== 'number' || !isFinite(v)) return;
+      if (lo === null || v < lo) lo = v;
+      if (hi === null || v > hi) hi = v;
+      sum += v; n++;
     });
   }
-  return min;
+  return n ? { lowest: lo, average: sum / n, highest: hi, count: n } : null;
+}
+function averagePartnerSkill(){
+  var st = partnerSkillStats();
+  return st ? Math.round(st.average) : null;
 }
 var PROFILE_READS = {
   'charlevel:battling':   ['levels', function(){ var v = g('levels.battling'); return v != null ? v : g('core.level'); }],
@@ -3065,7 +3073,7 @@ var PROFILE_READS = {
   'partnerboost:speed':        ['partner', lowestPartner('speed')],
   'partnerboost:intelligence': ['partner', lowestPartner('intelligence')],
   'partnerhire':          ['partner', 'partner.count'],
-  'partnerlevel':         ['partner', lowestPartnerSkill],
+  'partnerlevel':         ['partner', averagePartnerSkill],
   // sanctum.skillTreePoints: skill-tree points bought with gold (BUNDLE,
   // PROFILE.md) — priced on the total bought tree-wide, matching this
   // system's own "priced on the TOTAL number of nodes" description.
@@ -3265,6 +3273,13 @@ function renderSystem(){
        esc('Where you want to get to. Sets the headline total, and grows the table to reach it.') +
        '">Target</span></span>' +
        '<input type="text" data-num data-num-kind="int" id="tgtInput" value="' + tgt + '" min="' + (lv+1) + '" max="' + sys.max + '"></div>';
+  if (sys.id === 'partnerlevel'){
+    var pst = partnerSkillStats();
+    if (pst) h += '<div class="field"><span class="lab"><span class="tip" data-tip="' +
+      esc('Every partner’s four skills (Hunting, Mining, Woodcutting, Stonecarving). The table starts from the average.') +
+      '">Partners</span></span><span>Lowest ' + fmtInt(pst.lowest) + ' · Average ' + fmtInt(Math.round(pst.average)) +
+      ' · Highest ' + fmtInt(pst.highest) + '</span></div>';
+  }
   if (sys.variants){
     h += '<div class="field"><span class="lab">' + esc(sys.variants.label) + '</span><select id="varSel">';
     sys.variants.options.forEach(function(o){
