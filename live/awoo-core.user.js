@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.14
+// @version      7.0.15
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -18,7 +18,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.14",
+    "version": "7.0.15",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -79,14 +79,18 @@
   // 'UTC'), format(ms, opts) and parts(ms) draw a timestamp in it, and
   // onChange(fn) subscribes to a flip. DISPLAY ONLY — every game mechanic
   // stays anchored to server time; only the digits on screen move. A module
-  // written before 17 draws everything in UTC, exactly as it always did.
+  // written before 17 draws everything in UTC, exactly as it always did;
+  // 18 = Core.num (int / fixed / pct: numbers in full, in the player's
+  // convention), Core.time.span (a duration) and Core.whenBodyReady
+  // (REGISTER.md R168), so no module carries its own separator, duration or
+  // body-wait code. A module guards each before use and degrades without it.
   //
   // CORRECTED 2026-09-07: this list claimed v5 shipped a "bus". It never did —
   // see the "NOT TAKEN from the AWOO+ Framework" note further down, which
   // is the actual decision. A version history is the first thing a module
   // author reads to decide what exists, so a phantom entry in it is worse than
   // no list at all.
-  const AWOO_CORE_VERSION = 17;
+  const AWOO_CORE_VERSION = 18;
 
   // Exactly one Core per page. Two installed Core scripts is a user
   // misconfiguration, not a state to negotiate — first one wins and the second
@@ -161,12 +165,19 @@
       // last time.
       autoShowOnReload: false,
       // The named theme (DESIGN.md §7, ARTIFACT_STYLE_GUIDE.md Part II-b).
-      // The default a new install starts with: Slate since 2026-09-25 (the
-      // maintainer). A player's stored choice is never replaced by an update.
+      // The default a new install starts with: Default since 2026-10-06 (the
+      // maintainer; Slate from 2026-09-25). Its id is 'partners': the theme
+      // was named Partners until 2026-10-07, and the label changed without the
+      // id, because a stored 'partners' is what saved settings already hold. A player's stored choice is never
+      // replaced by an update. Only a player with NO stored `theme` key moves
+      // to the new default: settings are stored key by key (setSetting), but
+      // before R122 (2026-09-30) a save wrote the whole settings object, and
+      // General's "Reset settings to default" writes every default, so a stored
+      // 'slate' cannot be told apart from a chosen one and is kept as it is.
       // 'matchGame' is what the old `liveAdaptTheme: true` meant — inheriting
       // the game's own variables live — and a stored true is migrated to it
       // below, so nobody's choice is lost.
-      theme: 'slate',
+      theme: 'partners',
       // Settings > Fonts. Two surfaces, set separately, because the overlay
       // and the tools are read in different places at different sizes.
       // Applied only through the Fonts tab's "Save & apply" — see there.
@@ -210,14 +221,32 @@
       // only when a page you open shows it. The automatic half also needs
       // profileAutoSync.
       profileWatch: true,
+      // BASIC OR ADVANCED (R159, the maintainer 2026-10-13). 'basic' shows
+      // the options a new player needs; 'advanced' shows every option. The
+      // default is for a FRESH install only: a player who already had AWOO+
+      // is put on 'advanced' at the boot that first sees this key (below,
+      // after setupBoot), so nobody loses an option they could see before.
+      // Profile Sync's own "More options" switch (profileSyncAdvanced, R184)
+      // folded into this one; a stored profileSyncAdvanced is simply unread.
+      // Module, tool and Tweak settings pages are never split.
+      cpMode: 'basic',
       // ---- the Control Panel (REGISTER.md R69) ----
       // 'tabs': sections in the sidebar, pages as tabs in the page. 'tree': an
       // expandable list. Both were designed; the maintainer asked for both.
       panelNav: 'tabs',
-      // Modules page: one table unless asked to group; one line per module
-      // unless asked for descriptions.
-      cpGroupByCategory: false,
-      cpCondensed: true,
+      // THE CONTROL PANEL REDESIGN (R230-R232, the maintainer 2026-10-16).
+      // The Feature settings and the Features list are grouped by kind
+      // (Modules, Tweaks). Grouping by game area was tried and dropped
+      // (2026-10-17: "just remove the sorting by area"), and with it the
+      // switch. Replaces cpGroupByCategory, cpGroupBy and the condensed
+      // switches (cpCondensed, cpToolsCondensed): a row opens for its details.
+      // The sidebar's folded groups, remembered ("remember", 2026-10-16).
+      // All open at first.
+      cpFolded: [],
+      // The Features lists: 'compact' (names only) or 'descriptions' (a
+      // short line under each name). A click on a row opens its details
+      // either way (the maintainer, 2026-10-17).
+      cpListDesc: 'compact',
       // Clicking a module in the menu. 'load' (the default) loads or unloads
       // it: the menu is where modules you do not always need are switched on.
       // 'window' only opens and closes its window.
@@ -243,8 +272,6 @@
       // The Control Panel stays above module windows, so loading a module
       // from it (which opens that module's window) never buries the panel.
       cpOnTop: true,
-      // Tools page: one line per tool unless asked for descriptions.
-      cpToolsCondensed: true,
       // Everything AWOO+ draws, scaled: 80-130 %. Type, spacing and the fixed
       // sizes of the menu and this panel follow; the game's page does not.
       uiScale: 100,
@@ -286,18 +313,70 @@
       notifyKeep: 10,
     };
     // Wider since the Control Panel (R69): the Modules page is a table with a
-    // load switch and two "shown in" columns, which did not fit 580.
+    // load switch and two "shown in" columns, which did not fit 580. Wider
+    // again for R171 (2026-10-07). LARGER BY DEFAULT since the redesign (R231,
+    // the maintainer 2026-10-16: "make it a lot larger by default"): the old
+    // default, 820x560, is Compact now. The keys stay, because they are what
+    // players have stored; only the sizes behind them grew.
     const SETTINGS_SIZES = {
-      compact: { w: 640, h: 480, label: 'Compact' },
-      default: { w: 740, h: 560, label: 'Default' },
-      large: { w: 880, h: 660, label: 'Large' },
-      tall: { w: 760, h: 820, label: 'Tall' },
-      tallLarge: { w: 880, h: 820, label: 'Tall & large' },
+      compact: { w: 820, h: 560, label: 'Compact' },
+      default: { w: 1040, h: 700, label: 'Default' },
+      large: { w: 1180, h: 780, label: 'Large' },
+      tall: { w: 1040, h: 860, label: 'Tall' },
+      tallLarge: { w: 1180, h: 900, label: 'Tall & large' },
       // Asked for 2026-09-25. Taller than a laptop screen: the window keeps
       // itself on-screen, so on a small one this is simply "as big as fits".
-      tallXLarge: { w: 1040, h: 900, label: 'Tall & very large' },
+      tallXLarge: { w: 1320, h: 960, label: 'Tall & very large' },
     };
-    const CP_SIDE_WIDTHS = { narrow: 120, default: 150, wide: 190 };
+    // Wider with the redesign (R231): the sidebar carries the Feature
+    // settings groups, and at 150 a feature's name and its "tweak" mark did
+    // not fit beside each other.
+    const CP_SIDE_WIDTHS = { narrow: 150, default: 180, wide: 220 };
+    // THE CONTROL PANEL'S TABLE COLUMNS (R177; fewer since R232), in unscaled
+    // px. One home: the stylesheet's column widths and the column fit
+    // (fitCpColumns) both read it, so the drop points cannot drift from the
+    // widths. Each is drawn at width x UI scale. The name column has no width;
+    // it takes the rest. Synced, Author and Start moved into a row's details
+    // (R232, 2026-10-16), so fewer columns line up across pages.
+    const CP_COL_W = { hcol: 14, catcol: 76, statcol: 104, loadcol: 76, menucol: 40, barcol: 32, actcol: 30 };
+    // What a table row needs, in unscaled px, with every column, and with
+    // Category dropped: each column's width plus its side padding
+    // (--awoo-s1 on the handle column, --awoo-s2 on the rest), the name's
+    // padding (--awoo-row-x) and the frame's border, plus CP_NAME_ROOM for
+    // the name itself (it never wraps; the longest, a module name with its
+    // audience dot and a chevron, measured about 160px at 100%).
+    const CP_NAME_ROOM = 170;
+    const cpRowNeeds = (drop) => Object.keys(CP_COL_W).filter((c) => !drop.includes(c))
+      .reduce((a, c) => a + CP_COL_W[c] + (c === 'hcol' ? 4 : 8), 20 + 2 + CP_NAME_ROOM);
+    const CP_FIT_ALL = cpRowNeeds([]);
+    const CP_FIT_MID = cpRowNeeds(['catcol']);
+    // 'all' every column; 'mid' without Category; 'min' without Status too
+    // (the row's details still say it). The third argument is gone with the
+    // Basic-only columns it chose between.
+    function cpColsFor(pageWidthPx, k) {
+      const w = pageWidthPx / (k || 1);
+      return w >= CP_FIT_ALL ? 'all' : w >= CP_FIT_MID ? 'mid' : 'min';
+    }
+    let fitCpColumns = () => {};
+    function observeCpFit(root, paneHost) {
+      fitCpColumns = () => {
+        try {
+          const cs = getComputedStyle(paneHost);
+          const w = paneHost.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+          if (!(w > 0)) return;   // closed or not laid out: keep the last answer
+          const fit = cpColsFor(w, uiScale());
+          if (root.dataset.cpCols !== fit) root.dataset.cpCols = fit;
+        } catch (e) { /* no layout here: the middle set stands */ }
+      };
+      // One observer for the panel's life, on Core's own window: it fires as
+      // the panel opens or is resized. Opening it, and a UI scale or sidebar
+      // width change, also call fitCpColumns directly (openSettings,
+      // applySetting): a browser holds observer callbacks back while the tab
+      // is hidden.
+      if (typeof ResizeObserver === 'function') {
+        try { new ResizeObserver(() => fitCpColumns()).observe(paneHost); } catch (e) { /* the middle set stands */ }
+      }
+    }
     const uiScale = () => Math.min(130, Math.max(80, Number(getSetting('uiScale')) || 100)) / 100;
     const barScale = () => Math.min(130, Math.max(80, Number(getSetting('barScale')) || 100)) / 100;
     const settingsSize = () => {
@@ -331,20 +410,36 @@
       try { document.documentElement.style.setProperty('--awoo-cp-side', w + 'px'); } catch (e) { /* no document yet */ }
     }
     let settings = Object.assign({}, SETTINGS_DEFAULTS);
+    // WHAT THE READ BELOW FOUND (R185, the first-time setup wizard): 'stored',
+    // 'empty' (nothing saved yet) or 'unreadable' (blocked, or not JSON). A
+    // fresh install gets the wizard's fresh picks, and a read that failed
+    // shows no wizard at all: refuse rather than guess (rule 3). No extra
+    // read: this only records the result of the one Core already makes.
+    let settingsBoot = 'unreadable';
+    // Whether the stored settings already hold a Basic/Advanced choice (R159).
+    let cpModeStored = false;
     // Applied once settings are read (below) and on every change (setSetting).
     try {
       const rawSettings = localStorage.getItem(SETTINGS_KEY);
+      if (!rawSettings) settingsBoot = 'empty';
       if (rawSettings) {
         const stored = JSON.parse(rawSettings);
         Object.assign(settings, stored);
+        cpModeStored = !!stored && (stored.cpMode === 'basic' || stored.cpMode === 'advanced');
         // v6.1-v11 stored the theme as a boolean. true meant "follow the game
         // live", which is exactly Match game; false meant the Turquoise
         // snapshot, which is the default anyway.
         if (stored && stored.theme == null && stored.liveAdaptTheme === true) settings.theme = 'matchGame';
         delete settings.liveAdaptTheme;
+        settingsBoot = 'stored';
       }
     } catch (e) { /* ignore, defaults stand */ }
     function getSetting(key) { return settings[key]; }
+    // Set once the Control Panel is built (General's Setup row, the Profile
+    // Sync page); until then a change has nothing drawn to repaint.
+    let paintSetupRow = () => {};
+    let repaintSyncPage = () => {};
+    let paintCpMode = () => {};
     // TABS WRITE ONLY WHAT THEY CHANGED (R122 Core audit #4; the maintainer's
     // decision 2026-09-30, "Merge + live settings"). This used to write this
     // tab's WHOLE copy of the settings, so a tab opened an hour ago put back
@@ -371,10 +466,15 @@
       if (key === 'theme') applyThemeMode();
       if (key === 'fonts') applyOverlayFonts();
       if (key === 'showDevTooltips') syncDevIcons();
-      if (key === 'uiScale') applyUiScale();
+      if (key === 'uiScale') { applyUiScale(); fitCpColumns(); }
       if (key === 'barScaleOwn' || key === 'barScale') applyBarScale();
-      if (key === 'cpSideWidth') applyCpSideWidth();
+      if (key === 'cpSideWidth') { applyCpSideWidth(); fitCpColumns(); }
       if (key === 'barSyncDot') renderProfileButton();
+      // The setup wizard's state (R185): the bar's Setup button and General's
+      // Setup row follow it, in this tab and in every other.
+      if (key === 'setupWizard') { renderSetupButton(); paintSetupRow(); }
+      // Basic or Advanced (R159): the Control Panel redraws what it shows.
+      if (key === 'cpMode') { paintCpMode(); fitCpColumns(); }
       // A module (or Core's own displays) subscribed through Core.time.onChange
       // hears about a zone flip immediately, the same promise onNavigate makes.
       if (key === 'timeZone') notifyTimeZoneChange();
@@ -394,9 +494,9 @@
       }
     }
 
-    // ---- theming: one token contract, nine choices (DESIGN.md §7) ----
+    // ---- theming: one token contract, every named theme (DESIGN.md §7) ----
     //
-    // The seven named themes are the SAME seven the tools wear, from the same
+    // The named themes are the SAME ones the tools wear, from the same
     // source: src/tools/theme-tokens.css. build.mjs parses that file and
     // generates the array below in place of the empty one, so a palette
     // correction reaches the overlay and every tool on one rebuild and there
@@ -404,14 +504,32 @@
     // carries an empty list; only the built script has themes, and
     // applyThemeMode falls back to Turquoise if the list is somehow empty.)
     //
-    // Each entry: { id, label, mode: 'light'|'dark', t: { <contract token>: value } }.
-    const THEME_CONTRACT = [{"id":"beach","label":"Beach (light)","mode":"light","t":{"ground":"#EFE7D7","surface":"#FAF5EC","surface-2":"#F1E8D8","surface-3":"#E7DCC7","border":"#D8CBB2","border-strong":"#C3B193","border-control":"#8C7D64","ink":"#33291D","ink-soft":"#6B5C48","ink-mute":"#94836C","accent":"#8A4322","accent-fill":"#A8552C","accent-edge":"#D4AB93","bg-accent":"#F3E2D8","on-accent":"#FBF0E6","success":"#3F5C33","success-fill":"#4A6741","bg-success":"#E4EBDC","danger":"#8C2F2A","danger-fill":"#A83A33","bg-danger":"#F5E0DD","info":"#41528A","bg-info":"#E2E5F2","neutral":"#6E5F49","bg-neutral":"#EDE4D3","dev":"#2E6B5C","bg-dev":"#DCEBE6","shadow":"0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06)","trusted":"#23618F"}},{"id":"beach-dim","label":"Beach (dimmed)","mode":"dark","t":{"ground":"#17181A","surface":"#1E2022","surface-2":"#25282A","surface-3":"#2E3134","border":"#33373A","border-strong":"#4A4F53","border-control":"#6D7378","ink":"#E6E4E0","ink-soft":"#A8A49D","ink-mute":"#7C7872","accent":"#F2B189","accent-fill":"#CC7A50","accent-edge":"#5C412C","bg-accent":"#31241A","on-accent":"#1B0D05","success":"#7CC49A","success-fill":"#3F8A61","bg-success":"#17301F","danger":"#EB8272","danger-fill":"#C0453A","bg-danger":"#341D1B","info":"#A3AEDD","bg-info":"#1F2130","neutral":"#A09B92","bg-neutral":"#26282A","dev":"#7FC9B8","bg-dev":"#16302A","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}},{"id":"slate","label":"Slate","mode":"dark","t":{"ground":"#14181D","surface":"#1B2027","surface-2":"#20262D","surface-3":"#272F37","border":"#2B323A","border-strong":"#3A434C","border-control":"#6A7684","ink":"#E8EAEB","ink-soft":"#A9B0B6","ink-mute":"#78828B","accent":"#E3B36B","accent-fill":"#C4923F","accent-edge":"#5A4522","bg-accent":"#2E2412","on-accent":"#241300","success":"#84C4AA","success-fill":"#4F8C74","bg-success":"#172E25","danger":"#E28270","danger-fill":"#C1503C","bg-danger":"#351F1A","info":"#B4A4E0","bg-info":"#241F36","neutral":"#9AA6B2","bg-neutral":"#222A32","dev":"#78C8BC","bg-dev":"#14302C","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}},{"id":"claude","label":"Claude (light)","mode":"light","t":{"ground":"#F0EEE6","surface":"#FFFFFF","surface-2":"#F7F6F1","surface-3":"#EBE9E0","border":"#DEDACE","border-strong":"#C5C0B2","border-control":"#8A8474","ink":"#191917","ink-soft":"#57544C","ink-mute":"#84806F","accent":"#A8461F","accent-fill":"#B4552F","accent-edge":"#DEB49F","bg-accent":"#F7E6DD","on-accent":"#FFF4EE","success":"#276048","success-fill":"#317055","bg-success":"#D3E8DC","danger":"#9E2B22","danger-fill":"#BE4034","bg-danger":"#F8E2DF","info":"#474C93","bg-info":"#E5E6F4","neutral":"#6B6759","bg-neutral":"#EDEBE2","dev":"#256657","bg-dev":"#D8EBE5","shadow":"0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06)","trusted":"#23618F"}},{"id":"claude-med","label":"Claude (medium)","mode":"dark","t":{"ground":"#26241F","surface":"#2F2D27","surface-2":"#37352E","surface-3":"#403D35","border":"#454239","border-strong":"#5C5849","border-control":"#807A68","ink":"#EDEAE0","ink-soft":"#B3AE9E","ink-mute":"#8A8676","accent":"#EFA189","accent-fill":"#C26A4F","accent-edge":"#66452F","bg-accent":"#3B2A1E","on-accent":"#1C0C03","success":"#84C6A2","success-fill":"#3C8A63","bg-success":"#22342A","danger":"#EE8B79","danger-fill":"#BC4739","bg-danger":"#3B2622","info":"#AFA8E2","bg-info":"#2B2839","neutral":"#A8A292","bg-neutral":"#343128","dev":"#82C9B9","bg-dev":"#1F3330","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}},{"id":"claude-dark","label":"Claude (dark)","mode":"dark","t":{"ground":"#141312","surface":"#1C1B19","surface-2":"#232220","surface-3":"#2C2A27","border":"#31302C","border-strong":"#47443E","border-control":"#6E6A61","ink":"#EFECE3","ink-soft":"#ACA79A","ink-mute":"#7E7A6E","accent":"#F0A791","accent-fill":"#C36E52","accent-edge":"#523A26","bg-accent":"#2B1D14","on-accent":"#1A0A02","success":"#82C9A3","success-fill":"#3E8F66","bg-success":"#14291D","danger":"#F0907E","danger-fill":"#C24A3B","bg-danger":"#2E1B18","info":"#B3ABE6","bg-info":"#211E2E","neutral":"#A5A092","bg-neutral":"#26241F","dev":"#7FCBBA","bg-dev":"#132A26","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}},{"id":"claude-code","label":"Claude Code","mode":"dark","t":{"ground":"#1F1E1D","surface":"#262625","surface-2":"#2E2E2C","surface-3":"#383836","border":"#3A3A38","border-strong":"#54544F","border-control":"#787870","ink":"#F5F4EF","ink-soft":"#B4B2A7","ink-mute":"#88867C","accent":"#E39070","accent-fill":"#C2613F","accent-edge":"#4A3227","bg-accent":"#33221B","on-accent":"#1A0A04","success":"#7FC49E","success-fill":"#3C8961","bg-success":"#1C2E23","danger":"#EE8B78","danger-fill":"#BF4A39","bg-danger":"#33211D","info":"#ADA6E0","bg-info":"#28253A","neutral":"#A3A198","bg-neutral":"#2C2C2A","dev":"#7DC6B6","bg-dev":"#1B2E2A","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}}] /* GENERATED from src/tools/theme-tokens.css */;
+    // Each entry: { id, label, mode: 'light'|'dark', t: { <contract token>: value } },
+    // plus `dark: { <contract token>: value }` for a theme that follows the
+    // device's light/dark setting (Default, id 'partners'): see namedThemeVars.
+    const THEME_CONTRACT = [{"id":"partners","label":"Default","mode":"light","t":{"ground":"#F0EEE6","surface":"#FFFFFF","surface-2":"#F7F6F1","surface-3":"#EBE9E0","border":"#DEDACE","border-strong":"#C5C0B2","border-control":"#8A8474","ink":"#191917","ink-soft":"#57544C","ink-mute":"#84806F","accent":"#A8461F","accent-fill":"#B4552F","accent-edge":"#DEB49F","bg-accent":"#F7E6DD","on-accent":"#FFF4EE","success":"#276048","success-fill":"#317055","bg-success":"#D3E8DC","danger":"#9E2B22","danger-fill":"#BE4034","bg-danger":"#F8E2DF","info":"#474C93","bg-info":"#E5E6F4","neutral":"#6B6759","bg-neutral":"#EDEBE2","dev":"#256657","bg-dev":"#D8EBE5","shadow":"0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06)","trusted":"#23618F"},"dark":{"ground":"#14181D","surface":"#1B2027","surface-2":"#20262D","surface-3":"#272F37","border":"#2B323A","border-strong":"#3A434C","border-control":"#6A7684","ink":"#E8EAEB","ink-soft":"#A9B0B6","ink-mute":"#78828B","accent":"#E3B36B","accent-fill":"#C4923F","accent-edge":"#5A4522","bg-accent":"#2E2412","on-accent":"#241300","success":"#84C4AA","success-fill":"#4F8C74","bg-success":"#172E25","danger":"#E28270","danger-fill":"#C1503C","bg-danger":"#351F1A","info":"#B4A4E0","bg-info":"#241F36","neutral":"#9AA6B2","bg-neutral":"#222A32","dev":"#78C8BC","bg-dev":"#14302C","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}},{"id":"beach","label":"Beach (light)","mode":"light","t":{"ground":"#EFE7D7","surface":"#FAF5EC","surface-2":"#F1E8D8","surface-3":"#E7DCC7","border":"#D8CBB2","border-strong":"#C3B193","border-control":"#8C7D64","ink":"#33291D","ink-soft":"#6B5C48","ink-mute":"#94836C","accent":"#8A4322","accent-fill":"#A8552C","accent-edge":"#D4AB93","bg-accent":"#F3E2D8","on-accent":"#FBF0E6","success":"#3F5C33","success-fill":"#4A6741","bg-success":"#E4EBDC","danger":"#8C2F2A","danger-fill":"#A83A33","bg-danger":"#F5E0DD","info":"#41528A","bg-info":"#E2E5F2","neutral":"#6E5F49","bg-neutral":"#EDE4D3","dev":"#2E6B5C","bg-dev":"#DCEBE6","shadow":"0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06)","trusted":"#23618F"}},{"id":"beach-dim","label":"Beach (dimmed)","mode":"dark","t":{"ground":"#17181A","surface":"#1E2022","surface-2":"#25282A","surface-3":"#2E3134","border":"#33373A","border-strong":"#4A4F53","border-control":"#6D7378","ink":"#E6E4E0","ink-soft":"#A8A49D","ink-mute":"#7C7872","accent":"#F2B189","accent-fill":"#CC7A50","accent-edge":"#5C412C","bg-accent":"#31241A","on-accent":"#1B0D05","success":"#7CC49A","success-fill":"#3F8A61","bg-success":"#17301F","danger":"#EB8272","danger-fill":"#C0453A","bg-danger":"#341D1B","info":"#A3AEDD","bg-info":"#1F2130","neutral":"#A09B92","bg-neutral":"#26282A","dev":"#7FC9B8","bg-dev":"#16302A","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}},{"id":"slate","label":"Slate","mode":"dark","t":{"ground":"#14181D","surface":"#1B2027","surface-2":"#20262D","surface-3":"#272F37","border":"#2B323A","border-strong":"#3A434C","border-control":"#6A7684","ink":"#E8EAEB","ink-soft":"#A9B0B6","ink-mute":"#78828B","accent":"#E3B36B","accent-fill":"#C4923F","accent-edge":"#5A4522","bg-accent":"#2E2412","on-accent":"#241300","success":"#84C4AA","success-fill":"#4F8C74","bg-success":"#172E25","danger":"#E28270","danger-fill":"#C1503C","bg-danger":"#351F1A","info":"#B4A4E0","bg-info":"#241F36","neutral":"#9AA6B2","bg-neutral":"#222A32","dev":"#78C8BC","bg-dev":"#14302C","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}},{"id":"claude","label":"Claude (light)","mode":"light","t":{"ground":"#F0EEE6","surface":"#FFFFFF","surface-2":"#F7F6F1","surface-3":"#EBE9E0","border":"#DEDACE","border-strong":"#C5C0B2","border-control":"#8A8474","ink":"#191917","ink-soft":"#57544C","ink-mute":"#84806F","accent":"#A8461F","accent-fill":"#B4552F","accent-edge":"#DEB49F","bg-accent":"#F7E6DD","on-accent":"#FFF4EE","success":"#276048","success-fill":"#317055","bg-success":"#D3E8DC","danger":"#9E2B22","danger-fill":"#BE4034","bg-danger":"#F8E2DF","info":"#474C93","bg-info":"#E5E6F4","neutral":"#6B6759","bg-neutral":"#EDEBE2","dev":"#256657","bg-dev":"#D8EBE5","shadow":"0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06)","trusted":"#23618F"}},{"id":"claude-med","label":"Claude (medium)","mode":"dark","t":{"ground":"#26241F","surface":"#2F2D27","surface-2":"#37352E","surface-3":"#403D35","border":"#454239","border-strong":"#5C5849","border-control":"#807A68","ink":"#EDEAE0","ink-soft":"#B3AE9E","ink-mute":"#8A8676","accent":"#EFA189","accent-fill":"#C26A4F","accent-edge":"#66452F","bg-accent":"#3B2A1E","on-accent":"#1C0C03","success":"#84C6A2","success-fill":"#3C8A63","bg-success":"#22342A","danger":"#EE8B79","danger-fill":"#BC4739","bg-danger":"#3B2622","info":"#AFA8E2","bg-info":"#2B2839","neutral":"#A8A292","bg-neutral":"#343128","dev":"#82C9B9","bg-dev":"#1F3330","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}},{"id":"claude-dark","label":"Claude (dark)","mode":"dark","t":{"ground":"#141312","surface":"#1C1B19","surface-2":"#232220","surface-3":"#2C2A27","border":"#31302C","border-strong":"#47443E","border-control":"#6E6A61","ink":"#EFECE3","ink-soft":"#ACA79A","ink-mute":"#7E7A6E","accent":"#F0A791","accent-fill":"#C36E52","accent-edge":"#523A26","bg-accent":"#2B1D14","on-accent":"#1A0A02","success":"#82C9A3","success-fill":"#3E8F66","bg-success":"#14291D","danger":"#F0907E","danger-fill":"#C24A3B","bg-danger":"#2E1B18","info":"#B3ABE6","bg-info":"#211E2E","neutral":"#A5A092","bg-neutral":"#26241F","dev":"#7FCBBA","bg-dev":"#132A26","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}},{"id":"claude-code","label":"Claude Code","mode":"dark","t":{"ground":"#1F1E1D","surface":"#262625","surface-2":"#2E2E2C","surface-3":"#383836","border":"#3A3A38","border-strong":"#54544F","border-control":"#787870","ink":"#F5F4EF","ink-soft":"#B4B2A7","ink-mute":"#88867C","accent":"#E39070","accent-fill":"#C2613F","accent-edge":"#4A3227","bg-accent":"#33221B","on-accent":"#1A0A04","success":"#7FC49E","success-fill":"#3C8961","bg-success":"#1C2E23","danger":"#EE8B78","danger-fill":"#BF4A39","bg-danger":"#33211D","info":"#ADA6E0","bg-info":"#28253A","neutral":"#A3A198","bg-neutral":"#2C2C2A","dev":"#7DC6B6","bg-dev":"#1B2E2A","shadow":"0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34)","trusted":"#8CC4EE"}}] /* GENERATED from src/tools/theme-tokens.css */;
 
     // THE PUBLIC CHANGELOG, generated the same way from
     // src/awoo-core.changelog.md (build.mjs changelog(), which also refuses a
     // line that names anything private). Each entry: { title, date, lines }.
     // Shown on General › Changelog; the raw src/ file carries an empty list.
-    const CHANGELOG = [{"title":"7.0.4","date":"2026-09-25","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","The AWOO+ menu is a quick list you can search, with a right-click menu on every module","Load or switch off each module; a module that is off does not run at all","A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes","Profile Sync has its own top-bar icon that shows how fresh your data is","Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Every settings page has Defaults and Reset side by side","Dungeon Win Rate: Clear now clears the results completely","Runs on Queslar 2 only"]},{"title":"7.0.3","date":"2026-09-24","lines":["Profile Sync reads more of your profile and shows how old each part is"]},{"title":"7.0.2","date":"2026-09-23","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","Cost Tables opens from the Tools menu","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details","Profile Sync keeps what it read on a page after you move on"]},{"title":"7.0.1","date":"2026-09-22","lines":["Appearance settings: themes, number format and fonts","Export and import your settings","Tools follow your theme and the game's number format"]},{"title":"7.0.0","date":"2026-09-18","lines":["Apoz Core becomes AWOO+"]}] /* GENERATED from src/awoo-core.changelog.md */;
+    const CHANGELOG = [{"title":"7.0.15","date":"2026-10-17","lines":["A new default look: calmer, light or dark as your device is set","The Control Panel pages share one tidy table,","Profile Sync writes much less to your browser","Times follow the time zone you choose in General"]},{"title":"7.0.4","date":"2026-09-25","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","The AWOO+ menu is a quick list you can search, with a right-click menu on every module","Load or switch off each module; a module that is off does not run at all","A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes","Profile Sync has its own top-bar icon that shows how fresh your data is","Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Every settings page has Defaults and Reset side by side","Dungeon Win Rate: Clear now clears the results completely","Runs on Queslar 2 only"]},{"title":"7.0.3","date":"2026-09-24","lines":["Profile Sync reads more of your profile and shows how old each part is"]},{"title":"7.0.2","date":"2026-09-23","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","Cost Tables opens from the Tools menu","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details","Profile Sync keeps what it read on a page after you move on"]},{"title":"7.0.1","date":"2026-09-22","lines":["Appearance settings: themes, number format and fonts","Export and import your settings","Tools follow your theme and the game's number format"]},{"title":"7.0.0","date":"2026-09-18","lines":["Apoz Core becomes AWOO+"]}] /* GENERATED from src/awoo-core.changelog.md */;
+
+    // DEV-PROXY LINKS (2026-10-07, the maintainer: two buttons in the menu's
+    // bottom strip, "strictly only visible for proxy-users"). Generated like
+    // the two lists above, but ONLY into dist/_dev-bundle.js (build.mjs
+    // devLinks / buildDevBundle). Every other build, dist/awoo-core.user.js
+    // included (release.mjs cuts the live Core from it), gets an empty list,
+    // so a release carries no button, no label and no address. Each entry:
+    // { tip, url, icon } where icon is an inline SVG string.
+    const DEV_LINKS = [] /* dev bundle only */;
+
+    // DEV-PROXY VERSIONS (2026-10-07, approved for Core). Same seam as
+    // DEV_LINKS: filled ONLY in dist/_dev-bundle.js (build.mjs devVersions),
+    // null in every other build, where the update button keeps its normal
+    // check. When set, the button answers with what players run against this
+    // build instead: { manifestUrl, extrasCut, extrasDev, unreleased }.
+    const DEV_VERSIONS = null /* dev bundle only */;
 
     // GAME-SHAPED presets: eight values in the GAME's own vocabulary (--card,
     // --primary, ...), rather than our contract. "AWOO Turquoise" is the
@@ -460,8 +578,31 @@
     //   primary <- accent-fill, primary-foreground <- on-accent.
     // warn has no contract token: it is the theme's accent text, which in
     // every one of the seven is the amber or terracotta the old #e0a23e meant.
+    // A theme with a `dark` set (Default) wears it while the device asks for
+    // dark, through the same media query the tools' CSS answers. No
+    // matchMedia (a test harness, an old engine) is treated as light: the
+    // theme's main set, which is what its block in the token file says.
+    function deviceIsDark() {
+      try { return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches); } catch (e) { return false; }
+    }
+    // Re-applied when the device flips, only while the current theme follows
+    // it. Hooked once, lazily, from applyThemeMode.
+    let deviceSchemeHooked = false;
+    function hookDeviceScheme() {
+      if (deviceSchemeHooked) return;
+      deviceSchemeHooked = true;
+      try {
+        const mq = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)');
+        if (!mq) return;
+        const onFlip = () => { const t = contractTheme(themeId()); if (t && t.dark) applyThemeMode(); };
+        if (typeof mq.addEventListener === 'function') mq.addEventListener('change', onFlip);
+        else if (typeof mq.addListener === 'function') mq.addListener(onFlip);
+      } catch (e) { /* no media queries: the theme keeps its main set */ }
+    }
     function namedThemeVars(t) {
-      const v = Object.assign({}, t.t);
+      const dark = !!t.dark && deviceIsDark();
+      const mode = dark ? 'dark' : t.mode;
+      const v = Object.assign({}, dark ? t.dark : t.t);
       Object.assign(v, {
         card: v.surface, popover: v['surface-2'], input: v['surface-3'],
         foreground: v.ink, 'popover-foreground': v.ink,
@@ -472,7 +613,7 @@
         // calc(100% - var(--awoo-light, 0) * 60%), var(--awoo-ink)) darkens
         // them toward ink on a light theme only, and leaves every dark theme
         // — the default included — exactly as it was.
-        light: t.mode === 'light' ? '1' : '0',
+        light: mode === 'light' ? '1' : '0',
       });
       // Every contract colour is opaque, so the solid twin is the same value.
       for (const key of THEME_TOKENS) v[`solid-${key}`] = v[key];
@@ -537,6 +678,20 @@
           live[key] = `var(--${key}, ${fb[key]})`;
           solid[key] = relative ? `rgb(from var(--${key}, ${fb[key]}) r g b / 1)` : fb[key];
         }
+        // R147 (found live 2026-10-03): the WINDOWS went see-through too. Every
+        // window, modal and dropdown paints --awoo-card, and every surface-*,
+        // ground and bg-accent token is derived from --awoo-card/--awoo-popover,
+        // so a translucent game --card made all of them translucent; only the
+        // pop-up, which reads --awoo-solid-card, stayed readable. Nothing AWOO+
+        // paints sits over the game's own backdrop blur, so the two GROUND
+        // tokens take the opaque twin and everything derived from them follows.
+        // Kept live: input, border, the inks and primary — fills, edges and
+        // text drawn ON an opaque ground, where the game's own alpha blends as
+        // the game meant. Without relative colour syntax the solid twin is
+        // Slate's literal, which would stop the windows matching the game at
+        // all, so there the grounds stay live as before (the conservative
+        // choice; every browser the scripts run in today has the syntax).
+        if (relative) for (const key of ['card', 'popover']) live[key] = solid[key];
         return gameShapedVars(live, solid);
       }
       const tq = THEME_PRESETS.awooTurquoise;
@@ -551,6 +706,7 @@
       for (const key of appliedThemeKeys) if (!(key in vars)) root.style.removeProperty(`--awoo-${key}`);
       for (const key of Object.keys(vars)) root.style.setProperty(`--awoo-${key}`, vars[key]);
       appliedThemeKeys = Object.keys(vars);
+      hookDeviceScheme();
       applyOverlayFonts();
       injectTokenStyleOnce();
     }
@@ -626,6 +782,41 @@
       loadFontFamily(num.family);
       root.style.setProperty('--awoo-font', `${text.stack}, ${CORE_FONT}`);
       root.style.setProperty('--awoo-font-num', `${num.stack}, ${CORE_FONT}`);
+    }
+
+    // A LIVE PREVIEW ON ONE ELEMENT (R185, the setup wizard): a theme, the
+    // two fonts and a UI scale set inline on `el` and nothing else, so the
+    // wizard's window (and the Control Panel, if open) restyle at once while
+    // every other part of AWOO+ keeps the saved look until Done. `draft` is
+    // { theme, fontText, fontNum, uiScale }; anything left out is the saved
+    // value. The class makes the token sheet re-declare its scaled and tinted
+    // tokens on `el` (injectTokenStyleOnce). clearPreview puts it all back.
+    const previewKeys = new WeakMap();
+    function previewOn(el, draft) {
+      if (!el || !el.style || typeof el.style.setProperty !== 'function') return;
+      const d = draft || {};
+      const saved = fontsFor('awoo');
+      const vars = Object.assign({}, themeVars(contractTheme(d.theme) || d.theme === 'awooTurquoise' || d.theme === 'matchGame' ? d.theme : themeId()));
+      const text = fontChoice('text', d.fontText || saved.text);
+      const num = fontChoice('num', d.fontNum || saved.num);
+      loadFontFamily(text.family);
+      loadFontFamily(num.family);
+      vars.font = `${text.stack}, ${CORE_FONT}`;
+      vars['font-num'] = `${num.stack}, ${CORE_FONT}`;
+      const k = Number(d.uiScale);
+      vars['ui-scale'] = String(Math.min(130, Math.max(80, Number.isFinite(k) && k ? k : Math.round(uiScale() * 100))) / 100);
+      const before = previewKeys.get(el) || [];
+      for (const key of before) if (!(key in vars)) el.style.removeProperty(`--awoo-${key}`);
+      for (const key of Object.keys(vars)) el.style.setProperty(`--awoo-${key}`, vars[key]);
+      previewKeys.set(el, Object.keys(vars));
+      if (el.classList) el.classList.add('awoo-preview');
+      injectTokenStyleOnce();
+    }
+    function clearPreview(el) {
+      if (!el || !el.style) return;
+      for (const key of previewKeys.get(el) || []) el.style.removeProperty(`--awoo-${key}`);
+      previewKeys.delete(el);
+      if (el.classList) el.classList.remove('awoo-preview');
     }
 
     // A tool payload with the page's handover prepended — AFTER the doctype
@@ -745,8 +936,13 @@
       if (!document.head || document.getElementById(TOKEN_STYLE_ID)) return;
       const style = document.createElement('style');
       style.id = TOKEN_STYLE_ID;
+      // `.awoo-preview` re-declares every token on an element that carries
+      // its own theme, fonts or UI scale inline (the setup wizard's live
+      // preview, R185): a custom property built from var() is computed where
+      // it is declared, so without this the sizes and tints inherited from
+      // :root would keep the page's scale and theme inside the preview.
       style.textContent = `
-        :root {
+        :root, .awoo-preview {
           /* type */
           --awoo-fs-micro: calc(9px * var(--awoo-ui-scale, 1));    /* section labels, version tags */
           --awoo-fs-caption: calc(10px * var(--awoo-ui-scale, 1)); /* table headers, tooltips */
@@ -790,6 +986,18 @@
              align with each OTHER and not merely within themselves (§4) */
           --awoo-label-col: 92px;
           --awoo-font: ${CORE_FONT};
+          /* THE HOUSE STYLE'S OWN STEPS (DESIGN.md §10), for the surfaces
+             that have moved to it (the Control Panel first). --awoo-in-radius
+             is the tools' --in-radius: inputs, buttons, segmented controls,
+             tabs, marks and the (i) square, never a pill. The mono face is the
+             tools' --font-mono, for section labels and column heads only.
+             --awoo-row-x is the tools' --row-x. --awoo-cp-val is the ONE value
+             column every label/value row in the Control Panel shares, so a
+             select on one page section sits under the select of the next. */
+          --awoo-in-radius: 3px;
+          --awoo-font-mono: 'Azeret Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+          --awoo-row-x: calc(10px * var(--awoo-ui-scale, 1));
+          --awoo-cp-val: calc(208px * var(--awoo-ui-scale, 1));
         }
         /* One template for every label/value list in a window. The value
            column is ALWAYS left-aligned and the trailing unit column is a
@@ -839,6 +1047,18 @@
       k: 1, m: 2, b: 3, t: 4, qa: 5, qi: 6, sx: 7, sp: 8, oc: 9, no: 10, dc: 11, ud: 12,
     };
     const OVERRIDE_KEY = 'awoo:core:number-locale';
+    // "Number format" (comma or dot), the player's three choices. One list for
+    // Control Panel › Appearance › Style and the setup wizard's General step.
+    const NUMBER_FORMAT_CHOICES = [
+      { key: null, label: 'Auto-detect' },
+      { key: '1.000,00', label: '1.000,00' },
+      { key: '1,000.00', label: '1,000.00' },
+    ];
+    function numberFormatOverride() {
+      let stored = null;
+      try { stored = localStorage.getItem(OVERRIDE_KEY); } catch (e) { /* ignore */ }
+      return stored && NUMBER_LOCALE_MAP[stored] ? stored : null;
+    }
 
     function separatorsFor(locale) {
       try {
@@ -951,6 +1171,7 @@
     let tipEl = null;
     let tipUserEl = null;
     let tipDevEl = null;
+    let tipRowsEl = null;
     let tipAnchor = null;
 
     function hideTip() {
@@ -974,7 +1195,14 @@
         tipUserEl = document.createElement('span');
         tipDevEl = document.createElement('span');
         tipDevEl.className = 'awoo-ui-tip-dev';
+        // R171: an optional label/value grid under the text (DESIGN.md §10g:
+        // figures in a tooltip are two columns, values right-aligned). A
+        // caller sets `el.awooTipRows = [[label, value, tone], ...]` beside
+        // its data-tooltip; tone is ok, warn or mute.
+        tipRowsEl = document.createElement('div');
+        tipRowsEl.className = 'awoo-ui-tip-rows';
         tipEl.appendChild(tipUserEl);
+        tipEl.appendChild(tipRowsEl);
         tipEl.appendChild(tipDevEl);
         document.body.appendChild(tipEl);
       }
@@ -982,6 +1210,18 @@
       tipUserEl.textContent = text || '';
       tipDevEl.textContent = dev || '';
       tipDevEl.hidden = !dev;
+      const rows = Array.isArray(target.awooTipRows) ? target.awooTipRows : null;
+      tipRowsEl.textContent = '';
+      tipRowsEl.hidden = !rows || !rows.length;
+      for (const r of rows || []) {
+        const k = document.createElement('span');
+        k.textContent = String(r[0]);
+        const v = document.createElement('span');
+        v.textContent = String(r[1]);
+        if (r[2]) v.className = 'awoo-ui-tip-' + r[2];
+        tipRowsEl.appendChild(k);
+        tipRowsEl.appendChild(v);
+      }
       // The bubble itself is tinted when it is carrying developer content, so
       // the distinction survives a glance rather than needing to be read.
       tipEl.className = 'awoo-ui-tip' + (dev ? ' awoo-ui-tip-hasdev' : '');
@@ -990,7 +1230,9 @@
       // bubble to the element's right edge, which is precisely the guess the
       // positioner makes properly. Callers keep the attribute harmlessly
       // rather than every call site needing an edit.
-      tipEl.style.width = target.hasAttribute('data-tooltip-wide') ? '230px' : '200px';
+      // A grid sizes to its rows (up to the 300px of §10g), so a short list
+      // is not stretched and a long name is not wrapped under its value.
+      tipEl.style.width = rows && rows.length ? 'max-content' : target.hasAttribute('data-tooltip-wide') ? '230px' : '200px';
       tipEl.hidden = false;
       // Measured AFTER the text and width are set, because the height depends
       // on both — positioning against a stale size is how a flipped tooltip
@@ -1735,6 +1977,50 @@
       return (c.decimal === '.' ? fixed : fixed.split('.').join(c.decimal)) + suffix;
     }
 
+    // ---- Core.num (v18, REGISTER.md R168): a number IN FULL, in the
+    // player's convention ----
+    //
+    // formatNumber shortens (1.23m) and drops the decimals below 1,000, which
+    // is right for gold and wrong for a count of actions, a level, a rate or a
+    // percentage. Every module that needed the full number wrote its own:
+    // Party's groupInt/fixedDec, Dungeon Win Rate's fmtInt/fmtPct, Sanctum's
+    // fmt, Sculpture Grid Labels' formatRoll, and Pet Slot Alarm used the
+    // BROWSER's toLocaleString, which is not the convention the game shows
+    // this character (audit 2026-10-06 finding 14; INSTRUMENTATION.md §4.3:
+    // separator logic is Core's job, never a module's). One home now, and
+    // tests/number-format.mjs fails a module that goes back to its own.
+    //
+    // All three refuse rather than guess: anything not a finite number draws
+    // '—' (§9.4). A negative carries the typographic minus '−' (U+2212), as
+    // Party's figures always did, and a value that rounds to zero at the shown
+    // precision carries no sign at all ("−0.0" is noise).
+    function groupDigits(digits, group) {
+      return digits.replace(/\B(?=(\d{3})+(?!\d))/g, group);
+    }
+    // `digits` decimals with the player's decimal mark, the whole part
+    // grouped. opts.trim drops trailing zeros ("2.50" -> "2.5", "2.00" -> "2");
+    // opts.group: false leaves the whole part ungrouped.
+    function numFixed(x, digits = 2, opts) {
+      if (typeof x !== 'number' || !Number.isFinite(x)) return '—';
+      const o = opts || {};
+      const d = Math.max(0, Math.min(20, Math.floor(Number(digits)) || 0));
+      const c = getConvention();
+      let s = Math.abs(x).toFixed(d);
+      if (o.trim && s.indexOf('.') !== -1) s = s.replace(/\.?0+$/, '');
+      const dot = s.indexOf('.');
+      const whole = dot === -1 ? s : s.slice(0, dot);
+      const frac = dot === -1 ? '' : s.slice(dot + 1);
+      const neg = x < 0 && /[1-9]/.test(s);
+      return (neg ? '−' : '') + (o.group === false ? whole : groupDigits(whole, c.group)) + (frac ? c.decimal + frac : '');
+    }
+    // A whole number (actions, levels, counts) in full, grouped.
+    function numInt(x) { return numFixed(typeof x === 'number' ? Math.round(x) : x, 0); }
+    // A percentage already in percent form (55.5 -> "55.50%").
+    function numPct(x, digits = 2, opts) {
+      const t = numFixed(x, digits, opts);
+      return t === '—' ? t : t + '%';
+    }
+
     // Everything a module exports to the core backend must carry this, so a
     // number can be re-derived if the convention was ever detected wrong.
     function numberProvenance() {
@@ -1780,18 +2066,27 @@
     //                Every id ever seen, so a module keeps its place while off.
     //   barHidden /  where a loaded module shows. Hiding a module never stops
     //   menuHidden   it, which is the whole reason these are not `loaded`.
+    //   tweakMenuHidden / toolMenuHidden: the same for a Tweak or a tool. A
+    //                Tweak has its own list because, before Tweaks were in the
+    //                menu (R229), placeNewInMenu could hide one there and the
+    //                flag did nothing; those old flags stay in menuHidden.
     //
     // A module never seen before is NOT loaded, exactly as under v1: an update
-    // that adds a module must not start running it for anyone.
+    // that adds a module must not start running it for anyone. The one
+    // exception is declared, never assumed: a Tweak whose about block
+    // says `defaultOn: true` (R179, the maintainer 2026-10-07: the grid
+    // overlay "should be a Tweak, enabled by default") is loaded the
+    // first time it is seen. Only then: a player who has seen it keeps
+    // whatever they chose (adoptModule, placeNewDefaultOn).
     function migrateRegistry(saved) {
       const list = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
       const out = {
-        v: 2, loaded: [], order: [], barHidden: [], menuHidden: [], toolMenuHidden: [],
+        v: 2, loaded: [], order: [], barHidden: [], menuHidden: [], tweakMenuHidden: [], toolMenuHidden: [],
         barMax: AWOO_CORE_MAX_QUICK_BUTTONS, profileOnBar: true,
       };
       if (!saved || typeof saved !== 'object') return out;
       if (saved.v === 2) {
-        for (const k of ['loaded', 'order', 'barHidden', 'menuHidden', 'toolMenuHidden']) out[k] = list(saved[k]);
+        for (const k of ['loaded', 'order', 'barHidden', 'menuHidden', 'tweakMenuHidden', 'toolMenuHidden']) out[k] = list(saved[k]);
         if (Number.isFinite(saved.barMax)) out.barMax = saved.barMax;
         if (typeof saved.profileOnBar === 'boolean') out.profileOnBar = saved.profileOnBar;
       } else {
@@ -1806,10 +2101,43 @@
     }
 
     let registry = migrateRegistry(null);
+    // Whether `order` can be trusted as "every id this player has seen" (R179).
+    // A v1 registry's order is only what was ON, so an id missing from it may
+    // be one the player switched off: on-by-default must not apply there.
+    let orderIsComplete = true;
+    // What this read found, for the setup wizard (R185; settingsBoot above).
+    let registryBoot = 'unreadable';
     try {
       const raw = localStorage.getItem(REG_KEY);
-      registry = migrateRegistry(raw ? JSON.parse(raw) : null);
+      const parsed = raw ? JSON.parse(raw) : null;
+      registry = migrateRegistry(parsed);
+      if (parsed && typeof parsed === 'object' && parsed.v !== 2) orderIsComplete = false;
+      registryBoot = raw ? 'stored' : 'empty';
     } catch (e) { /* unreadable: defaults stand, exactly as a first install */ }
+    // A FRESH INSTALL is one with neither saved settings nor a module list;
+    // anything else is a player who already has AWOO+. Both are offered the
+    // wizard once (the maintainer, 2026-10-13); only a fresh install starts
+    // from the fresh picks, an existing player from what they have now.
+    // Either read failing makes it 'unreadable', which shows nothing.
+    const setupBoot = (settingsBoot === 'unreadable' || registryBoot === 'unreadable') ? 'unreadable'
+      : (settingsBoot === 'empty' && registryBoot === 'empty') ? 'fresh' : 'existing';
+    // BASIC FOR A NEW PLAYER, ADVANCED FOR EVERYONE ELSE (R159, the
+    // maintainer 2026-10-13). Decided once, the first boot that has no stored
+    // choice, and saved straight away: the wizard writes its own setting on
+    // this same boot, so on the next load a fresh install would otherwise
+    // look like an existing player. Unreadable storage shows everything and
+    // writes nothing (rule 3: it cannot tell which player this is).
+    if (!cpModeStored) {
+      settings.cpMode = setupBoot === 'fresh' ? 'basic' : 'advanced';
+      if (setupBoot !== 'unreadable') {
+        try {
+          let stored = {};
+          try { stored = storedSettings(); } catch (e) { /* unreadable: this key still saves */ }
+          stored.cpMode = settings.cpMode;
+          localStorage.setItem(SETTINGS_KEY, JSON.stringify(stored));
+        } catch (e) { /* not saved: decided again on the next load, the same way */ }
+      }
+    }
 
     const isIn = (key, id) => registry[key].includes(id);
     function setIn(key, id, on) {
@@ -1823,6 +2151,29 @@
     function orderedIds(ids) {
       const rank = (id) => { const i = registry.order.indexOf(id); return i < 0 ? Infinity : i; };
       return ids.slice().sort((a, b) => rank(a) - rank(b));
+    }
+    // SUB-MODULES (the maintainer, 2026-10-13): a module that is part of
+    // another is listed right after it, wherever modules are listed (the
+    // Control Panel, the menu, the bar, the setup wizard), whatever the
+    // stored order says. It keeps its own Load switch; it has no drag handle,
+    // because it moves with its parent. Only when the parent is installed.
+    const SUB_MODULES = Object.freeze({ 'pet-slot-alarm': 'party' });
+    function subOrdered(ids) {
+      const has = (id) => ids.includes(id);
+      const out = ids.filter((id) => !(SUB_MODULES[id] && has(SUB_MODULES[id])));
+      for (const id of ids) {
+        const p = SUB_MODULES[id];
+        if (!p || !has(p)) continue;
+        let at = out.indexOf(p) + 1;
+        while (at < out.length && SUB_MODULES[out[at]] === p) at++;
+        out.splice(at, 0, id);
+      }
+      return out;
+    }
+    // The parent's record, when `id` is a sub-module and its parent is installed.
+    function subParentOf(id) {
+      const p = SUB_MODULES[id];
+      return p && modules[p] ? modules[p] : null;
     }
 
     // WHAT THE DAILY CHECK-IN REPORTS ABOUT MODULES (REGISTER.md R80): how
@@ -1902,7 +2253,7 @@
     // whole list), this tab's order only if it reordered, the scalars only if
     // it changed them. `regBase` is the registry as this tab last read or
     // wrote it; the difference from it is what this tab changed.
-    const REG_SETS = ['loaded', 'barHidden', 'menuHidden', 'toolMenuHidden'];
+    const REG_SETS = ['loaded', 'barHidden', 'menuHidden', 'tweakMenuHidden', 'toolMenuHidden'];
     const cloneReg = (r) => JSON.parse(JSON.stringify(r));
     let regBase = cloneReg(registry);
     function mergeRegistry(stored, base, mine) {
@@ -2195,6 +2546,10 @@
            user-agent origin — the exact trap the Settings capacity row hit
            (see the tooltip section's note on inline display beating [hidden]). */
         .awoo-ui-input-row[hidden] { display: none; }
+        /* Core_ui_toggleRow: a labelled checkbox with its (i). */
+        .awoo-ui-toggle-row { display: flex; align-items: center; gap: var(--awoo-s3); font-size: var(--awoo-fs-control);
+          cursor: pointer; margin: var(--awoo-s2) 0; }
+        .awoo-ui-toggle-row > input { margin: 0; }
         /* Item 3 (the maintainer, 2026-09-26): "input box arrows keep showing
            when typing... let's remove them entirely for now." Scoped to AWOO+
            windows only — the game's own number inputs must never inherit an
@@ -2264,35 +2619,71 @@
         .awoo-ui-modal-title { font-weight: 700; font-size: 13px; margin-bottom: 8px; }
         .awoo-ui-modal-msg { opacity: .85; line-height: 1.4; margin-bottom: 14px; white-space: pre-wrap; }
         .awoo-ui-modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
-        /* ---- Settings: fixed sidebar, panes, and the save model ---- */
-        .awoo-settings { display: flex; margin: -10px -11px; min-height: 100%; }
-        .awoo-settings-side { flex: none; width: calc(var(--awoo-cp-side, 150px) * var(--awoo-ui-scale, 1)); padding: var(--awoo-s3);
+        /* ---- Settings: fixed sidebar, panes, and the save model ----
+           THE HOUSE STYLE (DESIGN.md §10, §12 "Control Panel", 2026-10-06).
+           The sidebar sits on the ground, the page on the surface; one heading
+           style; text that names is ink, explanation is ink-soft, labels of
+           labels are ink-mute, all from the theme contract instead of opacity
+           (an opacity step dims a colour toward whatever is behind it, so the
+           same text read differently on every theme). The panel is a size
+           container: below 520px the sidebar becomes a wrapping row above the
+           page and optional columns drop, so nothing scrolls sideways (§9). */
+        .awoo-settings { display: flex; flex-direction: column; container: awoo-cp / inline-size; }
+        /* THE SIDEBAR AND THE PAGE SCROLL APART (2026-10-17): the panel fills
+           the window body exactly, so the body never scrolls; the page scrolls
+           in its own column, and the sidebar's list scrolls above Development,
+           which stays put at its foot. */
+        .awoo-window-body:has(> .awoo-settings) { position: relative; overflow: hidden; }
+        .awoo-window-body > .awoo-settings { position: absolute; inset: 0; }
+        .awoo-settings-frame { flex: 1; display: flex; min-width: 0; min-height: 0; }
+        .awoo-settings-side { flex: none; width: calc(var(--awoo-cp-side, 150px) * var(--awoo-ui-scale, 1)); padding: var(--awoo-s4) var(--awoo-s3);
           border-right: 1px solid var(--awoo-border); display: flex; flex-direction: column;
-          gap: var(--awoo-s1); background: color-mix(in srgb, var(--awoo-card) 94%, #000); }
+          gap: var(--awoo-s1); background: var(--awoo-ground); box-sizing: border-box; overflow: hidden; }
+        .awoo-cp-sidescroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--awoo-s1);
+          scrollbar-width: thin; }
         /* A CATEGORY LABEL, NOT A TAB. These sat at the same indent and nearly
            the same size as the buttons below them, so "Core" and "Modules"
-           read as things to click. Now: wider letter-spacing, a hairline rule
-           under the label, no button padding, and real space above the second
-           group so the two lists separate. */
-        .awoo-settings-side-h { font-size: var(--awoo-fs-micro); text-transform: uppercase;
-          letter-spacing: .14em; opacity: var(--awoo-em-faint); font-weight: 700;
-          padding: 0 3px var(--awoo-s1); margin: var(--awoo-s5) 4px var(--awoo-s2);
-          border-bottom: 1px solid color-mix(in srgb, var(--awoo-border) 55%, transparent);
+           read as things to click. Now the house section label (§10e): mono,
+           uppercase, ink-mute, with a hairline running from the label to the
+           edge, and real space above the second group so the lists separate. */
+        .awoo-settings-side-h { display: flex; align-items: center; gap: var(--awoo-s3);
+          font-family: var(--awoo-font-mono); font-size: var(--awoo-fs-micro); font-weight: 500;
+          text-transform: uppercase; letter-spacing: .09em; color: var(--awoo-ink-mute);
+          padding: 0 3px; margin: var(--awoo-s5) 4px var(--awoo-s1);
           cursor: default; user-select: none; }
+        .awoo-settings-side-h::after { content: ""; flex: 1; border-top: 1px solid var(--awoo-border); }
         .awoo-settings-side-h:first-child { margin-top: var(--awoo-s1); }
-        .awoo-settings-side-i { background: none; border: none; color: inherit; font: inherit;
-          font-size: var(--awoo-fs-control); text-align: left; padding: var(--awoo-s2) 7px;
-          border-radius: var(--awoo-r-sm); opacity: var(--awoo-em-normal); cursor: pointer;
+        .awoo-settings-side-i { background: none; border: 1px solid transparent; color: var(--awoo-ink); font: inherit;
+          font-size: var(--awoo-fs-control); text-align: left; padding: var(--awoo-s1) 7px;
+          border-radius: var(--awoo-in-radius); cursor: pointer;
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .awoo-settings-side-i:hover { opacity: var(--awoo-em-normal); background: var(--awoo-hover); }
-        .awoo-settings-side-i.awoo-m-on { opacity: 1; background: var(--awoo-selected); font-weight: 600; }
-        .awoo-settings-panes { flex: 1; min-width: 0; padding: 10px 11px; }
-        .awoo-settings-pane { display: flex; flex-direction: column; gap: var(--awoo-s4); }
-        .awoo-settings-cat { font-size: var(--awoo-fs-micro); text-transform: uppercase;
-          letter-spacing: .05em; opacity: var(--awoo-em-muted);
-          border-bottom: 1px solid color-mix(in srgb, var(--awoo-border) 60%, transparent);
-          padding-bottom: 3px; margin-top: var(--awoo-s3); }
+        .awoo-settings-side-i:hover { background: var(--awoo-hover); }
+        /* Selected is treatment BC, as the tools' selected tab and row (§10i). */
+        .awoo-settings-side-i.awoo-m-on { background: var(--awoo-bg-accent); border-color: var(--awoo-accent-edge); font-weight: 600; }
+        /* Roomier than the 820px panel had (R231, "work a bit on spacing"):
+           the page has more air at its edges and between its parts. */
+        .awoo-settings-panes { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; padding: var(--awoo-s5) var(--awoo-s6) var(--awoo-s6); background: var(--awoo-surface); }
+        .awoo-settings-pane { display: flex; flex-direction: column; gap: var(--awoo-s4); min-width: 0; }
+        .awoo-cp-block { display: flex; flex-direction: column; gap: var(--awoo-s4); min-width: 0; }
+        .awoo-cp-block:empty { display: none; }
+        /* THE ONE HEADING (§10e): micro, uppercase, ink-mute, weight 600, a
+           hairline to the edge; an (i) stays beside the words, and any control
+           (a link, a saved/unsaved chip, a date) sits right, after the rule.
+           Every section heading AND every group label in the panel uses it;
+           a module's settings page drawing .awoo-settings-cat gets it too. */
+        .awoo-settings-cat, .awoo-settings .awoo-ui-group-label { display: flex; align-items: center; gap: var(--awoo-s3);
+          font-size: var(--awoo-fs-micro); font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+          color: var(--awoo-ink-mute); opacity: 1; margin: var(--awoo-s5) 0 0; padding: 0; border: none; }
+        .awoo-settings-cat::after, .awoo-settings .awoo-ui-group-label::after { content: ""; flex: 1; order: 1;
+          border-top: 1px solid var(--awoo-border); }
+        .awoo-settings-cat > *, .awoo-settings .awoo-ui-group-label > * { order: 2; margin-left: 0; }
+        .awoo-settings-cat > .awoo-core-info-icon, .awoo-settings .awoo-ui-group-label > .awoo-core-info-icon { order: 0; }
         .awoo-settings-pane > .awoo-settings-cat:first-child { margin-top: 0; }
+        /* A group is the heading's rule and what follows it, never a box
+           (§9 "Quiet hierarchy"): a boxed group under a ruled heading drew two
+           borders around one idea. */
+        .awoo-settings .awoo-ui-group { border: none; padding: 0; border-radius: 0; }
+        .awoo-settings .awoo-ui-group > .awoo-ui-group-label { margin: 0 0 var(--awoo-s3); }
 
         /* SAVE MODEL: the split is whether the change PREVIEWS ITSELF.
            A theme change is its own confirmation — putting a Save button in
@@ -2316,111 +2707,208 @@
           cursor: pointer; margin-bottom: calc(var(--awoo-s4) * -1); }
         .awoo-settings-summary:hover, .awoo-settings-summary:focus-visible { opacity: 1; color: var(--awoo-primary); }
 
-        /* ---- the Control Panel (REGISTER.md R69; DESIGN.md §9) ----
+        /* ---- the Control Panel (REGISTER.md R69; DESIGN.md §9, §10, §12) ----
            Tight, square-ish, quiet: grouping by a thin rule and a small label,
-           never by boxing one section heavier than another. */
+           never by boxing one section heavier than another. Since 2026-10-06
+           in the house style: ink by role from the theme contract, the tools'
+           table head, marks, segmented switch and (i) square, mapped onto
+           Core's px steps (.6rem -> fs-micro, .7rem -> fs-caption, .75rem ->
+           fs-control), because a window scales with the UI scale, not rem. */
         .awoo-settings-side-i { display: flex; align-items: center; gap: var(--awoo-s2); }
-        .awoo-settings-side-i > span:first-child { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
         .awoo-settings-side-i.awoo-m-sub { padding-left: var(--awoo-s6); }
-        .awoo-settings-side-i.awoo-m-dim > span:first-child { opacity: var(--awoo-em-muted); }
         /* THE DEVELOPMENT RULE IS DASHED: work in progress sits under it, and
            only work in progress (DESIGN.md §9). */
-        .awoo-settings-side-h.awoo-m-dev { border-bottom-style: dashed; }
-        .awoo-cp-badge { font-size: var(--awoo-fs-micro); font-variant-numeric: tabular-nums;
-          opacity: var(--awoo-em-muted); font-weight: 600; }
-        .awoo-cp-badge.awoo-m-warn { color: var(--awoo-warn); opacity: 1; }
-        .awoo-cp-wip { font-size: var(--awoo-fs-micro); color: var(--awoo-warn); font-weight: 700; letter-spacing: .05em; }
-        .awoo-cp-tabs { display: flex; gap: var(--awoo-s1); border-bottom: 1px solid var(--awoo-border);
+        .awoo-settings-side-h.awoo-m-dev::after { border-top-style: dashed; }
+        .awoo-cp-badge { font-size: var(--awoo-fs-micro); font-variant-numeric: tabular-nums; font-family: var(--awoo-font-num, inherit);
+          color: var(--awoo-ink-mute); font-weight: 600; }
+        .awoo-cp-badge.awoo-m-warn { color: var(--awoo-warn); }
+        /* A mark (§10g), in the dev colour: it only ever sits under Development. */
+        .awoo-cp-wip { font-size: var(--awoo-fs-micro); color: var(--awoo-dev); font-weight: 600; letter-spacing: .05em;
+          text-transform: uppercase; border: 1px solid currentColor; border-radius: var(--awoo-in-radius); padding: 0 var(--awoo-s1);
+          line-height: 1.3; }
+        /* TABS STAY UNDERLINED inside a window (§12: a window has no room for
+           the tools' card tabs), with 10c's naming: one or two words, ink,
+           the sub-line on hover, the accent under the selected one. They wrap
+           rather than scroll when the panel is narrow. */
+        .awoo-cp-tabs { display: flex; flex-wrap: wrap; gap: 0 var(--awoo-s1); border-bottom: 1px solid var(--awoo-border);
           margin: 0 0 var(--awoo-s4); }
-        .awoo-cp-tab { background: none; border: none; border-bottom: 2px solid transparent; color: inherit;
+        .awoo-cp-tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--awoo-ink);
           font: inherit; font-size: var(--awoo-fs-control); font-weight: 600; padding: var(--awoo-s2) var(--awoo-s4);
-          margin-bottom: -1px; cursor: pointer; opacity: var(--awoo-em-normal);
+          margin-bottom: -1px; cursor: pointer;
           display: inline-flex; align-items: center; gap: var(--awoo-s2); }
-        .awoo-cp-tab:hover { opacity: var(--awoo-em-normal); }
-        .awoo-cp-tab.awoo-m-on { opacity: 1; border-bottom-color: var(--awoo-primary); }
-        .awoo-cp-sub { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted); line-height: 1.4; }
+        .awoo-cp-tab:hover { color: var(--awoo-accent); }
+        .awoo-cp-tab.awoo-m-on { border-bottom-color: var(--awoo-accent); }
+        .awoo-cp-sub { font-size: var(--awoo-fs-caption); color: var(--awoo-ink-soft); line-height: 1.4; }
+        /* A reading under a control (the number sample, the time now): ink. */
+        .awoo-cp-status { font-size: var(--awoo-fs-control); color: var(--awoo-ink); margin: var(--awoo-s2) 0;
+          font-variant-numeric: tabular-nums; }
         .awoo-cp-opts { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s3) var(--awoo-s5);
           font-size: var(--awoo-fs-control); }
-        .awoo-cp-check { display: inline-flex; align-items: center; gap: var(--awoo-s2); cursor: pointer; }
-        .awoo-cp-cost { margin-left: auto; font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted);
+        .awoo-cp-check { display: inline-flex; align-items: center; gap: var(--awoo-s2); cursor: pointer; color: var(--awoo-ink); }
+        /* Profile Sync's simple view (R184): what is saved, as a grid of
+           names with their lights; the age and its users are on hover. */
+        .awoo-cp-secgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(10.5em, 1fr)); gap: 0 var(--awoo-s5);
+          font-size: var(--awoo-fs-control); margin-bottom: var(--awoo-s3); }
+        .awoo-cp-sec { display: flex; align-items: center; gap: var(--awoo-s2); min-height: 21px; min-width: 0; cursor: help;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--awoo-ink); }
+        .awoo-cp-sec:hover { color: var(--awoo-accent); }
+        .awoo-cp-sec.awoo-m-unused { color: var(--awoo-ink-mute); }
+        .awoo-cp-seclight { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+        .awoo-cp-seclight.awoo-m-ok { background: var(--awoo-success-fill, var(--awoo-success)); }
+        .awoo-cp-seclight.awoo-m-old { background: var(--awoo-warn); }
+        .awoo-cp-seclight.awoo-m-none { width: 5px; height: 5px; margin: 0 1.5px; background: var(--awoo-ink-mute); }
+        .awoo-cp-more { display: block; width: max-content; margin-top: var(--awoo-s3); background: none; border: 1px solid transparent; border-radius: var(--awoo-in-radius, 3px);
+          padding: 2px var(--awoo-s2); margin-left: calc(-1 * var(--awoo-s2)); font: inherit; font-size: var(--awoo-fs-caption);
+          color: var(--awoo-ink-soft); cursor: pointer; }
+        .awoo-cp-more:hover { color: var(--awoo-accent); border-color: var(--awoo-border); }
+        /* BASIC AND ADVANCED (R159): Basic hides every option marked
+           awoo-adv. One rule on the root, so an option keeps its place in
+           Advanced. */
+        .awoo-settings[data-cp-mode="basic"] .awoo-adv { display: none !important; }
+        /* General's first row (back from the sidebar's foot, 2026-10-17). */
+        .awoo-cp-mode { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s2) var(--awoo-s3); font-size: var(--awoo-fs-control); }
+        .awoo-cp-modelabel { color: var(--awoo-ink); font-weight: 600; }
+        /* A sub-module (Pet Slot Alarm under Party): a branch mark where its
+           parent's chevron is. */
+        .awoo-cp-branch { flex: none; color: var(--awoo-ink-mute); width: 1em; text-align: center; }
+        .awoo-cp-subof { color: var(--awoo-ink-mute); font-size: var(--awoo-fs-caption); font-weight: 500; flex: none; }
+        .awoo-cp-cost { margin-left: auto; font-size: var(--awoo-fs-caption); color: var(--awoo-ink-soft);
           font-variant-numeric: tabular-nums; }
-        .awoo-cp-tablewrap { overflow-x: auto; border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm); }
+        /* TABLES (§10f): framed, never scrolled sideways. A column that does
+           not fit is dropped by the container rules below (awoo-m-opt), and
+           text cells wrap; the head is the tools' mono head on surface-2. */
+        .awoo-cp-tablewrap { border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md); overflow: hidden; }
         .awoo-cp-table { width: 100%; border-collapse: collapse; font-size: var(--awoo-fs-control); }
-        .awoo-cp-table th { font-size: var(--awoo-fs-micro); text-transform: uppercase; letter-spacing: .06em;
-          opacity: var(--awoo-em-muted); font-weight: 700; text-align: left; white-space: nowrap;
-          padding: var(--awoo-s1) var(--awoo-s3); border-bottom: 1px solid var(--awoo-border); }
-        .awoo-cp-table th.awoo-m-grp { border-bottom: 1px solid color-mix(in srgb, var(--awoo-border) 60%, transparent); }
-        .awoo-cp-table td { padding: var(--awoo-s1) var(--awoo-s3); vertical-align: middle;
-          border-bottom: 1px solid color-mix(in srgb, var(--awoo-border) 40%, transparent); }
-        .awoo-cp-table tr:last-child td { border-bottom: none; }
+        .awoo-cp-table th { font-family: var(--awoo-font-mono); font-size: var(--awoo-fs-micro); font-weight: 500;
+          text-transform: uppercase; letter-spacing: .04em; line-height: 1.35; color: var(--awoo-ink-mute);
+          background: var(--awoo-surface-2); text-align: left; vertical-align: bottom; white-space: normal;
+          padding: var(--awoo-s2) var(--awoo-row-x); border-bottom: 1px solid var(--awoo-border); }
+        .awoo-cp-table th.awoo-m-grp { border-bottom: 1px solid var(--awoo-border); text-align: center; }
+        .awoo-cp-table td { padding: var(--awoo-s1) var(--awoo-row-x); vertical-align: middle; line-height: 1.45;
+          font-variant-numeric: tabular-nums; border-top: 1px solid var(--awoo-border); }
+        .awoo-cp-table tr:first-child td { border-top: none; }
         .awoo-cp-table .awoo-m-c { text-align: center; width: 1%; white-space: nowrap; padding-inline: var(--awoo-s2); }
-        .awoo-cp-table .awoo-m-n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-        /* The Modules page's Start column: as narrow as its widest possible
-           value ("1000.0 ms"), so the spare width stays with the module's name
-           and "Shown in" sits beside the time instead of across the table. */
-        .awoo-cp-table .awoo-cp-startcol { width: 1%; min-width: 9ch; }
-        .awoo-cp-table tr.awoo-m-dim .awoo-cp-label { opacity: var(--awoo-em-muted); }
-        .awoo-cp-table tr.awoo-m-over td { box-shadow: inset 0 2px 0 var(--awoo-primary); }
+        .awoo-cp-table .awoo-m-n { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--awoo-font-num, inherit); white-space: nowrap; }
+        .awoo-cp-table tr.awoo-m-dim .awoo-cp-label { color: var(--awoo-ink-mute); }
+        .awoo-cp-table tr.awoo-m-over td { box-shadow: inset 0 2px 0 var(--awoo-accent); }
         .awoo-cp-table tr.awoo-m-dragging { opacity: var(--awoo-em-faint); }
         .awoo-cp-table .awoo-m-good { color: var(--awoo-success); }
         .awoo-cp-table .awoo-m-warn, .awoo-cp-live.awoo-m-warn, .awoo-cp-desc.awoo-m-warn { color: var(--awoo-warn); }
         .awoo-cp-table .awoo-m-bad, .awoo-cp-live.awoo-m-bad { color: var(--awoo-danger); }
-        .awoo-cp-table .awoo-m-dimtext { opacity: var(--awoo-em-muted); }
+        .awoo-cp-table .awoo-m-dimtext { color: var(--awoo-ink-mute); }
         .awoo-cp-grouprow td { font-size: var(--awoo-fs-micro); text-transform: uppercase; letter-spacing: .08em;
-          opacity: var(--awoo-em-muted); font-weight: 700; padding-top: var(--awoo-s3); }
+          color: var(--awoo-ink-mute); font-weight: 600; padding-top: var(--awoo-s3); }
         .awoo-cp-hcol { width: 1px; }
-        .awoo-cp-handle { background: none; border: none; color: inherit; cursor: grab; padding: 0 var(--awoo-s1);
-          letter-spacing: -2px; opacity: var(--awoo-em-muted); font: inherit; }
-        .awoo-cp-handle:hover, .awoo-cp-handle:focus-visible { opacity: 1; }
-        .awoo-cp-name { display: flex; align-items: center; gap: var(--awoo-s2); min-width: 0; }
-        .awoo-cp-label { font-weight: 600; }
+        .awoo-cp-table .awoo-cp-hcol { padding-inline: var(--awoo-s1); }
+        .awoo-cp-handle { background: none; border: none; color: var(--awoo-ink-mute); cursor: grab; padding: 0 var(--awoo-s1);
+          letter-spacing: -2px; font: inherit; }
+        .awoo-cp-handle:hover, .awoo-cp-handle:focus-visible { color: var(--awoo-accent); }
+        .awoo-cp-name { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s1) var(--awoo-s2); min-width: 0; }
+        .awoo-cp-label { font-weight: 600; color: var(--awoo-ink); }
         /* A name not every player has (R97): trusted and village in the
            trusted blue, dev-only in the dev colour, wherever a module or tool
            is named in a list. Never on the top bar, where colour is status. */
         .awoo-m-aud-trusted { color: var(--awoo-trusted); }
         .awoo-m-aud-dev { color: var(--awoo-dev); }
-        .awoo-cp-cat { font-size: var(--awoo-fs-micro); text-transform: uppercase; letter-spacing: .05em;
-          opacity: var(--awoo-em-muted); border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm);
+        /* The category beside a name, as a mark (§10g). */
+        .awoo-cp-cat { font-size: var(--awoo-fs-micro); text-transform: uppercase; letter-spacing: .05em; line-height: 1.3;
+          color: var(--awoo-ink-mute); border: 1px solid currentColor; border-radius: var(--awoo-in-radius);
           padding: 0 var(--awoo-s1); }
-        .awoo-cp-live { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-normal); font-variant-numeric: tabular-nums; }
-        .awoo-cp-desc { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted); line-height: 1.35; }
-        .awoo-cp-gear { background: none; border: none; color: inherit; cursor: pointer; opacity: var(--awoo-em-muted);
+        .awoo-cp-live { font-size: var(--awoo-fs-caption); color: var(--awoo-ink-soft); font-variant-numeric: tabular-nums; }
+        .awoo-cp-desc { font-size: var(--awoo-fs-caption); color: var(--awoo-ink-soft); line-height: 1.35; }
+        .awoo-cp-gear { background: none; border: none; color: var(--awoo-ink-mute); cursor: pointer;
           font: inherit; padding: 0 var(--awoo-s1); }
-        .awoo-cp-gear:hover { opacity: 1; }
-        /* A LABELLED PAIR, NOT A SWITCH (DESIGN.md §9). Square-ish, never a pill. */
-        .awoo-cp-seg { display: inline-flex; border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm); overflow: hidden; }
-        .awoo-cp-seg > button { background: none; border: none; color: inherit; font: inherit;
-          font-size: var(--awoo-fs-caption); font-weight: 600; padding: var(--awoo-s1) var(--awoo-s3);
-          cursor: pointer; opacity: var(--awoo-em-muted); }
-        .awoo-cp-seg > button + button { border-left: 1px solid var(--awoo-border); }
-        .awoo-cp-seg > button.awoo-m-on { background: var(--awoo-input); opacity: 1; }
-        .awoo-cp-seg > button.awoo-m-on.awoo-m-go { color: var(--awoo-success); background: color-mix(in srgb, var(--awoo-success) 14%, transparent); }
+        .awoo-cp-gear:hover { color: var(--awoo-accent); }
+        /* A LABELLED PAIR, NOT A SWITCH (DESIGN.md §9), drawn as the house
+           segmented switch (§10g): a surface-2 track with a 2px inset, the
+           pressed side lifted onto the surface with the shadow. Never a pill. */
+        .awoo-cp-seg { display: inline-flex; gap: var(--awoo-s1); padding: 2px; background: var(--awoo-surface-2);
+          border: 1px solid var(--awoo-border-control); border-radius: var(--awoo-in-radius); }
+        .awoo-cp-seg > button { background: none; border: none; color: var(--awoo-ink-soft); font: inherit;
+          font-size: var(--awoo-fs-caption); font-weight: 600; padding: 0 var(--awoo-s3); line-height: 1.6;
+          border-radius: calc(var(--awoo-in-radius) - 1px); cursor: pointer; white-space: nowrap; }
+        .awoo-cp-seg > button:hover { color: var(--awoo-ink); }
+        .awoo-cp-seg > button.awoo-m-on { background: var(--awoo-surface); color: var(--awoo-ink); box-shadow: var(--awoo-shadow); }
+        .awoo-cp-seg > button.awoo-m-on.awoo-m-go { color: var(--awoo-success); }
         .awoo-cp-seg > button:disabled { cursor: default; }
         .awoo-ui-btn.awoo-cp-btn-sm { font-size: var(--awoo-fs-caption); padding: var(--awoo-s1) var(--awoo-s3); }
+        /* ONE COLUMN RHYTHM (R171, R177): every value starts on the same line
+           whatever the name's length (§10f), and on the same line on the
+           Modules, Tools and Tweaks pages, because all three draw the same
+           columns (cpHead in the Control Panel code) at these widths. A width
+           is a floor: a value that does not fit widens its column rather
+           than being clipped. The name column has no width and takes the
+           rest. Short values, so a closer gutter. */
+        .awoo-cp-table .awoo-cp-catcol, .awoo-cp-table .awoo-cp-statcol,
+          .awoo-cp-table .awoo-cp-loadcol, .awoo-cp-table .awoo-cp-menucol,
+          .awoo-cp-table .awoo-cp-barcol, .awoo-cp-table .awoo-cp-actcol {
+          padding-inline: var(--awoo-s2); width: calc(var(--awoo-cp-w) * var(--awoo-ui-scale, 1)); }
+        .awoo-cp-table .awoo-cp-hcol { --awoo-cp-w: ${CP_COL_W.hcol}px; width: calc(var(--awoo-cp-w) * var(--awoo-ui-scale, 1)); }
+        .awoo-cp-table .awoo-cp-catcol { --awoo-cp-w: ${CP_COL_W.catcol}px; }
+        .awoo-cp-table .awoo-cp-statcol { --awoo-cp-w: ${CP_COL_W.statcol}px; }
+        .awoo-cp-table .awoo-cp-loadcol { --awoo-cp-w: ${CP_COL_W.loadcol}px; }
+        .awoo-cp-table .awoo-cp-menucol { --awoo-cp-w: ${CP_COL_W.menucol}px; }
+        .awoo-cp-table .awoo-cp-barcol { --awoo-cp-w: ${CP_COL_W.barcol}px; }
+        .awoo-cp-table .awoo-cp-actcol { --awoo-cp-w: ${CP_COL_W.actcol}px; }
+        .awoo-cp-table .awoo-cp-catcol { white-space: nowrap; }
+        .awoo-cp-table td.awoo-cp-catcol { color: var(--awoo-ink-soft); }
+        /* A name never wraps (its audience dot stays beside it); a long
+           status reading is what wraps instead. */
+        .awoo-cp-table .awoo-cp-name { flex-wrap: nowrap; white-space: nowrap; }
+        /* THE SAFETY NET, never the plan. The column fit (data-cp-cols)
+           drops columns so a row fits; should one still not (the compact
+           size with the wide sidebar, a font far wider than the house one),
+           the NAME gives way and ellipsizes, rather than the frame cutting
+           off the Bar tick, Start and the ⚙ with no way to reach them (it
+           used to scroll; §9 forbids that). max-width: 0 lets the name's
+           column shrink below its text; with room to spare it still takes
+           all the rest, as before. */
+        .awoo-cp-table td.awoo-cp-namecol { max-width: 0; }
+        .awoo-cp-table td.awoo-cp-namecol .awoo-cp-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .awoo-cp-stat { display: inline-flex; align-items: baseline; gap: var(--awoo-s2); }
+        /* Synced: one word in the worst section's freshness colour, "+N" for
+           the rest, every section in the hover card. */
+        .awoo-cp-synced { cursor: help; color: var(--awoo-ink-soft); }
+        /* A long first section ("Income Multipliers") ellipsizes inside the
+           column instead of widening it past the width the fit counts on;
+           "+N" stays whole, and the hover lists every section in full. */
+        .awoo-cp-table .awoo-cp-synced { display: inline-flex; max-width: calc(var(--awoo-cp-w, 80px) * var(--awoo-ui-scale, 1));
+          vertical-align: middle; }
+        .awoo-cp-synced-word { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .awoo-cp-synced-more { flex: none; }
+        .awoo-cp-synced.awoo-m-ok { color: var(--awoo-success); }
+        .awoo-cp-synced.awoo-m-stale { color: var(--awoo-warn); }
+        .awoo-cp-synced.awoo-m-miss, .awoo-cp-synced.awoo-m-empty, .awoo-cp-synced.awoo-m-none { color: var(--awoo-ink-mute); }
+        .awoo-cp-synced-more { margin-left: var(--awoo-s1); font-size: var(--awoo-fs-caption); color: var(--awoo-ink-mute); }
         .awoo-cp-uses { display: inline-flex; flex-wrap: wrap; gap: var(--awoo-s1); }
-        .awoo-cp-chip { font-size: var(--awoo-fs-micro); padding: 0 var(--awoo-s1); border-radius: var(--awoo-r-sm);
-          background: color-mix(in srgb, var(--awoo-border) 35%, transparent); opacity: var(--awoo-em-normal); }
-        .awoo-cp-chip.awoo-m-ok { color: var(--awoo-success); background: color-mix(in srgb, var(--awoo-success) 14%, transparent); }
-        .awoo-cp-chip.awoo-m-stale { color: var(--awoo-warn); background: color-mix(in srgb, var(--awoo-warn) 14%, transparent); }
-        .awoo-cp-chip.awoo-m-miss, .awoo-cp-chip.awoo-m-empty { opacity: var(--awoo-em-muted); }
+        /* What a module fills in from Profile Sync, as marks (§10g) in the
+           freshness colour: fresh is success, old is the warn hue, never read
+           or empty is ink-mute. */
+        .awoo-cp-chip { font-size: var(--awoo-fs-micro); text-transform: uppercase; letter-spacing: .05em; line-height: 1.3;
+          padding: 0 var(--awoo-s1); border: 1px solid currentColor; border-radius: var(--awoo-in-radius); color: var(--awoo-ink-soft); }
+        .awoo-cp-chip.awoo-m-ok { color: var(--awoo-success); }
+        .awoo-cp-chip.awoo-m-stale { color: var(--awoo-warn); }
+        .awoo-cp-chip.awoo-m-miss, .awoo-cp-chip.awoo-m-empty { color: var(--awoo-ink-mute); }
         .awoo-cp-slider { display: flex; align-items: center; gap: var(--awoo-s4); font-size: var(--awoo-fs-control); }
+        /* A slider's label names it: ink, not the explanation's ink-soft. */
+        .awoo-cp-slider > .awoo-cp-sub { color: var(--awoo-ink); font-size: var(--awoo-fs-control); }
         /* Notifications › Where (R96): a small screen with a button per spot. */
         .awoo-cp-posrow { display: flex; align-items: center; gap: var(--awoo-s4); flex-wrap: wrap; }
         .awoo-cp-posgrid { display: grid; grid-template-columns: repeat(3, 26px); grid-template-rows: repeat(2, 18px); gap: 3px;
-          padding: 3px; border: 1px solid var(--awoo-border-strong, var(--awoo-border)); border-radius: var(--awoo-r-sm); }
-        .awoo-cp-pos { border: 1px solid var(--awoo-border); background: transparent; border-radius: var(--awoo-r-sm); cursor: pointer; padding: 0; }
-        .awoo-cp-pos:hover { background: var(--awoo-hover); }
-        .awoo-cp-pos[aria-pressed="true"] { background: var(--awoo-primary); border-color: var(--awoo-primary); }
+          padding: 3px; border: 1px solid var(--awoo-border-strong, var(--awoo-border)); border-radius: var(--awoo-in-radius); }
+        .awoo-cp-pos { border: 1px solid var(--awoo-border); background: transparent; border-radius: var(--awoo-in-radius); cursor: pointer; padding: 0; }
+        .awoo-cp-pos:hover { border-color: var(--awoo-accent-fill); }
+        .awoo-cp-pos[aria-pressed="true"] { background: var(--awoo-accent-fill); border-color: var(--awoo-accent-fill); }
         /* Notifications › History (R118): one line per notice, its colour on the edge. */
         .awoo-cp-notifylog { display: flex; flex-direction: column; gap: var(--awoo-s1); margin-top: var(--awoo-s2); }
         .awoo-cp-notifyline { display: flex; gap: var(--awoo-s4); font-size: var(--awoo-fs-caption); padding: 2px var(--awoo-s2);
-          border-left: 3px solid var(--awoo-primary); }
+          border-left: 3px solid var(--awoo-info, var(--awoo-primary)); }
         .awoo-cp-notifyline-success { border-left-color: var(--awoo-success); }
         .awoo-cp-notifyline-warn { border-left-color: var(--awoo-warn); }
         .awoo-cp-notifyline-error { border-left-color: var(--awoo-danger); }
-        .awoo-cp-notifyat { flex: none; opacity: var(--awoo-em-muted); font-variant-numeric: tabular-nums; }
+        .awoo-cp-notifyat { flex: none; color: var(--awoo-ink-mute); font-variant-numeric: tabular-nums; }
         .awoo-cp-slider[hidden] { display: none; }
-        .awoo-cp-slider input { flex: 1; accent-color: var(--awoo-primary); }
+        .awoo-cp-slider input { flex: 1; accent-color: var(--awoo-accent-fill); }
         /* The range and its 100% notch: a short tick UNDER the track, where
            neither the filled track nor the thumb can cover it. It sits on the
            track's own scale: a thumb's centre travels from half a thumb in
@@ -2428,46 +2916,159 @@
         .awoo-cp-range { flex: 1; position: relative; display: flex; align-items: center; min-width: 0; padding-bottom: 5px; }
         .awoo-cp-range input { width: 100%; margin: 0; }
         .awoo-cp-notch { position: absolute; bottom: 0; width: 1px; height: 5px; pointer-events: none;
-          left: calc(8px + (100% - 16px) * var(--awoo-notch, .5)); background: currentColor; opacity: var(--awoo-em-muted); }
-        .awoo-cp-sliderval { min-width: 2ch; text-align: right; font-variant-numeric: tabular-nums; }
-        .awoo-cp-card { border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm); }
-        .awoo-cp-cardhead { display: flex; align-items: center; gap: var(--awoo-s4); padding: var(--awoo-s3) var(--awoo-s4); }
+          left: calc(8px + (100% - 16px) * var(--awoo-notch, .5)); background: var(--awoo-ink-mute); }
+        .awoo-cp-sliderval { min-width: 2ch; text-align: right; font-variant-numeric: tabular-nums; font-family: var(--awoo-font-num, inherit); }
+        .awoo-cp-card { border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md); }
+        .awoo-cp-cardhead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s4); padding: var(--awoo-s3) var(--awoo-s4); }
         .awoo-cp-cardhead > div:first-child { flex: 1; min-width: 0; }
         .awoo-cp-cardbody { border-top: 1px solid var(--awoo-border); padding: var(--awoo-s3) var(--awoo-s4);
           display: flex; flex-direction: column; gap: var(--awoo-s3); }
-        .awoo-cp-legend { display: grid; grid-template-columns: max-content 1fr; gap: var(--awoo-s2) var(--awoo-s5);
-          align-items: baseline; font-size: var(--awoo-fs-control); }
-        .awoo-cp-banner { display: flex; align-items: center; gap: var(--awoo-s4); padding: var(--awoo-s3) var(--awoo-s4);
-          border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm); font-size: var(--awoo-fs-control); }
-        .awoo-cp-banner.awoo-m-ok { border-color: color-mix(in srgb, var(--awoo-success) 45%, var(--awoo-border)); }
-        .awoo-cp-banner.awoo-m-warn { border-color: color-mix(in srgb, var(--awoo-warn) 50%, var(--awoo-border)); }
-        .awoo-cp-banner.awoo-m-bad { border-color: color-mix(in srgb, var(--awoo-danger) 50%, var(--awoo-border)); }
-        .awoo-cp-banner.awoo-m-muted { opacity: var(--awoo-em-normal); }
-        .awoo-cp-banner > div { flex: 1; min-width: 0; }
-        .awoo-cp-bannerright { display: inline-flex; gap: var(--awoo-s2); }
+        /* ---- Features (R230-R232): the lists, their details, the key ---- */
+        .awoo-cp-listbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s2) var(--awoo-s3); }
+        .awoo-cp-grow { flex: 1; }
+        .awoo-cp-link { background: none; border: none; padding: 0; font: inherit; font-size: var(--awoo-fs-caption); font-weight: 600;
+          color: var(--awoo-accent); cursor: pointer; }
+        .awoo-cp-link:hover, .awoo-cp-link:focus-visible { text-decoration: underline; }
+        .awoo-cp-legend { display: flex; flex-wrap: wrap; gap: var(--awoo-s2) var(--awoo-s5); padding: var(--awoo-s3) var(--awoo-s4);
+          border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md); background: var(--awoo-surface-2);
+          font-size: var(--awoo-fs-caption); color: var(--awoo-ink-soft); }
+        .awoo-cp-legend-i { display: inline-flex; align-items: center; gap: var(--awoo-s2); }
+        .awoo-cp-gapmark, .awoo-cp-table td.awoo-cp-gap { color: var(--awoo-ink-mute); }
+        /* A row opens on a click: the whole row is the target, its controls excepted. */
+        .awoo-cp-feat td { padding-top: var(--awoo-s2); padding-bottom: var(--awoo-s2); }
+        .awoo-cp-table tr.awoo-cp-openable { cursor: pointer; }
+        .awoo-cp-table tr.awoo-cp-openable:hover > td { background: var(--awoo-hover); }
+        /* An open row and its details read as one quiet block (2026-10-17:
+           the accent bar was "ugly"). */
+        .awoo-cp-table tr.awoo-cp-openable.awoo-m-open > td { background: var(--awoo-surface-2); }
+        .awoo-cp-short { font-size: var(--awoo-fs-caption); color: var(--awoo-ink-mute); margin: 1px 0 0 1.2em;
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 62ch; }
+        /* Load | Off and On | Off the same width, so the column lines up. */
+        .awoo-cp-loadcol .awoo-cp-seg > button { min-width: 3.4em; }
+        .awoo-cp-chev { display: inline-block; width: 1em; flex: none; color: var(--awoo-ink-mute); font-size: var(--awoo-fs-micro);
+          transition: transform .12s ease; }
+        .awoo-cp-chev.awoo-m-on { transform: rotate(90deg); }
+        @media (prefers-reduced-motion: reduce) { .awoo-cp-chev { transition: none; } }
+        .awoo-cp-grouprow td { background: var(--awoo-surface-2); }
+        .awoo-cp-grouplabel { color: var(--awoo-ink-soft); }
+        .awoo-cp-groupnote { margin-left: var(--awoo-s3); text-transform: none; letter-spacing: 0; font-weight: 500; }
+        .awoo-cp-detrow > td { padding: 0; }
+        .awoo-cp-details { display: flex; flex-direction: column; gap: var(--awoo-s3); background: var(--awoo-surface-2);
+          padding: var(--awoo-s4) var(--awoo-s6) var(--awoo-s4) calc(var(--awoo-s6) + 2em); }
+        .awoo-cp-detdesc { margin: 0; max-width: 78ch; color: var(--awoo-ink); line-height: 1.45; }
+        .awoo-cp-facts { display: flex; flex-wrap: wrap; gap: var(--awoo-s3) var(--awoo-s6); }
+        .awoo-cp-fact { display: flex; flex-direction: column; min-width: 0; }
+        .awoo-cp-factlabel { font-family: var(--awoo-font-mono); font-size: var(--awoo-fs-micro); font-weight: 500;
+          text-transform: uppercase; letter-spacing: .06em; color: var(--awoo-ink-mute); }
+        .awoo-cp-factvalue { font-size: var(--awoo-fs-control); color: var(--awoo-ink); }
+        .awoo-cp-age.awoo-m-ok { color: var(--awoo-success); }
+        .awoo-cp-age.awoo-m-warn { color: var(--awoo-warn); }
+        .awoo-cp-age.awoo-m-mute, .awoo-cp-dimtext { color: var(--awoo-ink-mute); }
+        .awoo-cp-detacts { display: flex; flex-wrap: wrap; gap: var(--awoo-s5); }
+        .awoo-cp-listfoot { align-items: center; }
+        /* A question asked in place, under the button that asked it. */
+        .awoo-cp-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s3) var(--awoo-s4);
+          padding: var(--awoo-s3) var(--awoo-s4); border: 1px solid var(--awoo-border); border-left: 3px solid var(--awoo-warn);
+          border-radius: var(--awoo-r-md); font-size: var(--awoo-fs-control); color: var(--awoo-ink); }
+        .awoo-cp-confirm[hidden] { display: none; }
+        .awoo-cp-confirm > span { flex: 1; min-width: 14em; }
+        /* A FEATURE'S SETTINGS PAGE opens with its own header, not tabs:
+           where it sits, its name and what it does, then its light, its
+           switch and its window on the right. The body is the module's own. */
+        .awoo-cp-fhead { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--awoo-s4) var(--awoo-s6);
+          padding-bottom: var(--awoo-s4); border-bottom: 1px solid var(--awoo-border); }
+        .awoo-cp-fheadtext { flex: 1; min-width: 16em; display: flex; flex-direction: column; gap: var(--awoo-s2); }
+        .awoo-cp-crumb { font-family: var(--awoo-font-mono); font-size: var(--awoo-fs-micro); font-weight: 500;
+          text-transform: uppercase; letter-spacing: .06em; color: var(--awoo-ink-mute); }
+        .awoo-cp-ftitle { font-size: var(--awoo-fs-title); }
+        .awoo-cp-ftitle .awoo-cp-label { font-weight: 650; }
+        .awoo-cp-fdesc { font-size: var(--awoo-fs-control); color: var(--awoo-ink-soft); line-height: 1.45; max-width: 70ch; }
+        .awoo-cp-fctl { display: flex; flex-direction: column; align-items: flex-end; gap: var(--awoo-s3); }
+        /* A module's own settings at a reading width: on the larger panel a
+           number box stretched across the whole page (Pet Slot Alarm's
+           "10" in a 700px field). */
+        .awoo-cp-fbody { display: flex; flex-direction: column; gap: var(--awoo-s4); min-width: 0; max-width: calc(760px * var(--awoo-ui-scale, 1)); }
+        .awoo-cp-ffoot { margin-top: var(--awoo-s6); }
+        .awoo-cp-fbody > .awoo-settings-cat:first-child { margin-top: 0; }
+        .awoo-cp-offnote { padding: var(--awoo-s4) var(--awoo-s5); border: 1px dashed var(--awoo-border-strong, var(--awoo-border));
+          border-radius: var(--awoo-r-md); background: var(--awoo-surface-2); color: var(--awoo-ink-soft); font-size: var(--awoo-fs-control); }
+        /* ---- the sidebar's three parts (R230-R232) ----
+           AWOO+ with an icon per row; Feature settings in Modules and Tweaks
+           groups that fold; Development at the foot. */
+        .awoo-cp-zone { display: flex; flex-direction: column; gap: var(--awoo-s1); }
+        /* ONE ROW STYLE (2026-10-17, "more consistent"): every row the same
+           size and padding; an icon, a fold caret or nothing sits in one
+           1.2em slot, so every name starts on the same line. Development is
+           pinned to the foot. */
+        .awoo-cp-zone.awoo-m-dev { flex: none; padding-top: var(--awoo-s2); }
+        .awoo-cp-sideic { flex: none; width: 1.2em; display: flex; align-items: center; justify-content: center; color: var(--awoo-ink-soft); }
+        .awoo-cp-sideic svg { width: 1.05em; height: 1.05em; display: block; }
+        .awoo-settings-side-i.awoo-m-on .awoo-cp-sideic { color: var(--awoo-accent); }
+        .awoo-settings-side-i > .awoo-cp-sidelabel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+        .awoo-settings-side-i.awoo-m-feat { padding-left: calc(7px + 1.2em + var(--awoo-s2)); color: var(--awoo-ink-soft); }
+        .awoo-settings-side-i.awoo-m-feat.awoo-m-sub { padding-left: calc(7px + 2.2em + var(--awoo-s2)); }
+        .awoo-settings-side-i.awoo-m-feat.awoo-m-on { color: var(--awoo-ink); }
+        .awoo-settings-side-i.awoo-m-dim > .awoo-cp-sidelabel { color: var(--awoo-ink-mute); }
+        .awoo-cp-sidegrp { display: flex; align-items: center; gap: var(--awoo-s2); background: none; border: 1px solid transparent; font: inherit;
+          font-size: var(--awoo-fs-control); font-weight: 600; color: var(--awoo-ink); padding: var(--awoo-s1) 7px;
+          border-radius: var(--awoo-in-radius); cursor: pointer; text-align: left; }
+        .awoo-cp-sidegrp:hover { background: var(--awoo-hover); }
+        .awoo-cp-caret { flex: none; width: 1.2em; text-align: center; color: var(--awoo-ink-mute); font-size: var(--awoo-fs-micro); }
+        .awoo-cp-sidecount { flex: none; margin-left: auto; font-size: var(--awoo-fs-micro); color: var(--awoo-ink-mute);
+          font-variant-numeric: tabular-nums; font-family: var(--awoo-font-num, inherit); }
+        /* ---- Theme & size: the themes as swatches ---- */
+        .awoo-cp-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(92px * var(--awoo-ui-scale, 1)), 1fr)); gap: var(--awoo-s4); }
+        .awoo-cp-theme { display: flex; flex-direction: column; gap: var(--awoo-s2); padding: var(--awoo-s2); background: none; font: inherit;
+          border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md); cursor: pointer; color: var(--awoo-ink); text-align: left; }
+        .awoo-cp-theme:hover { border-color: var(--awoo-accent-edge, var(--awoo-accent)); }
+        .awoo-cp-theme.awoo-m-on { border-color: var(--awoo-accent); box-shadow: inset 0 0 0 1px var(--awoo-accent); background: var(--awoo-bg-accent); }
+        .awoo-cp-themepv { display: flex; height: calc(38px * var(--awoo-ui-scale, 1)); border-radius: var(--awoo-in-radius); overflow: hidden;
+          border: 1px solid var(--awoo-border); }
+        .awoo-cp-themepv.awoo-m-game { align-items: center; justify-content: center; font-size: var(--awoo-fs-caption);
+          color: var(--awoo-ink-soft); border-style: dashed; }
+        .awoo-cp-themehalf { flex: 1; display: flex; align-items: flex-end; padding: var(--awoo-s2) 0 0 var(--awoo-s2); min-width: 0; }
+        .awoo-cp-themecard { position: relative; flex: 1; height: 100%; padding: 2px var(--awoo-s2);
+          font-size: var(--awoo-fs-caption); font-weight: 600; line-height: 1.3; }
+        .awoo-cp-themeacc { position: absolute; left: var(--awoo-s2); bottom: var(--awoo-s2); width: 40%; height: 4px; }
+        .awoo-cp-themename { font-size: var(--awoo-fs-caption); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* A STATUS BANNER is the tools' sync card (§10d): a hairline frame and
+           a 3px left edge in the state's colour; the words stay ink. */
+        .awoo-cp-banner { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s3) var(--awoo-s4); padding: var(--awoo-s3) var(--awoo-s4);
+          border: 1px solid var(--awoo-border); border-left: 3px solid var(--awoo-border-strong, var(--awoo-border));
+          border-radius: var(--awoo-r-md); font-size: var(--awoo-fs-control); }
+        .awoo-cp-banner.awoo-m-ok { border-left-color: var(--awoo-success-fill, var(--awoo-success)); }
+        .awoo-cp-banner.awoo-m-warn { border-left-color: var(--awoo-warn); }
+        .awoo-cp-banner.awoo-m-bad { border-left-color: var(--awoo-danger-fill, var(--awoo-danger)); }
+        .awoo-cp-banner.awoo-m-muted { border-left-style: dashed; }
+        .awoo-cp-banner > div { flex: 1; min-width: 12em; }
+        .awoo-cp-bannerright { display: inline-flex; flex-wrap: wrap; gap: var(--awoo-s2); }
         .awoo-cp-changes { margin: 0 0 var(--awoo-s3); padding-left: var(--awoo-s6); font-size: var(--awoo-fs-control); }
         .awoo-cp-changes li { margin: 0 0 var(--awoo-s1); }
-        .awoo-cp-logdate { margin-left: var(--awoo-s3); font-weight: 400; text-transform: none; letter-spacing: 0;
-          opacity: var(--awoo-em-muted); font-variant-numeric: tabular-nums; }
+        .awoo-cp-logdate { font-weight: 400; text-transform: none; letter-spacing: 0;
+          color: var(--awoo-ink-mute); font-variant-numeric: tabular-nums; }
         .awoo-cp-notes { font-size: var(--awoo-fs-caption); white-space: pre-wrap; margin-top: var(--awoo-s1);
-          opacity: var(--awoo-em-normal); }
+          color: var(--awoo-ink-soft); }
         .awoo-cp-log { margin: 0; font-size: var(--awoo-fs-caption); white-space: pre-wrap; max-height: 9em; overflow: auto;
-          padding: var(--awoo-s3); border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm);
-          background: var(--awoo-input); }
-        /* Settings > Appearance > Fonts: label, select, and the preview BESIDE the select —
-           the only thing on screen that moves before Save & apply. */
-        .awoo-fonts-row { display: grid; align-items: center; gap: var(--awoo-s3) var(--awoo-s4);
-          grid-template-columns: var(--awoo-label-col) minmax(0, 1fr) minmax(0, 1fr);
-          font-size: var(--awoo-fs-control); margin-top: var(--awoo-s3); }
-        .awoo-fonts-row > label { opacity: var(--awoo-em-muted); }
-        .awoo-fonts-row select { font: inherit; background: var(--awoo-input); color: var(--awoo-foreground);
-          border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm);
+          padding: var(--awoo-s3); border: 1px solid var(--awoo-border); border-radius: var(--awoo-in-radius);
+          background: var(--awoo-surface-2); color: var(--awoo-ink-soft); }
+        /* Settings > Appearance > Fonts: label, preview, select. The select
+           sits in the shared value column (the last one), so it lines up with
+           every other select in the panel; the preview sits BESIDE it, the
+           only thing on screen that moves before Save & apply. */
+        .awoo-fonts-row { display: grid; align-items: center; gap: var(--awoo-s2) var(--awoo-s4);
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) min(var(--awoo-cp-val), 50%);
+          font-size: var(--awoo-fs-control); margin-top: var(--awoo-s2); }
+        .awoo-fonts-row > label { color: var(--awoo-ink); grid-column: 1; grid-row: 1; }
+        .awoo-fonts-row > select { grid-column: 3; grid-row: 1; }
+        .awoo-fonts-row > .awoo-fonts-preview { grid-column: 2; grid-row: 1; }
+        .awoo-fonts-row select { font: inherit; background: var(--awoo-surface-2); color: var(--awoo-ink);
+          border: 1px solid var(--awoo-border-control); border-radius: var(--awoo-in-radius);
           padding: var(--awoo-s1) var(--awoo-s2); min-width: 0; }
         .awoo-fonts-preview { font-size: var(--awoo-fs-body); padding: var(--awoo-s1) var(--awoo-s3);
-          border: 1px dashed var(--awoo-border); border-radius: var(--awoo-r-sm);
+          border: 1px dashed var(--awoo-border-strong, var(--awoo-border)); border-radius: var(--awoo-in-radius);
           white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-        .awoo-fonts-hint { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted); }
-        .awoo-fonts-chip { margin-left: auto; letter-spacing: .05em; color: var(--awoo-success); opacity: 1; }
+        .awoo-fonts-hint { font-size: var(--awoo-fs-caption); color: var(--awoo-ink-soft); }
+        .awoo-fonts-chip { letter-spacing: .05em; color: var(--awoo-success); }
         .awoo-fonts-chip.dirty { color: var(--awoo-warn); }
         .awoo-ui-group { border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md);
           padding: var(--awoo-s4) 10px; }
@@ -2478,6 +3079,73 @@
           opacity: 1; text-transform: none; letter-spacing: 0; font-size: var(--awoo-fs-caption);
           background: none; border: none; font-family: inherit; cursor: pointer; padding: 0; }
         .awoo-ui-group-label .awoo-ui-group-link:hover { text-decoration: underline; }
+
+        /* ---- the shared controls, inside the Control Panel only ----
+           Scoped to .awoo-settings: a module's own window keeps the look it
+           was built with until it moves to the house style itself. */
+        .awoo-settings .awoo-ui-input-row { grid-template-columns: minmax(0, 1fr) min(var(--awoo-cp-val), 58%);
+          gap: var(--awoo-s2) var(--awoo-s4); margin: var(--awoo-s1) 0; }
+        .awoo-settings .awoo-ui-input-row label { font-size: var(--awoo-fs-control); color: var(--awoo-ink); opacity: 1; min-width: 0; }
+        .awoo-settings .awoo-ui-input-row input, .awoo-settings .awoo-ui-input-row select { font-size: var(--awoo-fs-control);
+          background: var(--awoo-surface-2); color: var(--awoo-ink); border: 1px solid var(--awoo-border-control);
+          border-radius: var(--awoo-in-radius); padding: var(--awoo-s1) var(--awoo-s2); min-width: 0; }
+        .awoo-settings .awoo-ui-input-row :is(input, select):focus-visible { outline: none; border-color: var(--awoo-accent-fill); }
+        .awoo-settings .awoo-ui-toggle-row { font-size: var(--awoo-fs-control); color: var(--awoo-ink); }
+        .awoo-settings .awoo-ui-note { color: var(--awoo-ink-soft); opacity: 1; }
+        /* Buttons (§10g): surface-2, the control border, square-ish; hover
+           outlines in the accent and tints the words, never fills. The one
+           primary keeps its fill. */
+        .awoo-settings .awoo-ui-btn { font-size: var(--awoo-fs-control); background: var(--awoo-surface-2); color: var(--awoo-ink);
+          border: 1px solid var(--awoo-border-control); border-radius: var(--awoo-in-radius); }
+        .awoo-settings .awoo-ui-btn:hover:not(:disabled) { background: var(--awoo-surface-2); border-color: var(--awoo-accent-fill); color: var(--awoo-accent); }
+        .awoo-settings .awoo-ui-btn.awoo-ui-btn-primary { background: var(--awoo-accent-fill); border-color: var(--awoo-accent-fill); color: var(--awoo-on-accent); }
+        .awoo-settings .awoo-ui-btn.awoo-ui-btn-primary:hover:not(:disabled) { color: var(--awoo-on-accent); filter: brightness(1.08); }
+        .awoo-settings .awoo-ui-btn.awoo-cp-btn-sm { font-size: var(--awoo-fs-caption); }
+        /* The (i) square (§10e): 13px, surface-3, a bold i in ink-soft that
+           turns accent on hover. The circle SVG stays in the markup for every
+           other window; here the square draws the i itself. */
+        .awoo-settings .awoo-core-info-icon { width: 13px; height: 13px; justify-content: center; flex: none; opacity: 1;
+          background: var(--awoo-surface-3); border-radius: var(--awoo-in-radius); color: var(--awoo-ink-soft);
+          font-size: var(--awoo-fs-micro); font-weight: 700; font-style: normal; line-height: 1; font-family: var(--awoo-font); }
+        .awoo-settings .awoo-core-info-icon svg { display: none; }
+        .awoo-settings .awoo-core-info-icon::before { content: "i"; }
+        .awoo-settings .awoo-core-info-icon:hover, .awoo-settings .awoo-core-info-icon:focus { color: var(--awoo-accent); }
+        .awoo-settings .awoo-ui-group-label .awoo-ui-group-link { color: var(--awoo-accent); }
+        .awoo-settings .awoo-settings-savebar { flex-wrap: wrap; }
+
+        /* NARROW: the panel below 520px (a phone, or a small window at a
+           large UI scale). The sidebar becomes a wrapping row above the page,
+           each group on its own line; optional columns go first; the fonts
+           preview drops under its row. Nothing scrolls sideways (§9). */
+        /* The optional columns go first (§9): the category (grouping says it
+           too) and the start time (the line above the table totals it). */
+        /* R177: the columns are fixed widths, so they go as the page
+           narrows: Category and Start first, then Synced and Author, leaving
+           the name a readable width. The same classes on all three tables,
+           so they drop together. WHEN is decided in JS (fitCpColumns) from
+           the page's width divided by the UI scale: these were container
+           queries at a fixed 900px and 760px of the whole panel, but the
+           panel and the columns both grow with the UI scale, so at 110% and
+           up the 820px default passed 900px, Category and Start came back,
+           and the rows overflowed. The wide sidebar did the same at 100%. */
+        .awoo-settings[data-cp-cols="mid"] .awoo-cp-table .awoo-cp-catcol,
+          .awoo-settings[data-cp-cols="min"] .awoo-cp-table .awoo-cp-catcol,
+          .awoo-settings[data-cp-cols="min"] .awoo-cp-table .awoo-cp-statcol { display: none; }
+        @container awoo-cp (max-width: 520px) {
+          .awoo-settings-frame { flex-direction: column; }
+          .awoo-settings-side { width: auto; flex-direction: row; flex-wrap: wrap; align-items: center;
+            border-right: none; border-bottom: 1px solid var(--awoo-border); max-height: 40%; overflow-y: auto; }
+          .awoo-cp-sidescroll { display: contents; }
+          .awoo-settings-side-h { flex-basis: 100%; margin: var(--awoo-s2) 4px 0; }
+          .awoo-settings-side-h:first-child { margin-top: 0; }
+          .awoo-settings-side-i { flex: none; }
+          .awoo-settings .awoo-m-opt, .awoo-cp-table .awoo-cp-catcol { display: none; }
+          .awoo-cp-zone { display: contents; }
+          .awoo-fonts-row { grid-template-columns: minmax(0, 1fr) min(var(--awoo-cp-val), 58%); }
+          .awoo-fonts-row > select { grid-column: 2; }
+          .awoo-fonts-row > .awoo-fonts-preview { grid-column: 1 / -1; grid-row: 2; }
+          .awoo-cp-cost { margin-left: 0; }
+        }
 
         /* ---- the Answer band: AT MOST one per window (DESIGN.md §3) ----
            At most, not exactly — a window whose subject is a table (the plans
@@ -3598,6 +4266,25 @@
         /* The cap slider's placeholders: real width, clearly not real buttons. */
         .awoo-core-quick-ghost { cursor: default; border-style: dashed; border-color: var(--awoo-border); }
         .awoo-core-quick-ghost:hover { border-color: var(--awoo-border); color: var(--awoo-ink-soft); }
+        /* THE SETUP BUTTON (R185): the wizard, folded away. Its own colour (the
+           theme's amber, so every theme has one), a glow border, no fill.
+           THE ONE THING ON THE BAR THAT MOVES (DESIGN.md §9, "Nothing blinks",
+           the maintainer's exception): one slow swell every 45 s, drawn by
+           CSS alone so it costs no timer and stops with the tab, and none at
+           all with reduced motion. */
+        .awoo-core-setup-btn { color: var(--awoo-warn); border-color: var(--awoo-warn); font-weight: 600;
+          animation: awoo-core-setup-swell 45s ease-in-out 1.5s infinite; }
+        .awoo-core-setup-btn[hidden] { display: none; }
+        .awoo-core-setup-btn:hover { color: var(--awoo-warn); border-color: var(--awoo-warn); animation: none;
+          box-shadow: 0 0 0 1px color-mix(in srgb, var(--awoo-warn) 45%, transparent); }
+        .awoo-core-setup-spark { width: calc(6px * var(--awoo-bar-k, 1)); height: calc(6px * var(--awoo-bar-k, 1));
+          border-radius: 50%; background: var(--awoo-warn); flex: none; }
+        @keyframes awoo-core-setup-swell {
+          0%, 4.5%, 100% { box-shadow: 0 0 0 0 transparent; }
+          2% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--awoo-warn) 40%, transparent),
+            0 0 12px 2px color-mix(in srgb, var(--awoo-warn) 50%, transparent); }
+        }
+        @media (prefers-reduced-motion: reduce) { .awoo-core-setup-btn { animation: none; } }
         /* THE PROFILE SYNC ICON: a status light, not a module button. A data
            stack with a small dot: fresh, old, or nothing synced (hollow). It
            never blinks. Hovering opens the sections card below it. */
@@ -3694,6 +4381,7 @@
         .awoo-pal-manage { margin-left: auto; background: none; border: none; color: inherit; font: inherit;
           text-transform: none; letter-spacing: 0; font-weight: 400; padding: 0; cursor: pointer; opacity: var(--awoo-em-faint); }
         .awoo-pal-manage:hover, .awoo-pal-manage:focus-visible { opacity: 1; color: var(--awoo-primary); }
+        .awoo-pal-gear { margin-left: 0; }
         .awoo-pal-row { display: flex; align-items: center; gap: var(--awoo-s3); padding: 0 var(--awoo-s3);
           min-height: 22px; border-radius: var(--awoo-r-sm); cursor: pointer; }
         .awoo-pal-row.awoo-m-sel { background: var(--awoo-hover); }
@@ -3834,7 +4522,14 @@
           cursor: help; display: inline-flex; align-items: center;
           font-size: var(--awoo-fs-caption); font-weight: 700; margin-left: var(--awoo-s2); }
         .awoo-ui-devicon:hover { opacity: 1; }
-        .awoo-ui-tip { position: fixed; z-index: 1002500; box-sizing: border-box;
+        .awoo-ui-tip-rows { display: grid; grid-template-columns: auto auto; gap: 0 var(--awoo-s5);
+          margin-top: var(--awoo-s2); white-space: nowrap; }
+        .awoo-ui-tip-rows[hidden] { display: none !important; }
+        .awoo-ui-tip-rows > :nth-child(2n) { text-align: right; font-variant-numeric: tabular-nums; }
+        .awoo-ui-tip-ok { color: var(--awoo-success); }
+        .awoo-ui-tip-warn { color: var(--awoo-warn); }
+        .awoo-ui-tip-mute { color: var(--awoo-ink-mute); }
+        .awoo-ui-tip { position: fixed; z-index: 1002500; box-sizing: border-box; max-width: 300px;
           background: var(--awoo-solid-card); color: var(--awoo-solid-popover-foreground);
           border: 1px solid var(--awoo-solid-border); border-radius: var(--awoo-r-sm);
           padding: 5px 7px; font-size: var(--awoo-fs-caption); line-height: 1.35;
@@ -3959,10 +4654,38 @@
       sepCore.className = 'awoo-core-bar-sep';
       const sepProfile = document.createElement('span');
       sepProfile.className = 'awoo-core-bar-sep';
+      // THE SETUP BUTTON (R185): the first-time setup wizard folded away
+      // ("Later", or a click outside it). Shown only while the wizard waits
+      // (setting setupWizard 'later'); a click opens the wizard again, a
+      // right-click offers to skip it. Hidden for good once it is done or
+      // skipped. renderSetupButton() decides; the wizard is src/core/setup-wizard.js.
+      const setupBtn = document.createElement('button');
+      setupBtn.type = 'button';
+      setupBtn.id = 'awoo-core-setup-btn';
+      setupBtn.className = 'awoo-core-quick-btn awoo-core-setup-btn';
+      setupBtn.hidden = true;
+      setupBtn.title = 'The AWOO+ welcome tour: two short steps. Right-click to skip it.';
+      const setupSpark = document.createElement('i');
+      setupSpark.className = 'awoo-core-setup-spark';
+      const setupText = document.createElement('span');
+      setupText.textContent = 'Welcome';
+      setupBtn.appendChild(setupSpark);
+      setupBtn.appendChild(setupText);
+      setupBtn.addEventListener('click', (e) => { e.stopPropagation(); if (setupHooks) setupHooks.open(); });
+      setupBtn.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!setupHooks) return;
+        ui.menu(setupBtn, [
+          { label: 'Open the welcome tour', onClick: () => setupHooks.open() },
+          { label: 'Skip the tour', onClick: () => setupHooks.skip() },
+        ]);
+      });
       group.appendChild(coreBtn);
       group.appendChild(sepCore);
       group.appendChild(profileBtn);
       group.appendChild(sepProfile);
+      group.appendChild(setupBtn);
       group.appendChild(quickRow);
 
       const dropdown = document.createElement('div');
@@ -4032,7 +4755,19 @@
       pal.verText = mk('span', null);
       pal.ver.appendChild(pal.updLink);
       pal.ver.appendChild(pal.verText);
-      for (const e of [pal.cpBtn, pal.bugBtn, pal.updBtn, pal.ver]) pal.foot.appendChild(e);
+      // Dev proxy only: DEV_LINKS is empty in every other build (see its
+      // declaration), so this adds nothing there. Each opens its page in a new
+      // tab; the same small outlined icon button as the two beside it.
+      pal.devBtns = DEV_LINKS.map((l) => {
+        const b = mk('button', 'awoo-pal-ib');
+        b.type = 'button';
+        b.setAttribute('data-tooltip', l.tip);
+        b.setAttribute('aria-label', l.tip);
+        b.innerHTML = l.icon;
+        b.addEventListener('click', (e) => { e.stopPropagation(); closeDropdown(); window.open(l.url, '_blank', 'noopener'); });
+        return b;
+      });
+      for (const e of [pal.cpBtn, pal.bugBtn, pal.updBtn, ...pal.devBtns, pal.ver]) pal.foot.appendChild(e);
       for (const e of [pal.top, pal.search, pal.main, pal.psl, pal.foot]) dropdown.appendChild(e);
       document.body.appendChild(dropdown);
 
@@ -4067,6 +4802,8 @@
         // One notice for the whole check: it says it is checking, then turns
         // into the answer (R96, the maintainer: "Add message when checking for
         // new updates"). A check you asked for always answers, found or not.
+        // Dev proxy: what players run, not "update checks are off".
+        if (DEV_VERSIONS) { checkLiveVersions(); return; }
         const note = toast('Checking for updates…', { type: 'info', duration: 0 });
         checkForUpdates(true).then(() => {
           if (!RELEASE.manifestUrl) note.set('This is a dev build: update checks are off.', { type: 'info', duration: 3000 });
@@ -4162,13 +4899,14 @@
 
       coreUi = {
         menuSpot, openProfileData,
-        group, coreBtn, quickRow, profileBtn, profileDot, sepCore, sepProfile, dropdown, pal,
+        group, coreBtn, quickRow, profileBtn, profileDot, sepCore, sepProfile, setupBtn, dropdown, pal,
         // reachable from outside buildUi()'s closure: the shared browser-resize
         // listener, and the palette's own actions (which close the menu).
         repositionDropdownIfOpen, closeDropdown,
       };
       renderNumberFormatRow();
       renderUpdateRow();
+      renderSetupButton();
       renderProfileRow();
       anchorGroup();
       watchForAnchor();
@@ -4282,7 +5020,7 @@
       // page), a top-bar button has nothing to open, and the bar is filling up.
       // In the player's order (registry v2), loaded, and not kept off the bar.
       // A tweak never gets a button: it has no window to open.
-      const shown = orderedIds(Object.keys(modules)).filter((id) => {
+      const shown = subOrdered(orderedIds(Object.keys(modules))).filter((id) => {
         const m = modules[id];
         return m.enabled && m.quickButton !== false && m.kind !== 'tweak' && !isIn('barHidden', id);
       }).slice(0, barPreview !== null ? barPreview : registry.barMax);
@@ -4453,9 +5191,8 @@
     function loadCachedProfile() {
       if (activeProfile) return activeProfile;
       try {
-        const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
-        const stored = raw ? JSON.parse(raw) : null;
-        if (stored && typeof stored === 'object') {
+        const stored = readStoredProfile();
+        if (stored) {
           activeProfile = stored;
           activeJson = new Map();
         }
@@ -4463,6 +5200,118 @@
         // refuse corrupted data
       }
       return activeProfile;
+    }
+
+    // ---- the ages, stored beside the profile (R149) ----
+    //
+    // Found live 2026-10-03: the ~300 KB profile was rewritten whole about
+    // three times a minute, with consecutive writes differing by a byte or
+    // two, because a capture re-stamps every section it sees and an age-only
+    // commit wrote the whole profile to store the new stamps. The clocks now
+    // live in a small record of their own under PROFILE_AGES_KEY, and an
+    // age-only commit writes only that; the profile itself is written when a
+    // value changed (or identity, or when the record cannot vouch for it).
+    //
+    // THE TIMESTAMP SEMANTICS ARE KEPT. Whoever reads the profile back through
+    // Core (loadCachedProfile, and the read-merge-write below) gets the stored
+    // profile with the record's newer stamps laid over it, so a reloaded tab
+    // sees the same observedAt, observedOn, queryAt (Profile Sync's scheduler
+    // reads it to decide what to ask for) and timestamp as before. The profile
+    // blob keeps its own copy of the stamps as of its last full write, so a
+    // tab still running an older AWOO+ reads a whole, valid profile whose ages
+    // are at worst older than they really are (the safe direction: older is
+    // trusted less, never more).
+    //
+    // A STAMP VOUCHES ONLY FOR THE VALUE IT SAW. Each stamp travels with a
+    // signature of its section's value (sig: length + FNV-1a of the stable
+    // JSON), and is laid over the stored profile only where that section still
+    // holds that value. Another tab, or an older AWOO+, may have written a
+    // different value since; that value then keeps its own stamp rather than
+    // borrowing one it was never observed at. For the same reason an age-only
+    // write is refused (and a full read-merge-write done instead) unless the
+    // record's signatures match every section this tab holds.
+    //
+    // The key starts with awoo:profile:, so a settings backup leaves it out,
+    // as it leaves out the profile.
+    const PROFILE_AGES_KEY = 'awoo:profile:v1:ages';
+    const sigCache = new Map();   // section -> { json, sig }: one hash per new value
+    function textSig(s) {
+      let h = 0x811c9dc5;
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+      return s.length.toString(36) + ':' + (h >>> 0).toString(36);
+    }
+    // A section's signature. activeProfile's stable JSON is cached in
+    // activeJson, and a merged copy that kept activeProfile's own object for a
+    // section reuses it, so a write hashes only what it has not hashed before.
+    function sectionSig(p, k) {
+      const src = activeProfile && p !== activeProfile && p[k] === activeProfile[k] ? activeProfile : p;
+      let json;
+      if (src === activeProfile && activeJson.has(k)) json = activeJson.get(k);
+      else {
+        json = sectionJson(src, k);
+        if (src === activeProfile) activeJson.set(k, json);
+      }
+      const c = sigCache.get(k);
+      if (c && c.json === json) return c.sig;
+      const sig = textSig(json);
+      sigCache.set(k, { json, sig });
+      return sig;
+    }
+    function sectionKeys(p) { return Object.keys(p).filter((k) => !PROFILE_NOT_SECTIONS.has(k)); }
+    const agesWho = (a) => ({ meta: { characterId: a.characterId, characterName: a.characterName } });
+    function readStoredAges() {
+      try {
+        const raw = localStorage.getItem(PROFILE_AGES_KEY);
+        const a = raw ? JSON.parse(raw) : null;
+        return a && typeof a === 'object' && a.v === 1 && a.sig && typeof a.sig === 'object' ? a : null;
+      } catch (e) { return null; }   // unreadable is absent: the profile's own stamps stand
+    }
+    function agesRecord(p, sig) {
+      const m = p.meta && typeof p.meta === 'object' ? p.meta : {};
+      const rec = {
+        v: 1,
+        characterId: typeof m.characterId === 'string' ? m.characterId : null,
+        characterName: typeof m.characterName === 'string' ? m.characterName : null,
+        observedAt: m.observedAt && typeof m.observedAt === 'object' ? m.observedAt : {},
+        observedOn: m.observedOn && typeof m.observedOn === 'object' ? m.observedOn : {},
+        sig,
+      };
+      if (m.queryAt && typeof m.queryAt === 'object') rec.queryAt = m.queryAt;
+      if (stampOf(m, 'timestamp') !== null) rec.timestamp = m.timestamp;
+      return rec;
+    }
+    // The stored profile with the record's newer stamps laid over it, where
+    // the record vouches for the value. Pure: returns a new object.
+    function applyStoredAges(p, ages) {
+      if (!ages || !sameCharacter(p, agesWho(ages))) return p;
+      const m = p.meta && typeof p.meta === 'object' ? p.meta : {};
+      const seen = Object.assign({}, m.observedAt);
+      const on = Object.assign({}, m.observedOn);
+      const aSeen = ages.observedAt && typeof ages.observedAt === 'object' ? ages.observedAt : {};
+      const aOn = ages.observedOn && typeof ages.observedOn === 'object' ? ages.observedOn : {};
+      for (const k of Object.keys(aSeen)) {
+        if (PROFILE_NOT_SECTIONS.has(k) || p[k] === undefined) continue;
+        const a = stampOf(aSeen, k);
+        const b = stampOf(seen, k);
+        if (a === null || (b !== null && a <= b)) continue;
+        if (ages.sig[k] !== textSig(sectionJson(p, k))) continue;
+        seen[k] = a;
+        if (aOn[k] != null) on[k] = aOn[k];
+      }
+      const meta = Object.assign({}, m, { observedAt: seen, observedOn: on });
+      const queryAt = latestStamps(m.queryAt, ages.queryAt);
+      if (queryAt) meta.queryAt = queryAt;
+      const ts = Math.max(stampOf(m, 'timestamp') || 0, stampOf(ages, 'timestamp') || 0);
+      if (ts) meta.timestamp = ts;
+      return Object.assign({}, p, { meta });
+    }
+    // What storage holds, as one profile. Throws on unreadable JSON (callers
+    // decide what that means), null when there is none.
+    function readStoredProfile() {
+      const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+      const stored = raw ? JSON.parse(raw) : null;
+      if (!stored || typeof stored !== 'object') return null;
+      return applyStoredAges(stored, readStoredAges());
     }
 
     // Stable JSON: object keys sorted, so two readings of the same data
@@ -4749,7 +5598,11 @@
     let profileWriteTimer = null;
     let profileWriteDue = 0;
     let profileWriteSince = 0;
+    // A value (or identity) changed since the last write: the profile itself
+    // must be written, not only its ages (R149).
+    let profileWriteFull = false;
     function queueProfileWrite(valueChanged) {
+      if (valueChanged) profileWriteFull = true;
       const now = Date.now();
       if (profileWriteTimer === null) profileWriteSince = now;
       const due = profileWriteSince + (valueChanged ? PROFILE_WRITE_MS : PROFILE_AGE_MS);
@@ -4769,13 +5622,66 @@
       if (profileWriteTimer !== null) { clearTimeout(profileWriteTimer); profileWriteTimer = null; }
       const mine = activeProfile;
       if (!mine) return;
+      const full = profileWriteFull;
+      profileWriteFull = false;
+      if (!full && writeProfileAgesOnly(mine)) return;
       let out = mine;
       try {
-        const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
-        const stored = raw ? JSON.parse(raw) : null;
-        if (stored && typeof stored === 'object' && sameCharacter(stored, mine)) out = mergeBySection(stored, mine, { local: true });
+        const stored = readStoredProfile();
+        if (stored && sameCharacter(stored, mine)) out = mergeBySection(stored, mine, { local: true });
       } catch (e) { /* unreadable: this tab's copy replaces it */ }
-      try { localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(out)); } catch (e) { reportCoreSaveFailure('profile', e); }
+      const json = JSON.stringify(out);
+      try { localStorage.setItem(PROFILE_STORAGE_KEY, json); } catch (e) { reportCoreSaveFailure('profile', e); return; }
+      const sig = {};
+      for (const k of sectionKeys(out)) sig[k] = sectionSig(out, k);
+      const rec = agesRecord(out, sig);
+      rec.blob = textSig(json);
+      try { localStorage.setItem(PROFILE_AGES_KEY, JSON.stringify(rec)); } catch (e) { reportCoreSaveFailure('profile', e); }
+    }
+    // Only the ages moved: write the small record, merged with the stored one
+    // by the latest stamp per section. Returns false (the caller then writes
+    // the whole profile) when the stored record cannot vouch for a stamp this
+    // tab is moving forward: no record yet (the first write after an update),
+    // another character, or a section whose stored value differs from ours.
+    // A section whose stored value differs but whose stamp in storage is as
+    // new as ours, or newer, is left as stored: the read-merge-write would
+    // keep storage's reading there anyway, and rewriting 300 KB every minute
+    // to say so is the cost this record exists to avoid.
+    function writeProfileAgesOnly(mine) {
+      const ages = readStoredAges();
+      if (!ages || !sameCharacter(mine, agesWho(ages))) return false;
+      // The record speaks for the profile as WE last wrote it. Anyone else who
+      // has written it since (an older AWOO+ in another tab writes it whole on
+      // every capture) makes the record's signatures stale, so read-merge-write
+      // instead. Hashing the stored string costs a millisecond or two a
+      // minute; parsing it would cost more, rewriting it is what this avoids.
+      let raw = null;
+      try { raw = localStorage.getItem(PROFILE_STORAGE_KEY); } catch (e) { return false; }
+      if (raw == null || typeof ages.blob !== 'string' || textSig(raw) !== ages.blob) return false;
+      const m = mine.meta && typeof mine.meta === 'object' ? mine.meta : {};
+      const mSeen = m.observedAt && typeof m.observedAt === 'object' ? m.observedAt : {};
+      const mOn = m.observedOn && typeof m.observedOn === 'object' ? m.observedOn : {};
+      const seen = Object.assign({}, ages.observedAt);
+      const on = Object.assign({}, ages.observedOn);
+      for (const k of Object.keys(mSeen)) {
+        if (PROFILE_NOT_SECTIONS.has(k) || mine[k] === undefined) continue;
+        const a = stampOf(mSeen, k);
+        const b = stampOf(seen, k);
+        if (a === null || (b !== null && a <= b)) continue;
+        if (ages.sig[k] !== sectionSig(mine, k)) return false;
+        seen[k] = a;
+        if (mOn[k] != null) on[k] = mOn[k];
+      }
+      const rec = agesRecord(mine, ages.sig);
+      rec.blob = ages.blob;
+      rec.observedAt = seen;
+      rec.observedOn = on;
+      const queryAt = latestStamps(ages.queryAt, m.queryAt);
+      if (queryAt) rec.queryAt = queryAt;
+      const ts = Math.max(stampOf(ages, 'timestamp') || 0, stampOf(m, 'timestamp') || 0);
+      if (ts) rec.timestamp = ts;
+      try { localStorage.setItem(PROFILE_AGES_KEY, JSON.stringify(rec)); } catch (e) { reportCoreSaveFailure('profile', e); }
+      return true;
     }
 
     // ---- other tabs: a delta, from the tab that observed ----
@@ -4979,6 +5885,25 @@
       };
     }
 
+    // A DURATION, not a moment (v18, REGISTER.md R168): "2d 3h", "3h 18m",
+    // "5m". Party and Dungeon Win Rate each wrote this; one home now. Zone-
+    // free by nature: a span is the same length wherever it is read.
+    //   units  how many units to show, largest first (1-3, default 2);
+    //   floor  round down to the minute instead of to the nearest minute;
+    //   zeros  false drops a zero part ("1d 12m", not "1d 0h 12m").
+    // Anything not a finite number draws '—'; a negative span counts as 0m.
+    function timeSpan(ms, opts) {
+      if (typeof ms !== 'number' || !Number.isFinite(ms)) return '—';
+      const o = opts || {};
+      const units = Math.max(1, Math.min(3, Math.floor(Number(o.units)) || 2));
+      const total = Math.max(0, o.floor ? Math.floor(ms / 60000) : Math.round(ms / 60000));
+      const parts = [[Math.floor(total / 1440), 'd'], [Math.floor((total % 1440) / 60), 'h'], [total % 60, 'm']];
+      let first = parts.findIndex((p) => p[0] > 0);
+      if (first === -1) first = 2;
+      const shown = parts.slice(first, first + units).filter((p, i) => i === 0 || o.zeros !== false || p[0] > 0);
+      return shown.map((p) => p[0] + p[1]).join(' ');
+    }
+
     function formatTimeAgo(ts) {
       if (!ts) return 'Not synced';
       const sec = Math.max(0, Math.floor((Date.now() - ts) / 1000));
@@ -5015,6 +5940,12 @@
       { id: 'village', label: 'Village & PvP', what: 'Your village\'s name, buildings and strengths (PvP tiles are not read yet)' },
       // Rank rates change only when a village leader edits the rank.
       { id: 'villageTaxes', label: 'Village Taxes', what: 'Your village rank and its tax rates: experience, gold, relics and partner resources' },
+      // Cave tool and house levels change only when the player buys one (R141).
+      { id: 'caveTools', label: 'Cave Tools', what: 'The level of each of the twelve cave tools' },
+      { id: 'house', label: 'House', what: 'The level of each house room' },
+      { id: 'currency', label: 'Currencies', what: 'Diamonds, meat, iron, wood and stone, and the shattered resources' },
+      // The provider holds it on every page; it changes when the player buys premium.
+      { id: 'premium', label: 'Premium', what: 'When your VIP and QoL premium run out' },
       // Loadouts change only when the player edits one, and the page where
       // they do is captured then; a day is how long one is worth without.
       { id: 'loadouts', label: 'Loadouts', what: 'Your sculpture presets and each grid, skill-tree presets, and item sets', staleMs: 24 * 60 * 60 * 1000 },
@@ -5131,11 +6062,11 @@
     // view of exactly what is stored, and the modules and tools that use it.
     // It reads only: it asks the game for nothing but what Sync now asks.
     const PROFILE_DATA_GROUPS = [
-      ['Character', ['core', 'levels', 'baseStats', 'statBoosts', 'relicBoosts', 'incomeBoosts', 'mergedMultipliers', 'potions', 'equipment', 'loadouts']],
+      ['Character', ['core', 'premium', 'currency', 'house', 'levels', 'baseStats', 'statBoosts', 'relicBoosts', 'incomeBoosts', 'mergedMultipliers', 'potions', 'equipment', 'loadouts']],
       ['Party', ['party', 'partyActions', 'partyLastAction', 'partyMonster', 'partyLevels']],
       ['Pets', ['pets']],
       ['Partners', ['partner', 'partnerLastActions']],
-      ['Fighters', ['fighters']],
+      ['Fighters', ['fighters', 'caveTools']],
       ['Sanctum', ['sanctum', 'sculpture']],
       ['Village', ['village', 'villageTaxes']],
     ];
@@ -5161,15 +6092,12 @@
         }
         if (Math.abs(v) >= 1e6) return formatNumber(v, 2);
         // The player's own separators (the game's convention), never the
-        // browser's: the same rule as every other number AWOO+ draws.
-        const c = getConvention();
-        const grouped = (digits) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, c.group);
-        if (Number.isInteger(v)) return (v < 0 ? '−' : '') + grouped(String(Math.abs(v)));
+        // browser's: the same rule as every other number AWOO+ draws. Through
+        // Core.num since R168, the one place grouping is written.
+        if (Number.isInteger(v)) return numInt(v);
         // A fraction groups its whole part too (R138: `25727,9` had no
         // separator, while the integer just above it did).
-        const r = Math.round(Math.abs(v) * 1000) / 1000;
-        const [whole, frac] = String(r).split('.');
-        return (v < 0 && r !== 0 ? '−' : '') + grouped(whole) + (frac ? c.decimal + frac : '');
+        return numFixed(v, 3, { trim: true });
       }
       if (typeof v === 'string') return v.length > 60 ? v.slice(0, 57) + '…' : v;
       if (Array.isArray(v)) return v.length + (v.length === 1 ? ' item' : ' items');
@@ -5468,6 +6396,56 @@
       return { text: 'Background reads: starting', dev, tip: 'No tab reads for the others yet: one starts once the game has loaded in a tab.' };
     }
 
+    // ---- importing a settings file (General › Backup, and the setup wizard) ----
+    // One flow for both: read the file, check it, say what it holds, ask, then
+    // apply and reload, because every module read its state at start and would
+    // otherwise keep showing the old one. `afterApply` runs after the keys are
+    // written and before the reload (the wizard marks itself done there).
+    async function importSettingsFile(file, { afterApply } = {}) {
+      let data = null;
+      try { data = JSON.parse(await file.text()); } catch (e) { data = null; }
+      const check = checkBackup(data);
+      if (!check.ok) { toast(`Not imported: ${check.reason}.`, { type: 'warn' }); return false; }
+      const when = typeof data.exportedAt === 'string' ? data.exportedAt.slice(0, 10) : 'an unknown date';
+      const go = await ui.confirmDialog({
+        title: 'Import settings',
+        message: `${check.count} settings from ${when}. They replace the ones they name; `
+          + 'everything else stays as it is. The page reloads to apply them.',
+        confirmLabel: 'Import & reload',
+      });
+      if (!go) { toast('Import cancelled. Nothing changed.', { duration: 2500 }); return false; }
+      const res = applyBackup(data);
+      if (!res.ok) { toast(`Not imported: ${res.reason}.`, { type: 'warn' }); return false; }
+      if (typeof afterApply === 'function') { try { afterApply(); } catch (e) { /* the import itself stands */ } }
+      toast(`Imported ${res.count} settings. Reloading…`, { type: 'success', duration: 2000 });
+      setTimeout(() => location.reload(), 900);
+      return true;
+    }
+    // The file picker the wizard opens: a detached input, the browser's own dialog.
+    function pickSettingsFile(opts) {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json,application/json';
+      input.addEventListener('change', () => {
+        const file = input.files && input.files[0];
+        if (file) importSettingsFile(file, opts);
+      });
+      input.click();
+    }
+
+    // ---- the first-time setup wizard's hooks in Core (REGISTER.md R185) ----
+    //
+    // The wizard itself is a Core part (src/core/setup-wizard.js) and draws
+    // nothing until it is opened. Core keeps only what has to live here: the
+    // bar's Setup button, General's "Run setup again" row, and what the boot
+    // reads found (setupBoot). The part registers { open, skip, isOpen }.
+    let setupHooks = null;
+    function renderSetupButton() {
+      if (!coreUi || !coreUi.setupBtn) return;
+      const show = !!setupHooks && getSetting('setupWizard') === 'later' && !setupHooks.isOpen();
+      if (coreUi.setupBtn.hidden === show) coreUi.setupBtn.hidden = !show;
+    }
+
     // ---- the Profile Sync button on the top bar (REGISTER.md R69) ----
     //
     // Its own button, first after AWOO+, outside the module buttons: it never
@@ -5690,6 +6668,7 @@
       if (jobsScope) { jobsScope.dispose(); jobsScope = null; }
     }
 
+    // A Tweak's settings are its own page since R232, reached by its id like a module's.
     function openSettingsWindow(tabId) {
       if (settingsHandle && settingsStale && !settingsHandle.isOpen()) {
         settingsHandle.destroy();
@@ -5729,6 +6708,7 @@
       settingsUi.renderHostStatus();
       if (tabId && typeof settingsUi.selectTab === 'function') settingsUi.selectTab(tabId);
       settingsHandle.open();
+      fitCpColumns();   // the observer as well, which a hidden tab holds back
     }
 
     function buildSettingsContent() {
@@ -5739,12 +6719,31 @@
       // and fifth module, where invented per-module glyphs do not.
       const root = document.createElement('div');
       root.className = 'awoo-settings';
+      // The house style's label face (DESIGN.md §10a: Azeret Mono for section
+      // labels and column heads), fetched the first time the panel is built
+      // and never on a page where it is not opened. Without it the labels
+      // fall back to the system mono, which still reads as a label.
+      loadFontFamily('Azeret+Mono:wght@400;500;600');
       const side = document.createElement('div');
       side.className = 'awoo-settings-side';
       const paneHost = document.createElement('div');
       paneHost.className = 'awoo-settings-panes';
-      root.appendChild(side);
-      root.appendChild(paneHost);
+      // The frame is the flex row; the root around it is the size container
+      // the narrow layout asks (a container query restyles what is INSIDE
+      // the container, never the container itself).
+      const frame = document.createElement('div');
+      frame.className = 'awoo-settings-frame';
+      root.appendChild(frame);
+      frame.appendChild(side);
+      frame.appendChild(paneHost);
+      // THE COLUMN FIT (R177 columns; the CSS rules on data-cp-cols). The
+      // page's width in unscaled px decides which optional columns show, so
+      // the drop points move with the UI scale and the sidebar width instead
+      // of sitting at a fixed panel width. Before the first measurement (and
+      // where nothing can measure) the middle set: what the default panel
+      // shows. The table's own scroll is only the safety net.
+      root.dataset.cpCols = 'mid';
+      observeCpFit(root, paneHost);
 
       // EVERY CONTROL REGISTERS HOW TO RE-READ ITSELF. "Reset to default"
       // used to re-sync a hand-written list of three inputs, so the two added
@@ -5758,21 +6757,49 @@
       // Also run when another tab changed a setting (onOtherTab).
       const resyncControls = () => { for (const fn of syncers) { try { fn(); } catch (e) { console.error('[AwooCore] reset sync', e); } } };
 
-      // ---- THE CONTROL PANEL'S SHAPE (REGISTER.md R69; DESIGN.md §9) ----
+      // BASIC AND ADVANCED (R159, the maintainer 2026-10-13). An option only
+      // an Advanced player sees carries the class `awoo-adv`, and Basic hides
+      // every such element by one rule on the panel's root
+      // (data-cp-mode="basic"). Marking, not separate pages: an option keeps
+      // its place, so switching to Advanced shows it exactly where it was.
+      // tests/control-panel-modes.mjs holds the list of what is marked.
+      const adv = (el) => { if (el && el.classList) el.classList.add('awoo-adv'); return el; };
+      const basicMode = () => getSetting('cpMode') === 'basic';
+      root.dataset.cpMode = basicMode() ? 'basic' : 'advanced';
+
+      // ---- THE CONTROL PANEL'S SHAPE (REGISTER.md R69; redesigned R230-R232) ----
       //
-      // SECTIONS IN THE SIDEBAR, PAGES AS TABS INSIDE THE PAGE. The sidebar
-      // stays five lines however many pages exist; what used to be a long flat
-      // list of tabs was the "too much" the maintainer reacted to. Order is
-      // theirs: General, Appearance, Modules; then Module settings, set apart;
-      // then Development, at the bottom behind a dashed rule (work in progress
-      // lives there, and only there). A collapsible tree is offered as the
-      // alternative sidebar style (Appearance > Layout), because two good
-      // designs were on the table and the maintainer asked for both.
+      // SECTIONS IN THE SIDEBAR, PAGES AS TABS INSIDE THE PAGE (R69). The
+      // redesign (the maintainer, 2026-10-16; mockup
+      // https://claude.ai/artifact/7DSahupSoxTCndaZHWrycJ, round 2) gives the
+      // sidebar three parts that look different on purpose:
+      //   1. AWOO+: General, Appearance, Features. Large rows with an icon.
+      //      Features is the name for Modules, Tweaks and Tools together (R230).
+      //   2. Feature settings: one page per module, Tweak and tool, in groups
+      //      that fold (remembered) and are either the game's own areas or
+      //      Modules / Tweaks / Tools; one button swaps the two, and the
+      //      Features lists follow the same choice. A lighter list: smaller
+      //      rows, no status lights ("perhaps the lights aren't needed").
+      //   3. Development (Advanced): Profile Sync and the Companion, behind a
+      //      dashed rule (R233).
+      // Basic | Advanced sits at the foot of the sidebar: it changes every
+      // page, so it is always in reach rather than first on General.
+      // The collapsible tree stays the alternative style for part 1.
       const SECTIONS = [
-        { id: 'general', label: 'General' },
-        { id: 'appearance', label: 'Appearance' },
-        { id: 'modules', label: 'Modules' },
+        { id: 'general', label: 'General', icon: 'general' },
+        { id: 'appearance', label: 'Appearance', icon: 'appearance' },
+        { id: 'features', label: 'Features', icon: 'features' },
       ];
+      // THE SIDEBAR'S ICONS, drawn (2026-10-17: the text glyphs rendered
+      // unevenly from font to font). One 16-unit grid, one stroke, the
+      // current text colour; Profile Sync's is the top bar's.
+      const SIDE_ICON = {
+        general: '<path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/><circle cx="5.5" cy="4.5" r="1.5" fill="var(--awoo-ground, #000)"/><circle cx="10.5" cy="8" r="1.5" fill="var(--awoo-ground, #000)"/><circle cx="6.5" cy="11.5" r="1.5" fill="var(--awoo-ground, #000)"/>',
+        appearance: '<circle cx="8" cy="8" r="5.6"/><path d="M8 2.4a5.6 5.6 0 0 1 0 11.2z" fill="currentColor" stroke="none"/>',
+        features: '<rect x="2.5" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="9" y="2.5" width="4.5" height="4.5" rx="1"/><rect x="2.5" y="9" width="4.5" height="4.5" rx="1"/><rect x="9" y="9" width="4.5" height="4.5" rx="1"/>',
+        sync: '<ellipse cx="8" cy="4" rx="5" ry="2"/><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4"/><path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/>',
+        companion: '<rect x="2" y="3" width="12" height="8" rx="1.2"/><path d="M6 14h4M8 11v3"/><path d="M5 6l1.6 1.4L5 8.8"/>',
+      };
       const pages = [];
       let active = { section: 'general', page: 'general' };
       // Assigned once selectPageLazily exists further down; the sidebar calls
@@ -5783,21 +6810,27 @@
       const tabStrip = document.createElement('div');
       tabStrip.className = 'awoo-cp-tabs';
       paneHost.appendChild(tabStrip);
-      function addPage(section, id, label) {
+      // `adv`: the page is a tab in Advanced only (General › Changelog, whose
+      // list Basic shows under Updates instead; the maintainer, 2026-10-16).
+      function addPage(section, id, label, { adv: advOnly = false } = {}) {
         const pane = document.createElement('div');
         pane.className = 'awoo-settings-pane';
         pane.hidden = true;
         paneHost.appendChild(pane);
-        pages.push({ section, id, label, pane });
+        pages.push({ section, id, label, pane, advOnly });
         return pane;
       }
-      const pagesOf = (section) => pages.filter((p) => p.section === section);
+      const pagesOf = (section) => pages.filter((p) => p.section === section && !(p.advOnly && basicMode()));
       function selectPage(section, pageId) {
         const list = pagesOf(section);
         const found = list.find((p) => p.id === pageId) || list[0] || pages[0];
         if (!found) return;
         active = { section: found.section, page: found.id };
         for (const p of pages) p.pane.hidden = p !== found;
+        // A feature page opened from elsewhere (a ⚙, the menu) shows its
+        // group, even one the player had folded.
+        const g = featureGroupOf(found.section);
+        if (g && foldedGroups().includes(g)) setSetting('cpFolded', foldedGroups().filter((x) => x !== g));
         renderSide();
         renderTabs();
       }
@@ -5808,8 +6841,8 @@
           const n = updateState.available.length;
           return n ? { text: String(n), tone: 'warn' } : null;
         }
-        if (section === 'modules' && !pageId) {
-          const mods = Object.values(modules).filter((m) => m.kind !== 'tweak');
+        if (section === 'features' && !pageId) {
+          const mods = Object.values(modules);
           return { text: `${mods.filter((m) => m.enabled).length}/${mods.length}` };
         }
         return null;
@@ -5820,6 +6853,15 @@
         el.textContent = b.text;
         return el;
       }
+      // A tab is one or two words; what it holds is on hover (DESIGN.md §10c,
+      // §12: the tools' sub-line, moved to hover because a window has no room).
+      const TAB_HINTS = {
+        general: 'Time zone · backup · welcome tour · reset', updates: 'Installed · available · what changed',
+        changelog: 'What changed, newest first', diag: 'Modules · errors · check-in',
+        theme: 'Theme · UI scale · Control Panel size', fonts: 'Fonts · number format',
+        menu: 'The AWOO+ menu · the top bar', notify: 'AWOO+\'s notifications: where · how long · history',
+        modules: 'Modules and Tweaks: load · show · order', tools: 'Pages that open in a tab · order',
+      };
       function renderTabs() {
         tabStrip.innerHTML = '';
         const list = pagesOf(active.section);
@@ -5829,17 +6871,29 @@
           b.type = 'button';
           b.className = awooCls('awoo-cp-tab' + (p.id === active.page ? ' on' : ''));
           b.textContent = p.label;
+          if (TAB_HINTS[p.id]) b.title = TAB_HINTS[p.id];
           const badge = badgeFor(p.section, p.id);
           if (badge && p.id === 'updates') b.appendChild(badgeEl(badge));
           b.addEventListener('click', () => selectPageByIdLazily(p.section, p.id));
           tabStrip.appendChild(b);
         }
       }
-      function sideItem(label, { on = false, dim = false, sub = false, badge = null, tag = null, onClick }) {
+      // `icon`: a row of the AWOO+ or Development part. `feat`: a row of the
+      // Feature settings list, its name lined up with the icon rows' names.
+      function sideItem(label, { on = false, dim = false, sub = false, badge = null, tag = null, icon = null, feat = false, onClick }) {
         const b = document.createElement('button');
         b.type = 'button';
-        b.className = awooCls('awoo-settings-side-i' + (on ? ' on' : '') + (dim ? ' dim' : '') + (sub ? ' sub' : ''));
+        b.className = awooCls('awoo-settings-side-i' + (on ? ' on' : '') + (dim ? ' dim' : '') + (sub ? ' sub' : '')
+          + (feat ? ' feat' : ''));
+        if (icon) {
+          const ic = document.createElement('span');
+          ic.className = 'awoo-cp-sideic';
+          ic.innerHTML = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">${SIDE_ICON[icon] || ''}</svg>`;
+          ic.setAttribute('aria-hidden', 'true');
+          b.appendChild(ic);
+        }
         const t = document.createElement('span');
+        t.className = 'awoo-cp-sidelabel';
         t.textContent = label;
         b.appendChild(t);
         if (badge) b.appendChild(badgeEl(badge));
@@ -5847,62 +6901,162 @@
         b.addEventListener('click', onClick);
         return b;
       }
-      function sideHeading(text, { dashed = false } = {}) {
+      // A heading may carry one control, after its rule (as a page heading
+      // does): the Feature settings heading carries the grouping switch.
+      function sideHeading(text, { dashed = false, control = null } = {}) {
         const h = document.createElement('div');
         h.className = awooCls('awoo-settings-side-h' + (dashed ? ' dev' : ''));
-        h.textContent = text;
+        const t = document.createElement('span');
+        t.textContent = text;
+        h.appendChild(t);
+        if (control) h.appendChild(control);
         return h;
       }
+
+      // ---- the features, grouped (R230-R232) ----
+      // A feature is a module, a Tweak (a module with no window) or a tool.
+      // A module's or Tweak's settings page lives in section 'm:<id>'; a tool
+      // has no settings page (it opens in a tab of its own). The groups are
+      // Modules and Tweaks; a feature's area is on its page and in its row.
+      const foldedGroups = () => (Array.isArray(getSetting('cpFolded')) ? getSetting('cpFolded') : []);
+      function featureGroupKey(section) {
+        if (!section.startsWith('m:')) return null;
+        const m = modules[section.slice(2)];
+        if (!m) return null;
+        return m.kind === 'tweak' ? 'kind:tweak' : 'kind:module';
+      }
+      const featureGroupOf = (section) => featureGroupKey(section);
+      // The feature pages, in groups and in the player's order.
+      function featureGroups() {
+        const secs = new Set(pages.filter((p) => p.section.startsWith('m:')).map((p) => p.section));
+        const modIds = subOrdered(orderedIds(Object.keys(modules))).filter((id) => secs.has('m:' + id));
+        const groups = new Map();
+        const add = (key, label, section) => {
+          if (!groups.has(key)) groups.set(key, { key, label, sections: [] });
+          groups.get(key).sections.push(section);
+        };
+        for (const id of modIds) if (modules[id].kind !== 'tweak') add('kind:module', 'Modules', 'm:' + id);
+        for (const id of modIds) if (modules[id].kind === 'tweak') add('kind:tweak', 'Tweaks', 'm:' + id);
+        return [...groups.values()];
+      }
+      function toggleFold(key) {
+        const f = foldedGroups();
+        setSetting('cpFolded', f.includes(key) ? f.filter((x) => x !== key) : f.concat(key));
+        renderSide();
+      }
+      // The parts of the sidebar, rebuilt by renderSide; the narrow layout
+      // lets them flow as one row (display: contents).
+      const zone = (cls) => { const z = document.createElement('div'); z.className = awooCls('awoo-cp-zone ' + cls); return z; };
+      // Basic | Advanced (R159), General's first row, filled by paintModeRow further down.
+      const modeHost = document.createElement('div');
+      modeHost.className = 'awoo-cp-mode';
+      let sideScroller = null;
       function renderSide() {
+        // The list is rebuilt whole; its scroll position is kept.
+        const keepTop = (sideScroller && sideScroller.scrollTop) || 0;
         side.innerHTML = '';
+        const scroller = document.createElement('div');
+        scroller.className = 'awoo-cp-sidescroll';
+        sideScroller = scroller;
         const tree = treeSidebar();
-        // The first group gets a heading like the two below it (R69 round 7):
-        // without one, General / Appearance / Modules read as loose items
-        // above two labelled groups. Named for what it configures, AWOO+
-        // itself, since "General" is already one of its pages.
-        side.appendChild(sideHeading('AWOO+'));
+        // 1. AWOO+ itself. The first group gets a heading like the ones below
+        // it (R69 round 7).
+        const main = zone('main');
+        main.appendChild(sideHeading('AWOO+'));
         for (const s of SECTIONS) {
           const open = active.section === s.id;
-          side.appendChild(sideItem((tree ? (open ? '▾ ' : '▸ ') : '') + s.label, {
-            on: !tree && open, badge: badgeFor(s.id),
+          main.appendChild(sideItem((tree ? (open ? '▾ ' : '▸ ') : '') + s.label, {
+            on: !tree && open, badge: badgeFor(s.id), icon: s.icon,
             onClick: () => selectPageByIdLazily(s.id, open && tree ? active.page : (pagesOf(s.id)[0] || {}).id),
           }));
-          if (tree && open) {
+          if (tree && open && pagesOf(s.id).length > 1) {
             for (const p of pagesOf(s.id)) {
-              side.appendChild(sideItem(p.label, { on: p.id === active.page, sub: true,
+              main.appendChild(sideItem(p.label, { on: p.id === active.page, sub: true,
                 onClick: () => selectPageByIdLazily(p.section, p.id) }));
             }
           }
         }
-        // In the player's module order (Modules page), not the order they were built in.
-        const moduleSections = orderedIds([...new Set(pages.filter((p) => p.section.startsWith('m:')).map((p) => p.section.slice(2)))])
-          .map((id) => 'm:' + id);
-        if (moduleSections.length) {
-          side.appendChild(sideHeading('Module settings'));
-          for (const sec of moduleSections) {
-            const id = sec.slice(2);
-            const mod = modules[id];
-            side.appendChild(sideItem((mod && mod.label) || id, {
-              on: active.section === sec, dim: !(mod && mod.enabled), badge: mod && !mod.enabled ? { text: 'off' } : null,
-              onClick: () => selectPageByIdLazily(sec, 'main'),
-            }));
+        scroller.appendChild(main);
+        // 2. Feature settings.
+        const groups = featureGroups();
+        if (groups.length) {
+          const feat = zone('feat');
+          feat.appendChild(sideHeading('Feature settings'));
+          const folded = foldedGroups();
+          for (const g of groups) {
+            const isFolded = folded.includes(g.key) && !g.sections.includes(active.section);
+            const ids = g.sections.map((sec) => sec.slice(2));
+            const on = g.sections.filter((sec) => sec.startsWith('m:') && modules[sec.slice(2)] && modules[sec.slice(2)].enabled).length;
+            const mods = g.sections.filter((sec) => sec.startsWith('m:')).length;
+            const gb = document.createElement('button');
+            gb.type = 'button';
+            gb.className = awooCls('awoo-cp-sidegrp');
+            gb.setAttribute('aria-expanded', String(!isFolded));
+            gb.title = isFolded ? `Show ${g.label}` : `Fold ${g.label}`;
+            const caret = document.createElement('span');
+            caret.className = 'awoo-cp-caret';
+            caret.textContent = isFolded ? '▸' : '▾';
+            caret.setAttribute('aria-hidden', 'true');
+            gb.appendChild(caret);
+            const gl = document.createElement('span');
+            gl.className = 'awoo-cp-sidelabel';
+            gl.textContent = g.label;
+            gb.appendChild(gl);
+            const cnt = document.createElement('span');
+            cnt.className = 'awoo-cp-sidecount';
+            // How many are on, out of the group.
+            cnt.textContent = `${on}/${mods}`;
+            gb.appendChild(cnt);
+            gb.addEventListener('click', () => toggleFold(g.key));
+            feat.appendChild(gb);
+            if (isFolded) continue;
+            for (const sec of g.sections) {
+              const id = sec.slice(2);
+              const mod = modules[id];
+              const parent = subParentOf(id);
+              feat.appendChild(sideItem((mod && mod.label) || id, {
+                feat: true, on: active.section === sec, dim: !(mod && mod.enabled),
+                sub: !!(parent && g.sections.includes('m:' + parent.id)),
+                badge: mod && !mod.enabled ? { text: 'off' } : null,
+                onClick: () => selectPageByIdLazily(sec, 'main'),
+              }));
+            }
           }
+          scroller.appendChild(feat);
         }
-        side.appendChild(sideHeading('Development', { dashed: true }));
-        side.appendChild(sideItem('Profile Sync', { on: active.section === 'sync',
-          onClick: () => selectPageByIdLazily('sync', 'sync') }));
-        side.appendChild(sideItem('Companion', { on: active.section === 'development', tag: 'WIP',
-          onClick: () => selectPageByIdLazily('development', 'companion') }));
+        side.appendChild(scroller);
+        scroller.scrollTop = keepTop;
+        // 3. Development: Profile Sync (R233), in Basic too, because the top
+        // bar's Profile Sync button and the menu open it there and a page
+        // with no sidebar entry cannot be found again; and the Companion,
+        // which is for developers, so Advanced only (R159).
+        // It sits at the foot of the sidebar (2026-10-17), apart from the
+        // features above it.
+        const dev = zone('dev');
+        dev.appendChild(sideHeading('Development'));
+        dev.appendChild(sideItem('Profile Sync', { on: active.section === 'development' && active.page === 'sync',
+          badge: badgeFor('development', 'sync'), icon: 'sync',
+          onClick: () => selectPageByIdLazily('development', 'sync') }));
+        dev.appendChild(adv(sideItem('Companion', { on: active.section === 'development' && active.page === 'companion', tag: 'WIP', icon: 'companion',
+          onClick: () => selectPageByIdLazily('development', 'companion') })));
+        side.appendChild(dev);
       }
 
-      // Where an outside caller's tab id lands. The old flat ids ('general',
-      // 'appearance', 'jobs', a module id) keep working, because module windows
-      // pass their own id to Core.openSettings() from their gear button.
+      // Where an outside caller's tab id lands. The old ids keep working
+      // ('style', 'layout', 'notify', 'tweaks', 'info', a module id), because
+      // module windows pass their own id to Core.openSettings() from their
+      // gear button, and the menu's search names pages by id.
       const TARGETS = {
-        general: ['general', 'general'], sync: ['sync', 'sync'], profile: ['sync', 'sync'],
-        updates: ['general', 'updates'], notify: ['general', 'notify'], notifications: ['general', 'notify'], changelog: ['general', 'changelog'], diag: ['general', 'diag'], diagnostics: ['general', 'diag'],
-        appearance: ['appearance', 'style'], style: ['appearance', 'style'], layout: ['appearance', 'layout'],
-        modules: ['modules', 'modules'], tools: ['modules', 'tools'], tweaks: ['modules', 'tweaks'], info: ['modules', 'info'],
+        general: ['general', 'general'], sync: ['development', 'sync'], profile: ['development', 'sync'],
+        updates: ['general', 'updates'], changelog: ['general', 'changelog'], diag: ['general', 'diag'], diagnostics: ['general', 'diag'],
+        appearance: ['appearance', 'theme'], theme: ['appearance', 'theme'], style: ['appearance', 'theme'], layout: ['appearance', 'theme'],
+        fonts: ['appearance', 'fonts'], numbers: ['appearance', 'fonts'], menu: ['appearance', 'menu'], bar: ['appearance', 'menu'],
+        // Notices became Pop-ups and moved under Appearance, last (R235).
+        // The page id stays 'notify', and the settings stay notify*.
+        notify: ['appearance', 'notify'], notices: ['appearance', 'notify'], notifications: ['appearance', 'notify'], popups: ['appearance', 'notify'],
+        // 'modules' is Features › Modules & Tweaks, the page's id since R69.
+        features: ['features', 'modules'], modules: ['features', 'modules'], tweaks: ['features', 'modules'], qol: ['features', 'modules'],
+        info: ['features', 'modules'], tools: ['features', 'tools'],
         jobs: ['development', 'companion'], companion: ['development', 'companion'],
       };
       function resolveTarget(id) {
@@ -5912,27 +7066,30 @@
       }
 
       const paneGeneral = addPage('general', 'general', 'General');
-      // Under Development (the maintainer, 2026-09-25): the sync layer is still
-      // being built, and Development is where work in progress lives.
-      const paneSync = addPage('sync', 'sync', 'Profile Sync');
+      const paneUpdates = addPage('general', 'updates', 'Updates');
+      // A tab in Advanced; Basic shows the same list under Updates.
+      const paneChangelog = addPage('general', 'changelog', 'Changelog', { adv: true });
+      const paneDiag = addPage('general', 'diag', 'Diagnostics');
+      // Appearance in four tabs, each one word (the maintainer 2026-10-17: no
+      // "this & that" names): the look and the sizes first, then type, then
+      // the menu and the top bar, then AWOO+'s own notifications.
+      const paneAppearance = addPage('appearance', 'theme', 'UI');
+      const paneFonts = addPage('appearance', 'fonts', 'Formatting');
+      const paneLayout = addPage('appearance', 'menu', 'Menu');
+      // AWOO+'s own messages in the page (R96): "Notices" until R235, then
+      // "Pop-ups", and "Notifications" again since 2026-10-17. The browser's
+      // are always "desktop notifications" (GLOSSARY.md).
+      const paneNotify = addPage('appearance', 'notify', 'Notifications');
+      // Features (R230): Modules and Tweaks on one page, Tools on their own.
+      const paneModules = addPage('features', 'modules', 'Modules & Tweaks');
+      const paneTools = addPage('features', 'tools', 'Tools');
+      // Under Development since R233 (it sat under AWOO+ from R184).
+      const paneSync = addPage('development', 'sync', 'Profile Sync');
       // Its live part is drawn here, above the settings appended further down.
       const syncHost = document.createElement('div');
       syncHost.className = 'awoo-settings-pane';
       paneSync.appendChild(syncHost);
-      // Notifications (R96): where the notices appear, how long, how big, how loud.
-      const paneNotify = addPage('general', 'notify', 'Notifications');
-      const paneUpdates = addPage('general', 'updates', 'Updates');
-      const paneChangelog = addPage('general', 'changelog', 'Changelog');
-      const paneDiag = addPage('general', 'diag', 'Diagnostics');
-      // Appearance is two pages: Style (how things LOOK and READ: theme, number
-      // format, fonts) and Layout (where things sit and how they size).
-      const paneAppearance = addPage('appearance', 'style', 'Style');
-      const paneLayout = addPage('appearance', 'layout', 'Layout');
-      const paneModules = addPage('modules', 'modules', 'Modules');
-      const paneTools = addPage('modules', 'tools', 'Tools');
-      const paneTweaks = addPage('modules', 'tweaks', 'Tweaks');
-      const paneInfo = addPage('modules', 'info', 'Info');
-      const paneJobs = addPage('development', 'companion', 'Companion');
+      const paneJobs = addPage('development', 'companion', 'Companion', { adv: true });   // never in Basic (R159): no tab beside Profile Sync there
 
       // A category heading inside a pane. Distinct from a group box on
       // purpose: the pane IS the group now, and boxing every category inside
@@ -5945,80 +7102,138 @@
         return c;
       }
 
-      // ---- the Appearance summary on General ----
-      // A quiet one-liner in the corner of General — theme, number sample, text
-      // face — so what is set is visible without opening the tab, and a click
-      // goes there. Deliberately faint: it is a signpost, not a control.
-      const appearanceSummary = document.createElement('button');
-      appearanceSummary.type = 'button';
-      appearanceSummary.className = 'awoo-settings-summary';
-      appearanceSummary.title = 'Open Appearance';
-      appearanceSummary.addEventListener('click', () => selectPageByIdLazily('appearance', 'style'));
-      // Not shown since the Control Panel (R69): Appearance is now one line
-      // below General in the sidebar, so a signpost to it was clutter. Kept
-      // built, because renderNumberFormat() still refreshes its text.
-      function renderAppearanceSummary() {
-        const theme = (THEME_CHOICES().find((c) => c.id === themeId()) || {}).label || themeId();
-        const face = fontChoice('text', fontsFor('awoo').text).label;
-        appearanceSummary.textContent = `${theme} · ${formatNumber(1234.5)} · ${face}`;
-      }
-
       // ---- number format ----
       const numGroup = document.createElement('div');
       numGroup.className = 'awoo-ui-group';
       const numStatus = document.createElement('div');
-      numStatus.style.cssText = 'font-size:11px; opacity:.85; margin:4px 0;';
-      numGroup.appendChild(numStatus);
-      const numBtnRow = document.createElement('div');
-      numBtnRow.style.cssText = 'display:flex; gap:6px; flex-wrap:wrap;';
-      const numOptions = [
-        { key: null, label: 'Auto-detect' },
-        { key: '1.000,00', label: '1.000,00 (EU)' },
-        { key: '1,000.00', label: '1,000.00 (US)' },
-      ];
-      const numBtns = numOptions.map((opt) => {
+      numStatus.className = 'awoo-cp-status';
+      // The house segmented switch, the same three choices the setup wizard
+      // offers under General (R185): one control in both places.
+      const numBtnRow = document.createElement('span');
+      numBtnRow.className = 'awoo-cp-seg';
+      numBtnRow.setAttribute('role', 'group');
+      numBtnRow.setAttribute('aria-label', 'Number format');
+      const numBtns = NUMBER_FORMAT_CHOICES.map((opt) => {
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'awoo-ui-btn';
         btn.textContent = opt.label;
         btn.addEventListener('click', () => { setNumberLocaleOverride(opt.key); settingsUi.renderNumberFormat(); });
         numBtnRow.appendChild(btn);
         return { key: opt.key, btn };
       });
       numGroup.appendChild(numBtnRow);
+      // The sample and where it came from, under the switch.
+      numGroup.appendChild(numStatus);
 
-      // ---- appearance ----
+      // ---- Appearance › Theme & size ----
       // The named-theme picker that was "explicitly asked for, explicitly
       // deferred": AWOO Turquoise, the seven themes every tool also wears, and
       // Match game. Previewable, so it applies live (the save model above) —
       // picking a theme IS the preview, and a Save button in front of it would
       // ask you to confirm what you are already looking at.
+      // THEMES IN THEIR OWN COLOURS (the maintainer, 2026-10-16: "the themes
+      // expressed in colours to click instead of drop down"): one swatch per
+      // theme, drawn from its own tokens (ground, a surface card with ink
+      // text, the accent), so the choice is seen before it is made.
       const themeGroup = document.createElement('div');
-      themeGroup.className = 'awoo-ui-group';
-      const themeRow = ui.inputRow({
-        label: 'Theme',
-        type: 'select',
-        value: themeId(),
-        options: THEME_CHOICES().map((c) => ({ value: c.id, label: c.label })),
-        info: 'Tools you open from the AWOO+ menu use this theme too.',
-        devInfo: 'Named themes come from src/tools/theme-tokens.css, generated into Core at build time, so '
-          + 'the overlay and the tools cannot drift. AWOO Turquoise and Match game are game-shaped: eight '
-          + 'game variables with the rest derived by color-mix and the semantic hues taken from Slate. A tool '
-          + 'cannot read the game page, so under either of those it shows Slate and says so.',
-        onChange: (v) => { setSetting('theme', v); renderAppearanceSummary(); },
-      });
-      themeGroup.appendChild(themeRow);
+      themeGroup.className = 'awoo-cp-themes';
+      themeGroup.setAttribute('role', 'group');
+      themeGroup.setAttribute('aria-label', 'Theme');
+      function themeColours(id) {
+        if (id === 'awooTurquoise') {
+          const p = THEME_PRESETS.awooTurquoise;
+          return { ground: p.popover, surface: p.card, ink: p.foreground, accent: p.primary, edge: p.border };
+        }
+        const c = contractTheme(id);
+        if (!c || !c.t) return null;
+        // Default follows the device: its swatch is drawn half light, half dark.
+        return { ground: c.t.ground, surface: c.t.surface, ink: c.t.ink, accent: c.t['accent-fill'], edge: c.t.border,
+          dark: c.dark ? { ground: c.dark.ground, surface: c.dark.surface, ink: c.dark.ink, accent: c.dark['accent-fill'] } : null };
+      }
+      const themeBtns = [];
+      for (const choice of THEME_CHOICES()) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = awooCls('awoo-cp-theme');
+        b.dataset.theme = choice.id;
+        b.title = choice.id === 'matchGame'
+          ? 'Takes the game\'s own colours. Tools you open show Slate, because they cannot read the game page.'
+          : `${choice.label}. Tools you open from the menu use it too.`;
+        const pv = document.createElement('span');
+        pv.className = awooCls('awoo-cp-themepv');
+        pv.setAttribute('aria-hidden', 'true');
+        const col = themeColours(choice.id);
+        const card = (cs) => {
+          const half = document.createElement('span');
+          half.className = awooCls('awoo-cp-themehalf');
+          half.style.background = cs.ground;
+          const sf = document.createElement('span');
+          sf.className = awooCls('awoo-cp-themecard');
+          sf.style.background = cs.surface;
+          sf.style.color = cs.ink;
+          sf.textContent = 'Aa';
+          const ac = document.createElement('span');
+          ac.className = awooCls('awoo-cp-themeacc');
+          ac.style.background = cs.accent;
+          sf.appendChild(ac);
+          half.appendChild(sf);
+          return half;
+        };
+        if (col) {
+          pv.appendChild(card(col));
+          if (col.dark) pv.appendChild(card(col.dark));
+        } else {
+          // Match game: no colours of its own to show.
+          pv.classList.add(awooCls('game'));
+          pv.textContent = 'Game';
+        }
+        b.appendChild(pv);
+        const nm = document.createElement('span');
+        nm.className = awooCls('awoo-cp-themename');
+        nm.textContent = choice.id === 'matchGame' ? 'Match game' : choice.label;
+        b.appendChild(nm);
+        b.addEventListener('click', () => { setSetting('theme', choice.id); paintThemes(); });
+        themeGroup.appendChild(b);
+        themeBtns.push(b);
+      }
+      function paintThemes() {
+        const cur = themeId();
+        for (const b of themeBtns) {
+          const on = b.dataset.theme === cur;
+          b.classList.toggle(awooCls('on'), on);
+          b.setAttribute('aria-pressed', String(on));
+        }
+      }
+      paintThemes();
       // Theme first: it is the one appearance setting people change for fun.
       category(paneAppearance, 'Theme');
-      onReset(() => { if (themeRow._input) themeRow._input.value = themeId(); });
+      onReset(paintThemes);
       paneAppearance.appendChild(themeGroup);
-      category(paneAppearance, 'Numbers');
-      paneAppearance.appendChild(numGroup);
+      // The rest of this tab, in this order, filled further down where each
+      // control is built: the UI scale and the panel's size; the panel's own
+      // options (Advanced); windows (Advanced).
+      const paneBlock = (pane, adv_) => { const d = document.createElement('div'); d.className = 'awoo-cp-block'; if (adv_) adv(d); pane.appendChild(d); return d; };
+      category(paneAppearance, 'Size');
+      const scaleHost = paneBlock(paneAppearance);
+      const sizeHost = paneBlock(paneAppearance);
+      adv(category(paneAppearance, 'Control Panel'));
+      const cpHost = paneBlock(paneAppearance, true);
+      adv(category(paneAppearance, 'Windows'));
+      const winHost = paneBlock(paneAppearance, true);
+      // Fonts & numbers: the fonts first (built further down), then the
+      // number format. Fonts are Basic since the redesign: a tab named for
+      // them must show them.
+      category(paneFonts, 'Fonts');
+      const fontsHost = paneBlock(paneFonts);
+      category(paneFonts, 'Number format');
+      paneFonts.appendChild(numGroup);
 
-      // ---- windows ----
-      const windowsGroup = document.createElement('div');
-      windowsGroup.className = 'awoo-ui-group';
-      windowsGroup.style.cssText = 'margin-top:10px;';
+      // ---- windows, and the Control Panel's own size and options ----
+      // Since the redesign each row goes to its place on Theme & size: the
+      // panel's size under Size (Basic: R231 asks for theme and size first),
+      // its sidebar and stay-on-top under Control Panel, resizing and reopen
+      // under Windows (both Advanced, R159).
+      const windowsGroup = winHost;
 
       const resizeRow = document.createElement('div');
       resizeRow.style.cssText = 'display:flex; align-items:center; gap:8px; margin:4px 0;';
@@ -6031,16 +7246,9 @@
         onChange: (v) => setSetting('windowResizingEnabled', v),
       });
       resizeToggle.style.margin = '0';
-      const resetSizesBtn = document.createElement('button');
-      resetSizesBtn.type = 'button';
-      resetSizesBtn.className = 'awoo-ui-btn';
-      resetSizesBtn.textContent = 'Reset window sizes';
-      resetSizesBtn.title = 'Resets EVERY window\'s position AND size back to default, including this one — '
-        + 'not the same as the dropdown\'s reset button, which only nudges position and leaves size alone.';
-      resetSizesBtn.style.marginLeft = 'auto';
-      resetSizesBtn.addEventListener('click', () => resetAllWindowSizes());
+      // The second "Reset window sizes" that sat here went on 2026-10-13: the
+      // same button is under Recover, the one place both recover actions live.
       resizeRow.appendChild(resizeToggle);
-      resizeRow.appendChild(resetSizesBtn);
       windowsGroup.appendChild(resizeRow);
 
       // Previewable, so it applies live (DESIGN.md's save model): you pick a
@@ -6054,7 +7262,7 @@
         options: Object.keys(SETTINGS_SIZES).map((k) => ({
           value: k, label: `${SETTINGS_SIZES[k].label} (${SETTINGS_SIZES[k].w}x${SETTINGS_SIZES[k].h})`,
         })),
-        info: 'Pick a size. "Bring all panels on-screen" below puts it back where you can reach it.',
+        info: 'Pick a size. General › Reset › "Bring windows on-screen" puts it back where you can reach it.',
         devInfo: 'Non-resizable on purpose: the panes are laid out for a known width, so the choice is '
           + 'between designed sizes rather than a free drag handle.',
         onChange: (v) => {
@@ -6064,15 +7272,15 @@
           if (settingsHandle) { settingsHandle.setMinSize(want); settingsHandle.resetFull(); }
         },
       });
-      windowsGroup.appendChild(sizeRow);
+      sizeHost.appendChild(sizeRow);
       const sideRow = ui.inputRow({
         label: 'Control Panel sidebar', type: 'select', value: CP_SIDE_WIDTHS[getSetting('cpSideWidth')] ? getSetting('cpSideWidth') : 'default',
         options: [{ value: 'narrow', label: 'Narrow' }, { value: 'default', label: 'Default' }, { value: 'wide', label: 'Wide' }],
-        info: 'How wide the list on the left of this panel is. Wider fits long module names.',
+        info: 'How wide the list on the left of the Control Panel is. Wider fits long module names.',
         onChange: (v) => setSetting('cpSideWidth', CP_SIDE_WIDTHS[v] ? v : 'default'),
       });
       onReset(() => { if (sideRow._input) sideRow._input.value = getSetting('cpSideWidth'); applyCpSideWidth(); });
-      windowsGroup.appendChild(sideRow);
+      cpHost.appendChild(sideRow);
       const onTopRow = Core_ui_toggleRow({
         label: 'Keep the Control Panel on top',
         info: 'Loading a module opens its window; with this on, the Control Panel stays above it.',
@@ -6080,7 +7288,7 @@
         onChange: (v) => { setSetting('cpOnTop', v); if (settingsHandle && settingsHandle.isOpen()) settingsHandle.open(); },
       });
       onReset(() => { const i = onTopRow.querySelector('input[type="checkbox"]'); if (i) i.checked = getSetting('cpOnTop') !== false; });
-      windowsGroup.appendChild(onTopRow);
+      cpHost.appendChild(onTopRow);
 
       const reloadRow = Core_ui_toggleRow({
         label: 'Reopen module windows automatically on page reload',
@@ -6096,8 +7304,8 @@
       const profileGroup = document.createElement('div');
       profileGroup.className = 'awoo-ui-group';
       const profileToggle = Core_ui_toggleRow({
-        label: 'Sync profile automatically',
-        info: 'ON (default): your character profile is kept up to date in the background, so every '
+        label: 'Sync automatically',
+        info: 'ON (default): your account data is kept up to date in the background, so every '
           + 'module and tool has current stats. OFF: it only updates when you press Sync now '
           + '(Profile Sync, or right-click its top-bar icon).',
         checked: !!getSetting('profileAutoSync'),
@@ -6120,7 +7328,7 @@
         const icon = watchToggle.children[watchToggle.children.length - 1];
         if (icon && icon.setAttribute) {
           icon.setAttribute('data-tooltip-dev', 'Setting profileWatch. Off: no Web Lock is taken, and no background read, hold, '
-            + 'tool request or Sync now read is made (profile-sync.js). The automatic ones also need "Sync profile automatically".');
+            + 'tool request or Sync now read is made (profile-sync.js). The automatic ones also need "Sync automatically".');
         }
       }
       profileGroup.appendChild(watchToggle);
@@ -6130,8 +7338,10 @@
         const wt = watchToggle.querySelector('input[type="checkbox"]');
         if (wt) wt.checked = getSetting('profileWatch') !== false;
       });
-      category(paneSync, 'Syncing');
-      paneSync.appendChild(profileGroup);
+      // Placed by renderSyncPage (R184): in the simple view only the first
+      // switch shows, under the banner; More options shows both. Parked in
+      // the page's host until the page is first drawn, so it is there to find.
+      syncHost.appendChild(profileGroup);
 
       // ---- Time zone (the maintainer, 2026-09-26: "a way for users to change
       // their timezone (instead of server time for modules), put as a general
@@ -6145,6 +7355,37 @@
       // browser — feature-detected, and the third option simply does not
       // appear where it is unsupported rather than offering a picker with
       // nothing in it.
+      // ---- Welcome (R185 as "Setup"; R236): the welcome tour, again ----
+      // The maintainer, 2026-10-16: "Setup" was too general a word, and two
+      // buttons (the short tour and Extended) one too many. One button opens
+      // the tour; Quick or Full is its own switch, in the tour's header.
+      // Running it again changes nothing until Done, and closing it never
+      // brings the top bar's Welcome button back. Drawn near the foot of
+      // General, above Reset (appended there, further down).
+      const setupGroup = document.createElement('div');
+      setupGroup.className = 'awoo-ui-group';
+      const setupRow = document.createElement('div');
+      setupRow.className = 'awoo-ui-actions';
+      const setupAgainBtn = document.createElement('button');
+      setupAgainBtn.type = 'button';
+      setupAgainBtn.className = 'awoo-ui-btn';
+      setupAgainBtn.textContent = 'Start welcome tour';
+      setupAgainBtn.title = 'The tour from the first install. Pick Quick or Full in its header; nothing changes until Done.';
+      setupAgainBtn.addEventListener('click', () => { if (setupHooks) setupHooks.open({ rerun: true }); });
+      const setupState = document.createElement('span');
+      setupState.className = 'awoo-cp-status';
+      for (const el of [setupAgainBtn, setupState]) setupRow.appendChild(el);
+      setupGroup.appendChild(setupRow);
+      paintSetupRow = () => {
+        const st = getSetting('setupWizard');
+        const word = st === 'done' ? 'Done' : st === 'skipped' ? 'Skipped' : st === 'later' ? 'Not finished · Welcome is on the top bar' : '';
+        if (setupState.textContent !== word) setupState.textContent = word;
+        setupAgainBtn.disabled = !setupHooks;
+      };
+      paintSetupRow();
+
+      category(paneGeneral, 'Options');
+      paneGeneral.appendChild(modeHost);
       category(paneGeneral, 'Time zone');
       const tzGroup = document.createElement('div');
       tzGroup.className = 'awoo-ui-group';
@@ -6196,7 +7437,7 @@
       zoneRow.appendChild(zoneList);
       tzGroup.appendChild(zoneRow);
       const tzSample = document.createElement('div');
-      tzSample.style.cssText = 'font-size:11px; opacity:.85; margin:4px 0;';
+      tzSample.className = 'awoo-cp-status';
       tzGroup.appendChild(tzSample);
       function paintZoneRow() { zoneRow.hidden = tzMode() !== 'custom'; }
       function paintTzSample() {
@@ -6213,9 +7454,9 @@
       });
       paneGeneral.appendChild(tzGroup);
 
-      category(paneGeneral, 'Developer');
+      adv(category(paneGeneral, 'Developer'));
       const devGroup = document.createElement('div');
-      devGroup.className = 'awoo-ui-group';
+      devGroup.className = 'awoo-ui-group awoo-adv';
       devGroup.appendChild(Core_ui_toggleRow({
         label: 'Show developer info',
         info: 'Adds a tinted second half to hover text, explaining why things work the way they do.',
@@ -6228,7 +7469,6 @@
       });
       paneGeneral.appendChild(devGroup);
 
-      category(paneLayout, 'Panels');
       onReset(() => {
         const rz = resizeToggle.querySelector('input[type="checkbox"]');
         if (rz) rz.checked = !!getSetting('windowResizingEnabled');
@@ -6241,7 +7481,6 @@
         settingsMinW = want.w; settingsMinH = want.h;
         if (settingsHandle) { settingsHandle.setMinSize(want); settingsHandle.resetFull(); }
       });
-      paneLayout.appendChild(windowsGroup);
 
       // ---- job host (v11) ----
       //
@@ -6259,7 +7498,8 @@
       hostGroup.className = 'awoo-ui-group';
       hostGroup.style.cssText = 'margin-top:10px;';
       const hostLabel = document.createElement('div');
-      hostLabel.style.cssText = 'font-weight:bold; opacity:.7; text-transform:uppercase; font-size:10px; letter-spacing:.04em; margin-bottom:4px;';
+      // The panel's one heading style (DESIGN.md §10e), not a private copy.
+      hostLabel.className = 'awoo-ui-group-label';
       hostLabel.textContent = 'Companion';
       hostLabel.appendChild(ui.infoIcon(
         'An optional local program that runs long simulations outside the browser, so they keep going '
@@ -6529,9 +7769,9 @@
           const row = document.createElement('div');
           row.className = 'awoo-fonts-row';
           const label = document.createElement('label');
-          label.textContent = kind === 'text' ? 'Text' : 'Numbers';
+          label.textContent = kind === 'text' ? 'Text font' : 'Number font';
           const sel = document.createElement('select');
-          sel.setAttribute('aria-label', `${sf.label} ${label.textContent.toLowerCase()} font`);
+          sel.setAttribute('aria-label', `${sf.label} ${label.textContent.toLowerCase()}`);
           for (const f of FONT_CHOICES[kind]) {
             const o = document.createElement('option');
             o.value = f.id;
@@ -6600,26 +7840,24 @@
         setSetting('fonts', { awoo: Object.assign({}, fontDraft.awoo), tools: Object.assign({}, fontDraft.tools) });
         fontDraft = savedFonts();
         renderFonts();
-        renderAppearanceSummary();
         toast('Fonts applied. Tools use them from the next one you open.', { type: 'success', duration: 3000 });
       });
-      onReset(() => { fontDraft = savedFonts(); renderFonts(); renderAppearanceSummary(); });
+      onReset(() => { fontDraft = savedFonts(); renderFonts(); });
       renderFonts();
-      category(paneAppearance, 'Fonts');
-      paneAppearance.appendChild(fontsGroupHost);
+      fontsHost.appendChild(fontsGroupHost);
 
       // ---- backup ----
       // Export writes a file; import reads one, says what it holds, and asks
       // before touching anything. After an import the page reloads, because
       // every module read its state at start and would otherwise keep showing
       // the old one until the next reload anyway.
-      category(paneGeneral, 'Backup');
+      adv(category(paneGeneral, 'Backup'));
       const backupGroup = document.createElement('div');
-      backupGroup.className = 'awoo-ui-group';
+      backupGroup.className = 'awoo-ui-group awoo-adv';
       const backupHint = document.createElement('div');
       backupHint.className = 'awoo-fonts-hint';
       backupHint.textContent = 'Every AWOO+ setting, module, window and tool, in one file. '
-        + 'Your character profile and Companion token are left out.';
+        + 'Your account data and Companion token are left out.';
       const backupRow = document.createElement('div');
       backupRow.className = 'awoo-ui-actions';
       backupRow.style.marginTop = 'var(--awoo-s3)';
@@ -6653,52 +7891,76 @@
         }
       });
       importBtn.addEventListener('click', () => { importFile.value = ''; importFile.click(); });
-      importFile.addEventListener('change', async () => {
+      importFile.addEventListener('change', () => {
         const file = importFile.files && importFile.files[0];
-        if (!file) return;
-        let data = null;
-        try { data = JSON.parse(await file.text()); } catch (e) { data = null; }
-        const check = checkBackup(data);
-        if (!check.ok) { toast(`Not imported: ${check.reason}.`, { type: 'warn' }); return; }
-        const when = typeof data.exportedAt === 'string' ? data.exportedAt.slice(0, 10) : 'an unknown date';
-        const go = await ui.confirmDialog({
-          title: 'Import settings',
-          message: `${check.count} settings from ${when}. They replace the ones they name; `
-            + 'everything else stays as it is. The page reloads to apply them.',
-          confirmLabel: 'Import & reload',
-        });
-        if (!go) { toast('Import cancelled. Nothing changed.', { duration: 2500 }); return; }
-        const res = applyBackup(data);
-        if (!res.ok) { toast(`Not imported: ${res.reason}.`, { type: 'warn' }); return; }
-        toast(`Imported ${res.count} settings. Reloading…`, { type: 'success', duration: 2000 });
-        setTimeout(() => location.reload(), 900);
+        if (file) importSettingsFile(file);
       });
       for (const el of [exportBtn, importBtn, importFile]) backupRow.appendChild(el);
       backupGroup.appendChild(backupHint);
       backupGroup.appendChild(backupRow);
       paneGeneral.appendChild(backupGroup);
 
-      // ---- reset (settings, separate from "Reset window sizes" above —
-      // one resets WHERE/HOW BIG things are, this resets the settings
-      // THEMSELVES: number format override, theme, reload behaviour,
-      // window-resizing-enabled) ----
+      // ---- General's foot: Welcome, then Reset (R236) ----
+      // The tour, then every way back: the settings themselves (theme,
+      // number format, the menu and the rest), and where and how big windows
+      // are (the two recover buttons, added below where the panel's button
+      // helper exists). One section for "put it back", at the bottom.
+      category(paneGeneral, 'Welcome');
+      paneGeneral.appendChild(setupGroup);
+      category(paneGeneral, 'Reset');
       const resetSettingsRow = document.createElement('div');
-      resetSettingsRow.style.cssText = 'margin-top:10px; display:flex; justify-content:flex-end;';
+      resetSettingsRow.className = 'awoo-ui-actionrow';
       const resetSettingsBtn = document.createElement('button');
       resetSettingsBtn.type = 'button';
       resetSettingsBtn.className = 'awoo-ui-btn';
-      resetSettingsBtn.textContent = 'Reset settings to default';
-      resetSettingsBtn.title = 'Resets number format, theme, and the toggles above back to default — '
-        + 'does NOT touch window positions/sizes (use "Reset window sizes" above for that).';
-      resetSettingsBtn.addEventListener('click', () => {
+      // "Reset settings" under a Reset heading (R236), where it sits with the
+      // window resets. It asks first, in a line under the row (R236: "with a
+      // confirmation"): it reaches every page of the panel.
+      resetSettingsBtn.textContent = 'Reset settings…';
+      resetSettingsBtn.title = 'Every AWOO+ setting on every page back to its default (theme, number format, notifications, '
+        + 'the menu and the rest), and the welcome tour offered again. Your modules, their saved data, window positions '
+        + 'and sizes, and Basic or Advanced are kept.';
+      const resetConfirm = document.createElement('div');
+      resetConfirm.className = 'awoo-cp-confirm';
+      resetConfirm.hidden = true;
+      const resetConfirmText = document.createElement('span');
+      resetConfirmText.textContent = 'Every AWOO+ setting goes back to its default, and the welcome tour is offered again. '
+        + 'Your modules, what they saved, and your windows are kept.';
+      const resetYes = document.createElement('button');
+      resetYes.type = 'button';
+      resetYes.className = 'awoo-ui-btn awoo-ui-btn-primary';
+      resetYes.textContent = 'Reset settings';
+      const resetNo = document.createElement('button');
+      resetNo.type = 'button';
+      resetNo.className = 'awoo-ui-btn';
+      resetNo.textContent = 'Cancel';
+      for (const el of [resetConfirmText, resetYes, resetNo]) resetConfirm.appendChild(el);
+      resetSettingsBtn.addEventListener('click', () => { resetConfirm.hidden = false; });
+      resetNo.addEventListener('click', () => { resetConfirm.hidden = true; });
+      resetYes.addEventListener('click', () => {
+        resetConfirm.hidden = true;
         setNumberLocaleOverride(null);
-        for (const key of Object.keys(SETTINGS_DEFAULTS)) setSetting(key, SETTINGS_DEFAULTS[key]);
+        // Basic or Advanced is kept (R159): a reset must not hide half the
+        // panel from under the player who pressed it.
+        for (const key of Object.keys(SETTINGS_DEFAULTS)) if (key !== 'cpMode') setSetting(key, SETTINGS_DEFAULTS[key]);
         resyncControls();
         settingsUi.renderNumberFormat();
-        toast('Settings reset to default.', { type: 'success', duration: 3000 });
+        toast('Settings back to defaults.', { type: 'success', duration: 3000 });
+        // THE WELCOME TOUR COMES BACK (R185; the maintainer: "till settings
+        // reset or re-install"). Offered as if new ('open': Later keeps the
+        // Welcome button, and a reload opens it again), but ticked from what
+        // is loaded now: a reset leaves the modules alone, so it is not a
+        // fresh install.
+        setSetting('setupWizardFresh', false);
+        setSetting('setupWizard', 'open');
+        if (setupHooks) setupHooks.open();
       });
       resetSettingsRow.appendChild(resetSettingsBtn);
       paneGeneral.appendChild(resetSettingsRow);
+      paneGeneral.appendChild(resetConfirm);
+      // The window resets join this row further down, where the panel's
+      // button helper exists.
+      const recoverHost = resetSettingsRow;
 
       // The "more settings are planned, see INSTRUMENTATION.md" note that used
       // to sit here is gone. It was true and it was addressed to whoever
@@ -6757,6 +8019,37 @@
       };
       const sub = (text) => h('div', 'awoo-cp-sub', text);
 
+      // ---- Basic | Advanced (R159), the first row of General ----
+      // A labelled pair (DESIGN.md §9), with what each side shows on hover.
+      // The redesign put it at the foot of the sidebar; the maintainer
+      // preferred it under General (2026-10-17).
+      function paintModeRow() {
+        modeHost.innerHTML = '';
+        modeHost.appendChild(h('span', 'awoo-cp-modelabel', 'Show'));
+        const p = pair([{ value: 'basic', label: 'Basic' }, { value: 'advanced', label: 'Advanced' }],
+          basicMode() ? 'basic' : 'advanced', (v) => setSetting('cpMode', v === 'basic' ? 'basic' : 'advanced'));
+        p.setAttribute('aria-label', 'Basic or Advanced');
+        p.title = basicMode() ? 'Basic: showing the main options. Advanced shows every option, on every AWOO+ page.'
+          : 'Advanced: showing every option. Basic shows what most players need.';
+        modeHost.appendChild(p);
+        modeHost.appendChild(h('span', 'awoo-cp-sub', basicMode() ? 'The options most players need.' : 'Every option, on every page.'));
+      }
+      paintModeRow();
+      paintCpMode = () => {
+        root.dataset.cpMode = basicMode() ? 'basic' : 'advanced';
+        paintModeRow();
+        // Changelog is a tab in Advanced only: Basic shows it under Updates.
+        if (basicMode() && active.section === 'general' && active.page === 'changelog') selectPageByIdLazily('general', 'updates');
+        renderSide();
+        renderTabs();
+        if (paneUpdates._refresh) paneUpdates._refresh(true);
+        // The Companion page has no place in Basic: back to General. Profile
+        // Sync's page is drawn per mode and stays open.
+        if (basicMode() && active.section === 'development' && active.page === 'companion') selectPageByIdLazily('general', 'general');
+        // Profile Sync's page is drawn per mode, not hidden by the rule.
+        if (paneSync._refresh) paneSync._refresh(true);
+      };
+
       // ---- one status vocabulary (DESIGN.md §9; Modules › Info shows it) ----
       // The slot is the same dot the top bar draws; the text is the module's
       // own reading where it has one, because "04:12" is the answer and
@@ -6779,35 +8072,142 @@
 
       // ---- how fresh a Profile Sync section is: Core's one answer ----
       const sectionLabel = (key) => ((PROFILE_CATEGORIES.find((c) => c.id === key) || {}).label) || key;
+      // WHAT A FEATURE READS, IN A FEW WORDS (the maintainer, 2026-10-17:
+      // every section with its age was "too chaotic"; Profile Sync's own page
+      // has the detail). Each section belongs to one of these groups; one
+      // not listed shows under its own name.
+      const SYNC_GROUP = {
+        core: 'Account', levels: 'Account', currency: 'Account', premium: 'Account', loadouts: 'Account',
+        relicBoosts: 'Boosts', baseStats: 'Boosts', statBoosts: 'Boosts', incomeBoosts: 'Boosts', mergedMultipliers: 'Boosts', potions: 'Boosts',
+        pets: 'Pets', partner: 'Partners', partnerLastActions: 'Partners',
+        party: 'Party', partyActions: 'Party', partyLastAction: 'Party', partyMonster: 'Party', partyLevels: 'Party',
+        sanctum: 'Sanctum', sculpture: 'Fighters', fighters: 'Fighters', equipment: 'Fighters',
+        village: 'Village', villageTaxes: 'Village', house: 'Village', caveTools: 'Caves',
+      };
+      const syncGroups = (keys) => [...new Set((keys || []).map((k) => SYNC_GROUP[k] || sectionLabel(k)))];
       const freshness = (key) => profileFreshness(key);
-      function usesChips(keys) {
-        const wrap = h('span', 'awoo-cp-uses');
-        if (!keys || !keys.length) { wrap.appendChild(h('span', 'awoo-cp-chip', 'reads the page')); return wrap; }
-        for (const k of keys) {
-          const f = freshness(k);
-          const c = h('span', 'awoo-cp-chip ' + f.state, sectionLabel(k));
-          c.title = `${sectionLabel(k)}: ${f.state === 'ok' ? 'fresh, ' + f.age : f.state === 'stale' ? 'old, ' + f.age : f.state === 'empty' ? 'came back empty' : 'never seen. Open that page in the game once.'}`;
-          wrap.appendChild(c);
-        }
-        return wrap;
+      // THE SYNCED CELL (R171): one entry, the first section it fills in
+      // from, plus "+N" for the rest; every section and its age is in the
+      // hover card (Core's opaque tooltip on <body>, so it is never
+      // see-through and never clipped by the table's frame, R34). The word
+      // takes the colour of the WORST section, so an old one is not hidden
+      // behind a fresh first one.
+      const SYNC_RANK = { miss: 3, stale: 2, empty: 1, ok: 0 };
+      const SYNC_WORD = { ok: (f) => f.age, stale: (f) => 'old · ' + f.age, empty: () => 'came back empty', miss: () => 'never seen' };
+      const SYNC_TONE = { ok: 'ok', stale: 'warn', empty: 'mute', miss: 'mute' };
+      // `reg`, when given, is the page's list of its Synced cells: a Profile
+      // Sync capture repaints them in place (patchSynced) instead of
+      // redrawing the page. The capture's timestamp used to be in each
+      // page's redraw signature, so every capture (every 15-60 s with the
+      // panel open) rebuilt the page: an open select closed in the player's
+      // hand and the Max buttons slider was replaced mid-drag.
+      function syncedCell(keys, name, reg) {
+        const cell = h('span', 'awoo-cp-synced');
+        cell.tabIndex = 0;
+        fillSynced(cell, keys, name);
+        if (reg) reg.push({ cell, keys, name });
+        return cell;
       }
+      function fillSynced(cell, keys, name) {
+        if (!keys || !keys.length) {
+          if (cell.awooSyncSig === 'none') return;
+          cell.awooSyncSig = 'none';
+          cell.className = awooCls('awoo-cp-synced none');
+          cell.textContent = 'None';
+          cell.setAttribute('data-tooltip', `${name} reads the page itself; nothing from Profile Sync.`);
+          return;
+        }
+        const secs = keys.map((k) => ({ k, f: freshness(k) }));
+        const worst = secs.reduce((a, x) => (SYNC_RANK[x.f.state] > SYNC_RANK[a.f.state] ? x : a), secs[0]);
+        const tipRows = secs.map(({ k, f }) => [sectionLabel(k), SYNC_WORD[f.state] ? SYNC_WORD[f.state](f) : f.state, SYNC_TONE[f.state] || '']);
+        // Touch the DOM only when something shown changed: this runs on
+        // every panel refresh (a countdown makes that once a second).
+        const sig = JSON.stringify([worst.f.state, tipRows]);
+        if (cell.awooSyncSig === sig) return;
+        cell.awooSyncSig = sig;
+        cell.className = awooCls('awoo-cp-synced ' + worst.f.state);
+        cell.textContent = '';
+        cell.appendChild(h('span', 'awoo-cp-synced-word', sectionLabel(keys[0])));
+        if (keys.length > 1) cell.appendChild(h('span', 'awoo-cp-synced-more', '+' + (keys.length - 1)));
+        cell.setAttribute('data-tooltip', `What ${name} fills in from Profile Sync:`);
+        cell.awooTipRows = tipRows;
+      }
+      // What a feature reads, for a row's details: the groups, and a link to
+      // Profile Sync, where every section and its age are.
+      function readsFact(keys, name) {
+        const groups = syncGroups(keys);
+        const v = h('span', 'awoo-cp-reads');
+        if (!groups.length) { v.appendChild(h('span', 'awoo-cp-dimtext', 'Nothing: it reads the page itself')); return fact('Profile Sync', v); }
+        v.appendChild(h('span', null, groups.join(', ')));
+        v.title = `What ${name} fills in from Profile Sync`;
+        return fact('Profile Sync', v);
+      }
+      const patchSynced = (reg) => { for (const s of reg) (s.fill || fillSynced)(s.cell, s.keys, s.name); };
+
+      // ONE COLUMN RHYTHM FOR THE TWO TABLES (R177; R232, the maintainer
+      // 2026-10-16: "make the Modules, Tweaks & Tools more uniform in their
+      // tables"). Features › Modules & Tweaks and Features › Tools draw every
+      // column below, in this order, at the widths the CSS gives each class
+      // (`.awoo-cp-<col>`), so a label or a control sits on the same vertical
+      // line on both pages. A column a row has no use for is drawn empty
+      // (cpGap), never left out: leaving it out is what moved every column
+      // after it. The name column takes the rest of the width. Synced,
+      // Author and Start moved into the row's details, which a click on the
+      // row opens. The last column is
+      // the ⚙ to the feature's own settings page (the maintainer: "add
+      // settings icon ... as the last column to quickly go to that modules'
+      // settings tab"). Category goes first as the panel narrows, then
+      // Status (the details still say both).
+      const CP_COLS = ['hcol', 'name', 'catcol', 'statcol', 'loadcol', 'menucol', 'barcol', 'actcol'];
+      const CP_NUM_COLS = new Set();
+      const CP_CENTRE_COLS = new Set(['loadcol', 'menucol', 'barcol', 'actcol']);
+      // spec: { name, cat, stat, load, menu, bar } — a string head, or [head, hover].
+      function cpHead(spec) {
+        const heads = { name: spec.name, catcol: spec.cat, statcol: spec.stat, loadcol: spec.load, menucol: spec.menu, barcol: spec.bar };
+        const tr = h('tr');
+        for (const col of CP_COLS) {
+          const v = heads[col];
+          const [text, tip] = Array.isArray(v) ? v : [v || '', ''];
+          const c = h('th', col === 'name' ? 'awoo-cp-namecol' : cpColCls(col), text);
+          if (tip) c.setAttribute('data-tooltip', tip);
+          tr.appendChild(c);
+        }
+        const head = h('thead');
+        head.appendChild(tr);
+        return head;
+      }
+      function cpColCls(col) {
+        return 'awoo-cp-' + col + (CP_NUM_COLS.has(col) ? ' n' : CP_CENTRE_COLS.has(col) ? ' c' : '');
+      }
+      // A column this row does not use: kept for the rhythm, holding a quiet
+      // dash where a control would be, so "does not apply" reads as such.
+      const cpGap = (col, dash = false) => h('td', cpColCls(col) + ' awoo-cp-gap', dash ? '—' : null);
 
       // ---- drag and drop, plus Alt+Up/Down on the handle ----
-      // One order for the bar and the menu (registry v2). Dropping on a row
-      // puts the dragged module where that row was.
+      // One order for the bar and the menu (registry v2), and since
+      // 2026-10-13 for the Tools and Tweaks pages too (the maintainer: "add
+      // drag-ordering to the Tools and Tweaks pages like Modules already has"),
+      // which the menu and the setup wizard follow. Dropping on a row puts
+      // the dragged item where that row was. `peers` is the page's list: the
+      // move permutes only their places in the one stored order, so a tool's
+      // move never shifts a module, and an id the order has never seen (a
+      // tool nobody touched) joins it at the end, in the order shown.
       let dragId = null;
-      function moveTo(srcId, dstId) {
-        if (!srcId || !dstId || srcId === dstId) return;
-        const all = orderedIds(Object.keys(modules));
-        const from = all.indexOf(srcId);
-        const to = all.indexOf(dstId);
+      function moveTo(srcId, dstId, peers) {
+        if (!srcId || !dstId || srcId === dstId || !peers) return;
+        const shown = orderedIds(peers);
+        const from = shown.indexOf(srcId);
+        const to = shown.indexOf(dstId);
         if (from < 0 || to < 0) return;
-        all.splice(from, 1);
-        all.splice(to, 0, srcId);
-        const rest = registry.order.filter((x) => !all.includes(x));
-        setOrder(all.concat(rest));
+        shown.splice(from, 1);
+        shown.splice(to, 0, srcId);
+        const order = registry.order.slice();
+        for (const id of orderedIds(peers)) if (!order.includes(id)) order.push(id);
+        const slots = order.map((id, i) => (peers.includes(id) ? i : -1)).filter((i) => i >= 0);
+        slots.forEach((slot, k) => { order[slot] = shown[k]; });
+        setOrder(order);
       }
-      function wireDrag(row, handle, id, peers) {
+      function wireDrag(row, handle, id, peers, pane) {
         handle.addEventListener('pointerdown', () => { row.draggable = true; });
         row.addEventListener('dragstart', (e) => {
           dragId = id;
@@ -6826,7 +8226,9 @@
           row.classList.remove('awoo-m-over');
           const src = dragId;
           dragId = null;
-          moveTo(src, id);
+          moveTo(src, id, peers);
+          // setOrder repaints the menu and the bar; this page redraws itself.
+          if (pane && pane._refresh) pane._refresh(true);
         });
         handle.addEventListener('keydown', (e) => {
           if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
@@ -6834,265 +8236,408 @@
           const i = peers.indexOf(id);
           const j = e.key === 'ArrowUp' ? i - 1 : i + 1;
           if (j < 0 || j >= peers.length) return;
-          moveTo(id, peers[j]);
-          const again = paneModules.querySelector(`[data-handle="${id}"]`);
+          moveTo(id, peers[j], peers);
+          if (pane && pane._refresh) pane._refresh(true);
+          const again = (pane || paneModules).querySelector(`[data-handle="${id}"]`);
           if (again) again.focus();
         });
       }
+      // The ⋮⋮ handle every orderable row starts with.
+      function dragHandle(row, id, peers, pane) {
+        const hc = h('td', 'awoo-cp-hcol');
+        const handle = h('button', 'awoo-cp-handle', '⋮⋮');
+        handle.type = 'button';
+        handle.dataset.handle = id;
+        handle.title = 'Drag to reorder (Alt+Up / Alt+Down)';
+        hc.appendChild(handle);
+        row.appendChild(hc);
+        wireDrag(row, handle, id, peers, pane);
+      }
 
-      // ---- Modules › Modules ----
+      // ---- Features › Modules & Tweaks, and Features › Tools (R232) ----
+      //
+      // ONE LIST SHAPE FOR BOTH PAGES (the maintainer, 2026-10-16: "more
+      // uniform", "collapse all/expand all", "each row collapse/expand when
+      // clicked"). A row keeps its switches (Load or On, Menu, Bar) and ends
+      // with the ⚙ to the feature's settings page; a click anywhere else on
+      // the row opens its details underneath, which only TELL (the
+      // maintainer: "with expanding the features I purely meant giving more
+      // information"): the full description, what it reads from Profile Sync
+      // and how fresh that is, who made it, its version and start time, and
+      // links to its settings and its window. One row is open at a time
+      // (2026-10-17: Expand all / Collapse all are gone); which is kept for
+      // the session, not saved.
+      const featOpen = new Set();
+      let legendShown = false;
+      // A click on a switch, a tick or a button inside the row is that
+      // control's, not the row's: walked up from the target to the row.
+      const isControl = (el, row) => {
+        for (let e = el; e && e !== row; e = e.parentElement) if (/^(BUTTON|INPUT|SELECT|LABEL|A)$/.test(e.tagName || '')) return true;
+        return false;
+      };
+      function featRowToggle(row, id, pane) {
+        row.classList.add(awooCls('awoo-cp-openable'));
+        row.setAttribute('aria-expanded', String(featOpen.has(id)));
+        row.addEventListener('click', (e) => {
+          if (isControl(e.target, row)) return;
+          const was = featOpen.has(id);
+          featOpen.clear();
+          if (!was) featOpen.add(id);
+          pane._refresh(true);
+        });
+      }
+      // The ▸ before a name: it turns when the row is open.
+      const chevron = (open) => { const c = h('span', 'awoo-cp-chev' + (open ? ' on' : ''), '▸'); c.setAttribute('aria-hidden', 'true'); return c; };
+      // Descriptions mode: the description's first sentence, on one line
+      // under the name (the CSS ends a long one with …).
+      const shortDesc = (text) => { const t = String(text || '').trim(); const m = t.match(/^.*?[.!?:](\s|$)/); return (m ? m[0] : t).trim().replace(/[:.]$/, ''); };
+      function descLine(nc, text) {
+        if (!listDesc() || !text) return;
+        const d = h('div', 'awoo-cp-short', shortDesc(text));
+        d.title = text;
+        nc.appendChild(d);
+      }
+      // The bar above a list: Compact | Descriptions, and the key to the marks.
+      const listDesc = () => getSetting('cpListDesc') === 'descriptions';
+      function listBar(pane) {
+        const bar = h('div', 'awoo-cp-listbar');
+        const p = pair([{ value: 'compact', label: 'Compact' }, { value: 'descriptions', label: 'Descriptions' }],
+          listDesc() ? 'descriptions' : 'compact', (v) => { setSetting('cpListDesc', v); pane._refresh(true); });
+        p.setAttribute('aria-label', 'Names only, or a short description under each');
+        bar.appendChild(p);
+        bar.appendChild(h('span', 'awoo-cp-grow'));
+        const key = h('button', 'awoo-cp-link', legendShown ? 'Hide the key' : 'What do the marks mean?');
+        key.type = 'button';
+        key.setAttribute('aria-expanded', String(legendShown));
+        key.addEventListener('click', (e) => { e.stopPropagation(); legendShown = !legendShown; pane._refresh(true); });
+        bar.appendChild(key);
+        pane.appendChild(bar);
+        if (legendShown) pane.appendChild(legendBox());
+      }
+      // THE KEY (it was the Modules › Info page): the status lights, the
+      // coloured names (R97), and the dash for a column that does not apply.
+      function legendBox() {
+        const box = h('div', 'awoo-cp-legend');
+        for (const [slot, what] of [
+          ['off', 'Off: not loaded, costs nothing'], ['idle', 'Loaded and waiting'], ['running', 'Running'],
+          ['attention', 'Needs you'], ['problem', 'Problem: see General › Diagnostics'],
+        ]) {
+          const it = h('span', 'awoo-cp-legend-i');
+          it.appendChild(statusDot(slot));
+          it.appendChild(h('span', null, what));
+          box.appendChild(it);
+        }
+        for (const [aud, what] of [['trusted', 'Trusted: a shared build, not public'], ['dev', 'Dev only']]) {
+          const it = h('span', 'awoo-cp-legend-i');
+          it.appendChild(audLabel(h, 'awoo-cp-label', what, aud));
+          box.appendChild(it);
+        }
+        const na = h('span', 'awoo-cp-legend-i');
+        na.appendChild(h('span', 'awoo-cp-gapmark', '—'));
+        na.appendChild(h('span', null, 'Does not apply (a Tweak has no window, so no bar button)'));
+        box.appendChild(na);
+        return box;
+      }
+      // A label over a value, in a row's details.
+      function fact(label, value) {
+        const f = h('div', 'awoo-cp-fact');
+        f.appendChild(h('span', 'awoo-cp-factlabel', label));
+        const v = h('span', 'awoo-cp-factvalue');
+        if (value && typeof value === 'object') v.appendChild(value); else v.textContent = value == null ? '—' : String(value);
+        f.appendChild(v);
+        return f;
+      }
+      // The details row under an open row: one cell across every column,
+      // indented to the name.
+      function detailsRow(fill) {
+        const tr = h('tr', 'awoo-cp-detrow');
+        const td = h('td');
+        td.colSpan = CP_COLS.length;
+        const box = h('div', 'awoo-cp-details');
+        fill(box);
+        td.appendChild(box);
+        tr.appendChild(td);
+        return tr;
+      }
+      // The ⚙ that ends a row: straight to the feature's settings page.
+      function gearCell(label, section) {
+        const gc = h('td', cpColCls('actcol'));
+        const gear = h('button', 'awoo-cp-gear', '⚙');
+        gear.type = 'button';
+        gear.title = `${label} settings`;
+        gear.setAttribute('aria-label', gear.title);
+        gear.addEventListener('click', (e) => { e.stopPropagation(); selectPageByIdLazily(section, 'main'); });
+        gc.appendChild(gear);
+        return gc;
+      }
+      // The light and the reading, in one cell, patched in place between
+      // redraws (liveCells) so a countdown never rebuilds the table.
+      // A loaded feature with nothing to report says so in a word, rather
+      // than showing a light with nothing beside it.
+      const listStatus = (m) => { const st = statusOf(m); return st.text ? st : Object.assign({}, st, { text: m.kind === 'tweak' ? 'on' : 'idle' }); };
+      function statusCell(m, cells) {
+        const stc = h('td', 'awoo-cp-statcol');
+        const stl = h('span', 'awoo-cp-stat');
+        const st = listStatus(m);
+        const slot = statusDot(st.slot);
+        stl.appendChild(slot);
+        const live = h('span', 'awoo-cp-live' + (st.tone ? ' ' + st.tone : ''), st.text);
+        stl.appendChild(live);
+        stc.appendChild(stl);
+        if (cells) cells.set(m.id, { slot, text: live });
+        return stc;
+      }
+      function patchLive(cells, list) {
+        for (const m of list) {
+          const cell = cells.get(m.id);
+          if (!cell) continue;
+          const st = listStatus(m);
+          cell.slot.className = awooCls('awoo-core-sd awoo-core-sd-' + st.slot);
+          cell.slot.textContent = STATE_GLYPH[st.slot] || '';
+          cell.text.textContent = st.text;
+          cell.text.className = awooCls('awoo-cp-live' + (st.tone ? ' ' + st.tone : ''));
+        }
+      }
+
       const liveCells = new Map();   // id -> { slot, text }, updated in place between rebuilds
       let modulesSig = '';
       function renderModulesPage(force) {
-        const list = orderedIds(Object.keys(modules)).map((id) => modules[id]).filter((m) => m.kind !== 'tweak');
-        const grouped = !!getSetting('cpGroupByCategory');
-        const condensed = getSetting('cpCondensed') !== false;
-        const sig = JSON.stringify([list.map((m) => [m.id, m.enabled, !!m.started, isIn('barHidden', m.id), isIn('menuHidden', m.id), !!m.crashed, !!m.saveError, m.startMs]),
-          // NOT barPreview: a rebuild mid-drag would replace the slider under
-          // the pointer (a countdown refreshes this page every second).
-          grouped, condensed, registry.barMax, getSetting('menuClick')]);
+        // Sub-modules sit right under their parent (subOrdered, R185 round 2).
+        const all = subOrdered(orderedIds(Object.keys(modules))).map((id) => modules[id]);
+        const sig = JSON.stringify([all.map((m) => [m.id, m.enabled, !!m.started, isIn('barHidden', m.id), isIn(menuKey(m.id), m.id), !!m.crashed, !!m.saveError, m.startMs, !!m.open]),
+          [...featOpen], legendShown, listDesc()]);
+          // NOT the profile's timestamp: a capture never rebuilds the page.
         if (!force && sig === modulesSig) {
           // Only the live readings changed: patch them, keep focus and hover.
-          for (const m of list) {
-            const cell = liveCells.get(m.id);
-            if (!cell) continue;
-            const st = statusOf(m);
-            cell.slot.className = 'awoo-core-sd awoo-core-sd-' + st.slot;
-            cell.slot.textContent = STATE_GLYPH[st.slot] || '';
-            cell.text.textContent = st.text ? '· ' + st.text : '';
-            cell.text.className = awooCls('awoo-cp-live' + (st.tone ? ' ' + st.tone : ''));
-          }
+          patchLive(liveCells, all);
           return;
         }
         modulesSig = sig;
         liveCells.clear();
         const pane = paneModules;
         pane.innerHTML = '';
-        pane.appendChild(sub('Loaded modules start with the page; a module that is off does not load at all. '
-          + 'Drag to set the order the bar and the menu use.'));
+        pane.appendChild(sub('Modules have a window; Tweaks change the game\'s own pages. A feature that is off does not load at all. '
+          + 'Click a row for more about it; ⚙ opens its settings.'));
+        listBar(pane);
+        if (!all.length) { pane.appendChild(sub('No modules or Tweaks are installed.')); return; }
 
-        const opts = h('div', 'awoo-cp-opts');
-        opts.appendChild(labelledTick('Group by category', grouped, (v) => { setSetting('cpGroupByCategory', v); renderModulesPage(true); }));
-        opts.appendChild(labelledTick('Condensed list', condensed, (v) => { setSetting('cpCondensed', v); renderModulesPage(true); }));
-        const loadedMs = list.filter((m) => m.started && Number.isFinite(m.startMs)).reduce((a, m) => a + m.startMs, 0);
-        const cost = h('span', 'awoo-cp-cost', `Start time this load: ${Math.round(loadedMs * 10) / 10} ms`);
-        cost.title = 'How long the loaded modules took to start when this page loaded. A module that is off costs nothing.';
-        opts.appendChild(cost);
-        pane.appendChild(opts);
-
-        const table = h('table', 'awoo-cp-table');
-        const head = h('thead');
-        const r1 = h('tr');
-        const th = (text, cls, attrs = {}) => { const c = h('th', cls, text); for (const k of Object.keys(attrs)) c.setAttribute(k, attrs[k]); return c; };
-        r1.appendChild(th('', 'awoo-cp-hcol', { rowspan: '2' }));
-        r1.appendChild(th('Module', '', { rowspan: '2' }));
-        r1.appendChild(th('Loaded', 'c', { rowspan: '2' }));
-        r1.appendChild(th('Shown in', 'c grp', { colspan: '2' }));
-        r1.appendChild(th('Start', 'n awoo-cp-startcol', { rowspan: '2' }));
-        r1.appendChild(th('', '', { rowspan: '2' }));
-        // Menu before Bar (2026-09-25): every module can be in the menu, only
-        // a loaded one with a window can be on the bar, so the column that
-        // always applies comes first.
-        const r2 = h('tr');
-        r2.appendChild(th('Menu', 'c'));
-        r2.appendChild(th('Bar', 'c'));
-        head.appendChild(r1);
-        head.appendChild(r2);
-        table.appendChild(head);
+        const table = h('table', 'awoo-cp-table awoo-cp-feat');
+        // Grouped by kind, the second column says the area.
+        table.appendChild(cpHead({
+          name: 'Name', cat: 'Area',
+          stat: ['Status', 'What it is doing now. "What do the marks mean?" explains each light.'],
+          load: ['On', 'Off means it never starts; what it saved is kept.'],
+          menu: ['Menu', 'Listed in the AWOO+ menu.'],
+          bar: ['Bar', 'A button on the top bar. Hiding it never stops it.'],
+        }));
         const body = h('tbody');
-        const groups = grouped ? [...new Set(list.map((m) => m.category || 'Other'))] : [null];
+        const groups = [
+          { label: 'Modules', note: 'have a window', members: all.filter((m) => m.kind !== 'tweak') },
+          { label: 'Tweaks', note: 'change the game\'s own pages', members: all.filter((m) => m.kind === 'tweak') },
+        ];
         for (const g of groups) {
-          const members = list.filter((m) => g === null || (m.category || 'Other') === g);
-          if (g !== null) {
-            const gr = h('tr', 'awoo-cp-grouprow');
-            const gc = h('td', null, `${g} · ${members.filter((m) => m.enabled).length} of ${members.length} loaded`);
-            gc.colSpan = 7;
-            gr.appendChild(gc);
-            body.appendChild(gr);
+          if (!g.members.length) continue;
+          const gr = h('tr', 'awoo-cp-grouprow');
+          const gc = h('td');
+          gc.colSpan = CP_COLS.length;
+          gc.appendChild(h('span', 'awoo-cp-grouplabel', g.label));
+          const on = g.members.filter((m) => m.enabled).length;
+          gc.appendChild(h('span', 'awoo-cp-groupnote', (g.note ? g.note + ' · ' : '') + `${on} of ${g.members.length} on`));
+          gr.appendChild(gc);
+          body.appendChild(gr);
+          // A sub-module has no handle of its own: it moves with its parent.
+          const peers = g.members.filter((m) => !subParentOf(m.id)).map((m) => m.id);
+          for (const m of g.members) {
+            body.appendChild(featureRow(m, peers));
+            if (featOpen.has(m.id)) body.appendChild(featureDetails(m));
           }
-          const peers = members.map((m) => m.id);
-          for (const m of members) body.appendChild(moduleRow(m, peers, condensed));
         }
         table.appendChild(body);
         const wrap = h('div', 'awoo-cp-tablewrap');
         wrap.appendChild(table);
         pane.appendChild(wrap);
 
-        // The click setting lives here, beside what it acts on.
-        const clickRow = ui.inputRow({
-          label: 'Clicking a module in the menu', type: 'select', value: getSetting('menuClick') === 'window' ? 'window' : 'load',
-          options: [{ value: 'load', label: 'Loads or unloads it' }, { value: 'window', label: 'Only opens its window' }],
-          info: 'Load/unload is the default: the menu is where modules you do not always need are switched on. '
-            + '"Only opens its window" never stops a module from the menu; unload it here instead.',
-          onChange: (v) => { setSetting('menuClick', v === 'window' ? 'window' : 'load'); if (coreUi) renderDropdown(); },
-        });
-        pane.appendChild(clickRow);
-
-        pane.appendChild(topBarBox());
-
-        const actions = h('div', 'awoo-ui-actionrow');
-        actions.appendChild(btn('Unload all…', async () => {
+        const foot = adv(h('div', 'awoo-ui-actionrow awoo-cp-listfoot'));
+        foot.appendChild(h('span', 'awoo-cp-sub', 'Drag ⋮⋮ to set the order of the menu and the top bar.'));
+        foot.appendChild(h('span', 'awoo-cp-grow'));
+        foot.appendChild(btn('Unload all…', async () => {
           const on = Object.values(modules).filter((m) => m.enabled);
           if (!on.length) { toast('Nothing is loaded.', { type: 'info', duration: 2500 }); return; }
           const ok = await ui.confirmDialog({
-            title: 'Unload every module',
+            title: 'Switch every feature off',
             message: 'This stops, and saves first:\n' + on.map((m) => '  • ' + m.label).join('\n')
-              + '\n\nAn alarm that is running stops too. Load them again here or from the menu.',
-            confirmLabel: 'Unload all',
+              + '\n\nAn alarm that is running stops too. Switch them on again here or from the menu.',
+            confirmLabel: 'Switch all off',
           });
           if (ok) disableAll();
-        }));
-        pane.appendChild(actions);
+        }, { small: true }));
+        pane.appendChild(foot);
       }
-      function moduleRow(m, peers, condensed) {
-        const row = h('tr', m.enabled ? '' : 'dim');
+      function featureRow(m, peers) {
+        const parent = subParentOf(m.id);
+        const tweak = m.kind === 'tweak';
+        const open = featOpen.has(m.id);
+        const row = h('tr', (m.enabled ? '' : 'dim') + (parent ? ' sub' : '') + (open ? ' open' : ''));
         row.dataset.row = m.id;
-        const hc = h('td', 'awoo-cp-hcol');
-        const handle = h('button', 'awoo-cp-handle', '⋮⋮');
-        handle.type = 'button';
-        handle.dataset.handle = m.id;
-        handle.title = 'Drag to reorder (Alt+Up / Alt+Down)';
-        hc.appendChild(handle);
-        row.appendChild(hc);
-        wireDrag(row, handle, m.id, peers);
+        if (tweak) row.dataset.qol = m.id;
+        if (parent) row.appendChild(cpGap('hcol'));
+        else dragHandle(row, m.id, peers, paneModules);
 
-        const nc = h('td');
+        const nc = h('td', 'awoo-cp-namecol');
         const line = h('div', 'awoo-cp-name');
-        const st = statusOf(m);
-        const slot = statusDot(st.slot);
-        line.appendChild(slot);
+        // A SUB-MODULE (the maintainer, 2026-10-13: Pet Slot Alarm is part of
+        // Party): a branch mark where its parent's ▸ is, then its own ▸ and
+        // name, so it reads as part of the row above (2026-10-17: the
+        // "Party ›" before the name looked out of line). It keeps its own switch.
+        if (parent) {
+          const branch = h('span', 'awoo-cp-branch', '└');
+          branch.setAttribute('aria-hidden', 'true');
+          line.appendChild(branch);
+        }
+        line.appendChild(chevron(open));
         line.appendChild(audLabel(h, 'awoo-cp-label', m.label, m.audience));
-        if (!getSetting('cpGroupByCategory')) line.appendChild(h('span', 'awoo-cp-cat', m.category || 'Other'));
-        const live = h('span', 'awoo-cp-live' + (st.tone ? ' ' + st.tone : ''), st.text ? '· ' + st.text : '');
-        line.appendChild(live);
-        liveCells.set(m.id, { slot, text: live });
         nc.appendChild(line);
-        if (!condensed) {
-          if (m.description) nc.appendChild(h('div', 'awoo-cp-desc', m.description));
-          nc.appendChild(usesChips(m.uses));
-        }
-        if (m.lifecycle < 2) {
-          const w = h('div', 'awoo-cp-desc warn', 'Older module: it runs even while off. Update AWOO+ Extras.');
-          nc.appendChild(w);
-        }
+        descLine(nc, m.description);
+        if (m.lifecycle < 2) nc.appendChild(h('div', 'awoo-cp-desc warn', 'Older module: it runs even while off. Update AWOO+ Extras.'));
         row.appendChild(nc);
+        row.appendChild(h('td', 'awoo-cp-catcol', m.category || 'Other'));
+        row.appendChild(statusCell(m, liveCells));
 
-        const lc = h('td', 'c');
-        lc.appendChild(pair([{ value: true, label: 'Load', go: true }, { value: false, label: 'Off' }], !!m.enabled,
+        const lc = h('td', cpColCls('loadcol'));
+        lc.appendChild(pair([{ value: true, label: tweak ? 'On' : 'Load', go: true }, { value: false, label: 'Off' }], !!m.enabled,
           (v) => setEnabled(m.id, v)));
         row.appendChild(lc);
-        const hasWindow = m.quickButton !== false;
-        const mc = h('td', 'c');
-        mc.appendChild(tick(!isIn('menuHidden', m.id), (v) => setShown(m.id, 'menu', v), { label: `Show ${m.label} in the menu` }));
+        const mc = h('td', cpColCls('menucol'));
+        mc.appendChild(tick(!isIn(menuKey(m.id), m.id), (v) => setShown(m.id, 'menu', v), { label: `Show ${m.label} in the menu` }));
         row.appendChild(mc);
-        const bc = h('td', 'c');
-        bc.appendChild(tick(!isIn('barHidden', m.id), (v) => setShown(m.id, 'bar', v), {
-          disabled: !m.enabled || !hasWindow, label: `Show ${m.label} on the top bar`,
-          title: !hasWindow ? 'No window, so no top-bar button' : !m.enabled ? 'Load it first' : '',
-        }));
-        row.appendChild(bc);
-        const sc = h('td', 'n awoo-cp-startcol', m.started && Number.isFinite(m.startMs) ? `${m.startMs} ms` : '—');
-        row.appendChild(sc);
-        const gc = h('td', 'c');
-        const gear = h('button', 'awoo-cp-gear', '⚙');
-        gear.type = 'button';
-        gear.title = `${m.label} settings`;
-        gear.addEventListener('click', (e) => { e.stopPropagation(); selectPageByIdLazily('m:' + m.id, 'main'); });
-        gc.appendChild(gear);
-        row.appendChild(gc);
+        const hasWindow = !tweak && m.quickButton !== false;
+        if (!hasWindow) {
+          const gap = cpGap('barcol', true);
+          gap.title = tweak ? 'A Tweak has no window, so no top-bar button' : 'No window, so no top-bar button';
+          row.appendChild(gap);
+        } else {
+          const bc = h('td', cpColCls('barcol'));
+          bc.appendChild(tick(!isIn('barHidden', m.id), (v) => setShown(m.id, 'bar', v), {
+            disabled: !m.enabled, label: `Show ${m.label} on the top bar`, title: !m.enabled ? 'Load it first' : '',
+          }));
+          row.appendChild(bc);
+        }
+        row.appendChild(gearCell(m.label, 'm:' + m.id));
+        featRowToggle(row, m.id, paneModules);
         return row;
       }
-      // THE TOP BAR, previewed while the cap is dragged: the real bar fills
-      // with placeholder buttons at their real size, so "how many fit" is
-      // answered by looking, not by guessing. Applied on release.
-      function topBarBox() {
-        const box = h('div', 'awoo-ui-group');
-        const lab = h('div', 'awoo-ui-group-label', 'Top bar');
-        box.appendChild(lab);
-        const used = Object.values(modules).filter((m) => m.enabled && m.quickButton !== false && m.kind !== 'tweak' && !isIn('barHidden', m.id)).length;
-        const row = h('div', 'awoo-cp-slider');
-        row.appendChild(h('span', 'awoo-cp-sub', 'Max buttons'));
-        const input = document.createElement('input');
-        input.type = 'range';
-        input.min = String(AWOO_CORE_BAR_MAX_RANGE[0]);
-        input.max = String(AWOO_CORE_BAR_MAX_RANGE[1]);
-        input.value = String(barPreview !== null ? barPreview : registry.barMax);
-        input.setAttribute('aria-label', 'Maximum top-bar buttons');
-        const val = h('b', 'awoo-cp-sliderval', input.value);
-        input.addEventListener('input', () => { val.textContent = input.value; previewBarMax(Number(input.value)); });
-        input.addEventListener('change', () => { previewBarMax(null); setBarMax(Number(input.value)); });
-        row.appendChild(input);
-        row.appendChild(val);
-        box.appendChild(row);
-        box.appendChild(sub(`${Math.min(used, registry.barMax)} of ${registry.barMax} used. Drag to preview the buttons on the real bar; `
-          + 'modules past the limit are still in the menu.'));
-        return box;
+      function featureDetails(m) {
+        return detailsRow((box) => {
+          box.appendChild(h('p', 'awoo-cp-detdesc', m.description || 'No description yet.'));
+          // The facts on one line: who, which version, what it reads.
+          const facts = h('div', 'awoo-cp-facts');
+          facts.appendChild(fact('Developer', m.author || 'not given'));
+          if (m.version) facts.appendChild(fact('Version', m.version));
+          facts.appendChild(readsFact(m.uses, m.label));
+          facts.appendChild(adv(fact('Start time', m.started && Number.isFinite(m.startMs) ? `${m.startMs} ms` : 'not started')));
+          box.appendChild(facts);
+          const acts = h('div', 'awoo-cp-detacts');
+          const go = h('button', 'awoo-cp-link', 'Settings ›');
+          go.type = 'button';
+          go.addEventListener('click', (e) => { e.stopPropagation(); selectPageByIdLazily('m:' + m.id, 'main'); });
+          acts.appendChild(go);
+          if (m.kind !== 'tweak' && m.quickButton !== false && m.enabled) {
+            const w = h('button', 'awoo-cp-link', m.open ? 'Close window' : 'Open window');
+            w.type = 'button';
+            w.addEventListener('click', (e) => { e.stopPropagation(); safely(m.id, 'onQuickClick'); });
+            acts.appendChild(w);
+          }
+          box.appendChild(acts);
+        });
       }
       paneModules._refresh = (force) => renderModulesPage(!!force);
       // Every other page redraws whole, so it does so only when its signature
       // changes (or when it is opened).
       let lastSideSig = '';
-      function refreshWhen(pane, sigFn, render) {
+      // `synced`, when given, is the page's Synced cells: repainted in place
+      // when nothing else changed, so a Profile Sync capture is not a redraw.
+      function refreshWhen(pane, sigFn, render, synced) {
         let last = null;
         pane._refresh = (force) => {
           const sig = sigFn();
-          if (!force && sig === last) return;
+          if (!force && sig === last) { if (synced) patchSynced(synced); return; }
           last = sig;
-          render();
+          render();   // a render empties and refills its own Synced list
         };
       }
 
-      // ---- Modules › Tools ----
+      // ---- Features › Tools ----
+      // The same columns as Modules & Tweaks: the On column holds Open
+      // (nothing runs until a tool is opened), the Bar column a dash (a tool
+      // opens in a tab, never on the bar). A tool's own settings are in its
+      // tab, so its row has no ⚙.
       function renderToolsPage() {
         const pane = paneTools;
         pane.innerHTML = '';
-        pane.appendChild(sub('Calculators and references that open in a new tab. Nothing runs until you open one, '
-          + 'so the only choice is whether it is in the menu. The chips are what it fills in from Profile Sync, and how fresh that is.'));
-        const condensedTools = getSetting('cpToolsCondensed') !== false;
-        const topts = h('div', 'awoo-cp-opts');
-        topts.appendChild(labelledTick('Condensed list', condensedTools, (v) => { setSetting('cpToolsCondensed', v); renderToolsPage(); }));
-        pane.appendChild(topts);
-        const table = h('table', 'awoo-cp-table');
-        const head = h('tr');
-        for (const [t, c] of [['Tool', ''], ['Fills in from your profile', ''], ['Menu', 'c'], ['', 'n']]) head.appendChild(h('th', c, t));
-        const thead = h('thead');
-        thead.appendChild(head);
-        table.appendChild(thead);
-        const body = h('tbody');
+        pane.appendChild(sub('Calculators and references that open in a new tab. Nothing runs until you open one. '
+          + 'Click a row for more about it.'));
         const ids = orderedIds(Object.keys(tools));
+        listBar(pane);
+        const table = h('table', 'awoo-cp-table awoo-cp-feat');
+        table.appendChild(cpHead({ name: 'Tool', load: ['Open', 'Opens it in a new tab.'], menu: ['Menu', 'Listed in the AWOO+ menu.'] }));
+        const body = h('tbody');
         for (const id of ids) {
           const t = tools[id];
-          const row = h('tr', isIn('toolMenuHidden', id) ? 'dim' : '');
-          const nc = h('td');
-          nc.appendChild(audLabel(h, 'awoo-cp-label', t.label, t.audience));
-          if (t.description && !condensedTools) nc.appendChild(h('div', 'awoo-cp-desc', t.description));
+          const open = featOpen.has(id);
+          const row = h('tr', (isIn('toolMenuHidden', id) ? 'dim' : '') + (open ? ' open' : ''));
+          row.dataset.tool = id;
+          dragHandle(row, id, ids, paneTools);
+          const nc = h('td', 'awoo-cp-namecol');
+          const line = h('div', 'awoo-cp-name');
+          line.appendChild(chevron(open));
+          line.appendChild(audLabel(h, 'awoo-cp-label', t.label, t.audience));
+          nc.appendChild(line);
+          descLine(nc, t.description);
           row.appendChild(nc);
-          const uc = h('td');
-          uc.appendChild(usesChips(t.uses));
-          row.appendChild(uc);
-          const mc = h('td', 'c');
-          mc.appendChild(tick(!isIn('toolMenuHidden', id), (v) => setShown(id, 'menu', v), { label: `Show ${t.label} in the menu` }));
-          row.appendChild(mc);
-          const oc = h('td', 'n');
+          row.appendChild(cpGap('catcol'));
+          row.appendChild(cpGap('statcol'));
+          const oc = h('td', cpColCls('loadcol'));
           oc.appendChild(btn('Open', () => openTool(id), { small: true }));
           row.appendChild(oc);
+          const mc = h('td', cpColCls('menucol'));
+          mc.appendChild(tick(!isIn('toolMenuHidden', id), (v) => setShown(id, 'menu', v), { label: `Show ${t.label} in the menu` }));
+          row.appendChild(mc);
+          const bar = cpGap('barcol', true);
+          bar.title = 'A tool opens in a tab, so no top-bar button';
+          row.appendChild(bar);
+          row.appendChild(cpGap('actcol'));
+          featRowToggle(row, id, paneTools);
           body.appendChild(row);
+          if (open) {
+            body.appendChild(detailsRow((box) => {
+              box.appendChild(h('p', 'awoo-cp-detdesc', t.description || 'No description yet.'));
+              const facts = h('div', 'awoo-cp-facts');
+              facts.appendChild(fact('Developer', t.author || 'not given'));
+              facts.appendChild(fact('Opens', 'in a new browser tab'));
+              facts.appendChild(readsFact(t.uses, t.label));
+              box.appendChild(facts);
+              box.appendChild(sub('Its own settings are in its tab.'));
+            }));
+          }
         }
         // A tool a module carries does not exist while its module is off.
-        // Say so, rather than letting it silently vanish from the list.
+        // Say so, rather than letting it silently vanish from the list. Its
+        // Load button sits in the On column, where the other page has it.
         for (const m of Object.values(modules)) {
           for (const ct of (m.carriedTools || [])) {
             if (tools[ct.id]) continue;
             const row = h('tr', 'dim');
-            const nc = h('td');
+            row.appendChild(cpGap('hcol'));
+            const nc = h('td', 'awoo-cp-namecol');
             nc.appendChild(h('div', 'awoo-cp-label', ct.label));
             nc.appendChild(h('div', 'awoo-cp-desc', `Comes with ${m.label}, which is off.`));
             row.appendChild(nc);
-            row.appendChild(h('td'));
-            row.appendChild(h('td'));
-            const oc = h('td', 'n');
-            oc.appendChild(btn(`Load ${m.shortLabel || m.label}`, () => setEnabled(m.id, true), { small: true }));
-            row.appendChild(oc);
+            row.appendChild(cpGap('catcol'));
+            row.appendChild(cpGap('statcol'));
+            const lc = h('td', cpColCls('loadcol'));
+            lc.appendChild(btn(`Load ${m.shortLabel || m.label}`, () => setEnabled(m.id, true), { small: true }));
+            row.appendChild(lc);
+            for (const c of ['menucol', 'barcol', 'actcol']) row.appendChild(cpGap(c));
             body.appendChild(row);
           }
         }
@@ -7101,114 +8646,27 @@
         wrap.appendChild(table);
         pane.appendChild(wrap);
         if (!ids.length) pane.appendChild(sub('No tools are installed.'));
+        pane.appendChild(adv(sub('Drag ⋮⋮ to set the order of the menu.')));
       }
-      refreshWhen(paneTools, () => JSON.stringify([Object.keys(tools), registry.toolMenuHidden, getSetting('cpToolsCondensed'),
-        Object.values(modules).map((m) => m.enabled), (getProfile() || { meta: {} }).meta.timestamp]), renderToolsPage);
-
-      // ---- Modules › Tweaks ----
-      const tweakOpen = new Set();
-      function renderTweaksPage() {
-        const pane = paneTweaks;
-        pane.innerHTML = '';
-        pane.appendChild(sub('Small improvements to the game\'s own pages. Each is one switch, and its settings live on its card.'));
-        const list = orderedIds(Object.keys(modules)).map((id) => modules[id]).filter((m) => m.kind === 'tweak');
-        for (const m of list) {
-          const card = h('div', 'awoo-cp-card');
-          const top = h('div', 'awoo-cp-cardhead');
-          const txt = h('div');
-          const nm = h('div', 'awoo-cp-name');
-          nm.appendChild(statusDot(statusOf(m).slot));
-          nm.appendChild(audLabel(h, 'awoo-cp-label', m.label, m.audience));
-          txt.appendChild(nm);
-          if (m.description) txt.appendChild(h('div', 'awoo-cp-desc', m.description));
-          top.appendChild(txt);
-          const hasSettings = m.settings && typeof m.settings.render === 'function';
-          if (hasSettings) {
-            top.appendChild(btn(tweakOpen.has(m.id) ? 'Hide settings' : 'Settings', () => {
-              if (tweakOpen.has(m.id)) tweakOpen.delete(m.id); else tweakOpen.add(m.id);
-              renderTweaksPage();
-            }, { small: true }));
-          }
-          top.appendChild(pair([{ value: true, label: 'On', go: true }, { value: false, label: 'Off' }], !!m.enabled,
-            (v) => setEnabled(m.id, v)));
-          card.appendChild(top);
-          if (hasSettings && tweakOpen.has(m.id)) {
-            const bodyEl = h('div', 'awoo-cp-cardbody');
-            try { m.settings.render(bodyEl); } catch (e) { bodyEl.textContent = 'Its settings could not be shown.'; }
-            // The same Defaults button a module page has (below).
-            if (typeof m.settings.reset === 'function') {
-              const d = h('div', 'awoo-ui-actionrow');
-              d.appendChild(btn('Defaults', () => {
-                try { m.settings.reset(); } catch (e) { console.error('[AwooCore] settings reset for ' + m.id + ' threw', e); return; }
-                renderTweaksPage();
-                toast(`${m.label}: settings back to defaults.`, { type: 'success', duration: 3000 });
-              }, { small: true }));
-              bodyEl.appendChild(d);
-            }
-            card.appendChild(bodyEl);
-          }
-          pane.appendChild(card);
-        }
-        if (!list.length) pane.appendChild(sub('No tweaks are installed.'));
-      }
-      refreshWhen(paneTweaks, () => JSON.stringify([Object.values(modules).filter((m) => m.kind === 'tweak')
-        .map((m) => [m.id, m.enabled, !!m.started, m.state]), [...tweakOpen]]), renderTweaksPage);
-
-      // ---- Modules › Info: the status vocabulary, drawn with the real parts ----
-      (function renderInfoPage() {
-        const pane = paneInfo;
-        pane.appendChild(sub('What each mark means. The menu, the top bar and this panel all draw them the same way.'));
-        const rows = [
-          ['off', 'Off', 'Not loaded. Nothing of it runs, and it costs nothing.'],
-          ['idle', 'Idle', 'Loaded and waiting.'],
-          ['running', 'Running', 'Doing something; its reading shows beside it (a countdown, a rate).'],
-          ['attention', 'Needs you', 'It wants you to look: an alarm, a plan ready to review, a save that failed.'],
-          ['problem', 'Problem', 'It reports something wrong, and its window says what. "Crashed" means AWOO+ caught an error from it: see General › Diagnostics.'],
-        ];
-        const grid = h('div', 'awoo-cp-legend');
-        for (const [slot, name, what] of rows) {
-          const a = h('div', 'awoo-cp-name');
-          a.appendChild(statusDot(slot));
-          a.appendChild(h('span', 'awoo-cp-label', name));
-          grid.appendChild(a);
-          grid.appendChild(h('div', 'awoo-cp-desc', what));
-        }
-        pane.appendChild(grid);
-        // What a coloured name means (R97): the menu and this panel colour a
-        // module or tool that not every player has.
-        category(pane, 'Names in colour');
-        const names = h('div', 'awoo-cp-legend');
-        for (const [aud, name, what] of [
-          ['trusted', 'Trusted', 'Not in the public AWOO+: a build shared with you (trusted or village). Other players do not have it.'],
-          ['dev', 'Dev only', 'Only ever on a developer\'s machine; no player build has it.'],
-        ]) {
-          const a = h('div', 'awoo-cp-name');
-          a.appendChild(audLabel(h, 'awoo-cp-label', name, aud));
-          names.appendChild(a);
-          names.appendChild(h('div', 'awoo-cp-desc', what));
-        }
-        pane.appendChild(names);
-        category(pane, 'Three separate choices per module');
-        const how = h('div', 'awoo-cp-legend');
-        for (const [a, b] of [
-          ['Load', 'Whether it starts with the page. Off means it never starts; what it saved is kept.'],
-          ['Shown in: Menu', 'Whether it is listed in the AWOO+ menu.'],
-          ['Shown in: Bar', 'Whether a loaded module has a top-bar button. Hiding it never stops it.'],
-          ['Tweaks', 'Changes to the game\'s own pages, with no window: one switch each, under Modules › Tweaks.'],
-          ['Tools', 'Pages that open in a new tab. Nothing runs until you open one.'],
-        ]) {
-          how.appendChild(h('div', 'awoo-cp-label', a));
-          how.appendChild(h('div', 'awoo-cp-desc', b));
-        }
-        pane.appendChild(how);
-      })();
+      refreshWhen(paneTools, () => JSON.stringify([orderedIds(Object.keys(tools)), registry.toolMenuHidden, [...featOpen], legendShown, listDesc(),
+        Object.values(modules).map((m) => m.enabled)]), renderToolsPage);
 
       // ---- General › Profile Sync ----
+      // SIMPLE BY DEFAULT (R184, the maintainer 2026-10-07: "simplified by
+      // default ... and add some description about what the sync layer does,
+      // in very simple terms"). The simple view is the plain line, the banner
+      // with Sync now, the one switch most players want, and what is saved as
+      // a grid of names with their lights (age and users on hover).
+      // Advanced (the Control Panel's Basic/Advanced switch, R159, which
+      // replaced this page's own More options on 2026-10-13) adds Background reads, the
+      // sections table with Kept, View data and Copy JSON. Never "nothing
+      // leaves this computer": the Companion and the install check-in exist.
       function renderSyncPage() {
         const host = syncHost;
         host.innerHTML = '';
-        host.appendChild(sub('A read-only snapshot of your character, captured from the game\'s own data as you play. '
-          + 'Modules and tools use it so you do not have to type your numbers in. It never acts on your account.'));
+        const full = !basicMode();
+        host.appendChild(sub('Profile Sync (local) saves your account data in this browser, so the modules and tools can use it. '
+          + 'It only reads the game.'));
         const p = getProfile();
         const ts = p && p.meta && p.meta.timestamp;
         const banner = h('div', 'awoo-cp-banner ' + (p ? 'ok' : ''));
@@ -7223,15 +8681,46 @@
         bt.appendChild(h('div', 'awoo-cp-desc', profileCountsText(counts)
           + (getSetting('profileAutoSync') ? '' : ' · automatic sync is off')));
         // What the sync layer itself did (R92): short, the why on hover.
-        const bg = profileBackgroundLine(status);
-        const bgLine = h('div', 'awoo-cp-desc', bg.text);
-        bgLine.setAttribute('data-tooltip', bg.tip);
-        if (bg.dev) bgLine.setAttribute('data-tooltip-dev', bg.dev);
-        bt.appendChild(bgLine);
+        if (full) {
+          const bg = profileBackgroundLine(status);
+          const bgLine = h('div', 'awoo-cp-desc', bg.text);
+          bgLine.setAttribute('data-tooltip', bg.tip);
+          if (bg.dev) bgLine.setAttribute('data-tooltip-dev', bg.dev);
+          bt.appendChild(bgLine);
+        }
         banner.appendChild(bt);
         const acts = h('span', 'awoo-cp-bannerright');
         acts.appendChild(btn('Sync now', () => { resyncProfile(); toast('Requested profile sync…', { type: 'info', duration: 2500 }); },
           { primary: true, small: true, title: 'Asks the game for every section now, as opening each page would (not with Background reads off).' }));
+        if (!full) {
+          banner.appendChild(acts);
+          host.appendChild(banner);
+          // The one switch most players want, then what is saved.
+          if (watchToggle.parentElement === profileGroup) watchToggle.remove();
+          host.appendChild(profileGroup);
+          const head = h('div', 'awoo-settings-cat', 'What is saved');
+          head.title = 'Each part of your account it keeps. Hover one for its age and what uses it.';
+          host.appendChild(head);
+          const grid = h('div', 'awoo-cp-secgrid');
+          for (const c of PROFILE_CATEGORIES) {
+            const f = profileSectionState(c.id, p, sum.used);
+            const users = [
+              ...Object.values(modules).filter((m) => m.enabled && (m.uses || []).includes(c.id)).map((m) => m.label),
+              ...Object.values(tools).filter((t) => (t.uses || []).includes(c.id)).map((t) => t.label),
+            ];
+            const cell = h('span', 'awoo-cp-sec' + (users.length ? '' : ' awoo-m-unused'));
+            cell.dataset.section = c.id;
+            cell.appendChild(h('i', 'awoo-cp-seclight awoo-m-' + (f.state === 'ok' ? 'ok' : f.state === 'stale' ? 'old' : 'none')));
+            cell.appendChild(h('span', null, c.label));
+            cell.setAttribute('data-tooltip', `${c.label} · ${f.state === 'miss' ? 'never seen' : f.age || 'age unknown'}`
+              + (users.length ? ` · used by ${users.join(', ')}` : ' · nothing loaded uses it'));
+            grid.appendChild(cell);
+          }
+          host.appendChild(grid);
+          host.appendChild(labelledTick('Show Profile Sync on the top bar', registry.profileOnBar !== false, (v) => setProfileOnBar(v)));
+          host.appendChild(sub('How each part stays current, and the raw data: Advanced, at the top of General.'));
+          return;
+        }
         acts.appendChild(btn('View data', () => openProfileData(),
           { small: true, title: 'Every synced section with its values, in a window of its own.' }));
         acts.appendChild(btn('Copy JSON', async () => {
@@ -7240,6 +8729,10 @@
         }, { small: true, disabled: !p }));
         banner.appendChild(acts);
         host.appendChild(banner);
+        host.appendChild(h('div', 'awoo-settings-cat', 'Syncing'));
+        if (watchToggle.parentElement !== profileGroup) profileGroup.appendChild(watchToggle);
+        host.appendChild(profileGroup);
+        host.appendChild(h('div', 'awoo-settings-cat', 'Sections'));
 
         const table = h('table', 'awoo-cp-table');
         const thead = h('thead');
@@ -7297,12 +8790,13 @@
           + 'Old data that no loaded module uses is dimmed, and does not turn the top-bar light amber.'));
         host.appendChild(labelledTick('Show Profile Sync on the top bar', registry.profileOnBar !== false, (v) => setProfileOnBar(v)));
       }
+      repaintSyncPage = () => { if (paneSync._refresh) paneSync._refresh(true); };
       // Redrawn when what it shows moved: the profile, the switches, what is
       // loaded, open or started, and what the sync layer did (not its clocks,
       // which would redraw it on every refresh).
       refreshWhen(paneSync, () => {
         const st = profileSyncStatus();
-        return JSON.stringify([(getProfile() || { meta: {} }).meta.timestamp, getSetting('profileAutoSync'), getSetting('profileWatch'),
+        return JSON.stringify([(getProfile() || { meta: {} }).meta.timestamp, getSetting('profileAutoSync'), getSetting('profileWatch'), getSetting('cpMode'),
           registry.profileOnBar, Object.keys(tools), Object.values(modules).map((m) => [m.enabled, !!m.started, !!m.open]),
           st ? [st.background, st.leader, st.otherLeader, st.readsLastHour, st.holds] : null]);
       }, renderSyncPage);
@@ -7415,7 +8909,8 @@
         wrap.appendChild(table);
         pane.appendChild(wrap);
 
-        const checks = h('div', 'awoo-cp-desc');
+        // The compatibility line and the checking schedule are Advanced (R159).
+        const checks = adv(h('div', 'awoo-cp-desc'));
         const needs = Object.keys(incompatible);
         const twice = Object.keys(duplicates);
         checks.textContent = [
@@ -7424,23 +8919,30 @@
         ].join(' ');
         pane.appendChild(checks);
 
-        category(pane, 'Checking');
-        pane.appendChild(ui.inputRow({
+        adv(category(pane, 'Checking'));
+        pane.appendChild(adv(ui.inputRow({
           label: 'Check for updates', type: 'select', value: ['auto', 'load', 'manual'].includes(getSetting('updateEvery')) ? getSetting('updateEvery') : 'auto',
           options: [{ value: 'auto', label: 'Every 2 hours' }, { value: 'load', label: 'Once per page load' }, { value: 'manual', label: 'Only when I ask' }],
           info: 'One small request to the release list. Installing is always your click, in Tampermonkey.',
           onChange: (v) => { setSetting('updateEvery', v); },
-        }));
-        pane.appendChild(labelledTick('Show a notice when an update is found', getSetting('updateNotice') !== false,
-          (v) => setSetting('updateNotice', v)));
+        })));
+        pane.appendChild(adv(labelledTick('Show a notification when an update is found', getSetting('updateNotice') !== false,
+          (v) => setSetting('updateNotice', v))));
+        // Basic has no Changelog tab (the maintainer, 2026-10-16: Updates and
+        // Changelog "depend on basic or advanced"), so what changed is here,
+        // under the updates.
+        if (basicMode()) {
+          category(pane, 'What changed');
+          drawChangelog(pane);
+        }
       }
       refreshWhen(paneUpdates, () => JSON.stringify([updateState.checking, updateState.error, updateState.checkedAt,
-        updateState.available.map((e) => e.id + e.to), [...notesOpen], Object.keys(incompatible), Object.keys(duplicates)]), renderUpdatesPage);
+        updateState.available.map((e) => e.id + e.to), [...notesOpen], Object.keys(incompatible), Object.keys(duplicates), basicMode()]), renderUpdatesPage);
 
       // ---- General › Changelog: what changed in AWOO+, newest first ----
       // Static for the life of the script, so drawn once, when first opened.
-      paneChangelog._render = () => {
-        const pane = paneChangelog;
+      paneChangelog._render = () => drawChangelog(paneChangelog);
+      function drawChangelog(pane) {
         pane.appendChild(sub(`What changed in AWOO+, newest first. You have v${RELEASE.version}.`));
         if (!CHANGELOG.length) { pane.appendChild(sub('No changelog in this build.')); return; }
         for (const e of CHANGELOG) {
@@ -7452,7 +8954,7 @@
           for (const l of e.lines) ul.appendChild(h('li', null, l));
           pane.appendChild(ul);
         }
-      };
+      }
 
       // ---- General › Diagnostics ----
       function renderDiagPage() {
@@ -7480,7 +8982,9 @@
         const table = h('table', 'awoo-cp-table');
         const thead = h('thead');
         const hr = h('tr');
-        for (const [t, c] of [['Module', ''], ['Version', 'n'], ['State', ''], ['Start', 'n'], ['Holding', 'n'], ['Errors', 'n']]) hr.appendChild(h('th', c, t));
+        // Start and Holding are the optional columns (DESIGN.md §10f): they
+        // go first when the panel is narrow, rather than the table scrolling.
+        for (const [t, c] of [['Module', ''], ['Version', 'n'], ['State', ''], ['Start', 'n opt'], ['Holding', 'n opt'], ['Errors', 'n']]) hr.appendChild(h('th', c, t));
         thead.appendChild(hr);
         table.appendChild(thead);
         const body = h('tbody');
@@ -7497,9 +9001,9 @@
           const state = info.lifecycle < 2 ? (info.loaded ? 'loaded' : 'off, still running (older module)')
             : !info.loaded ? 'off, not loaded' : info.crashed ? 'crashed' : info.started ? 'running' : 'waiting for the page';
           row.appendChild(h('td', info.crashed ? 'bad' : '', state + (info.saveError ? ' · can\'t save' : '')));
-          row.appendChild(h('td', 'n', info.started && info.startMs !== null ? `${info.startMs} ms` : '—'));
+          row.appendChild(h('td', 'n opt', info.started && info.startMs !== null ? `${info.startMs} ms` : '—'));
           const held = info.held;
-          const holding = h('td', 'n', held ? `${held.listeners + held.observers + held.intervals}` : '—');
+          const holding = h('td', 'n opt', held ? `${held.listeners + held.observers + held.intervals}` : '—');
           if (held) holding.title = `${held.listeners} listeners, ${held.observers} observers, ${held.intervals} intervals, ${held.windows} window(s)`;
           row.appendChild(holding);
           const n = errs.filter((e) => e.m === info.id).length;
@@ -7581,7 +9085,6 @@
         onChange: (v) => { setSetting('panelNav', v === 'tree' ? 'tree' : 'tabs'); renderSide(); renderTabs(); },
       });
       onReset(() => { if (navRow._input) navRow._input.value = getSetting('panelNav') === 'tree' ? 'tree' : 'tabs'; renderSide(); renderTabs(); });
-      category(paneLayout, 'Size');
       // THE SCALE APPLIES ON RELEASE (R69 round 7). It used to apply live on
       // every step, and the row it sits in scales too: the label grew, the
       // track shifted, and the thumb slid out from under the pointer mid-drag.
@@ -7638,15 +9141,16 @@
         },
       });
       onReset(() => { uiScaleSlider.sync(); applyUiScale(); });
-      paneLayout.appendChild(uiScaleSlider.row);
+      // First under Theme & size › Size, above the panel's own size (R231).
+      scaleHost.appendChild(uiScaleSlider.row);
 
-      // ---- General › Notifications (REGISTER.md R96) ----
+      // ---- Appearance › Pop-ups (REGISTER.md R96; Notices until R235) ----
       // The maintainer, 2026-09-26: notices were "very short and small and
       // dark so difficult to see". Four settings, a Defaults button, and
       // samples to try them with. Each applies to the next notice raised.
       (function renderNotifyPage() {
         const pane = paneNotify;
-        pane.appendChild(sub('Where AWOO+\'s notices appear, how long they stay and how they look. Press Show samples to try a setting.'));
+        pane.appendChild(sub('Where AWOO+\'s notifications appear, how long they stay and how they look. Press Show samples to try a setting.'));
         category(pane, 'Where');
         const POS = [['tl', 'Top left'], ['tc', 'Top centre'], ['tr', 'Top right'], ['bl', 'Bottom left'], [null, ''], ['br', 'Bottom right']];
         const posRow = h('div', 'awoo-cp-posrow');
@@ -7661,7 +9165,7 @@
           grid.appendChild(b); posBtns.push(b);
         }
         const menuBtn = btn('Beside the menu', () => pickPos('menu'), { small: true });
-        menuBtn.title = 'Under the top bar, just right of where the AWOO+ menu opens, so an open menu never covers a notice.';
+        menuBtn.title = 'Under the top bar, just right of where the AWOO+ menu opens, so an open menu never covers a notification.';
         menuBtn.dataset.pos = 'menu';
         posBtns.push(menuBtn);
         for (const b of posBtns) if (b !== menuBtn) b.addEventListener('click', () => pickPos(b.dataset.pos));
@@ -7686,7 +9190,7 @@
           get: () => (getSetting('notifySeconds') === 0 ? UNTIL : Math.min(30, Math.max(3, Number(getSetting('notifySeconds')) || 8))),
           commit: (v) => setSetting('notifySeconds', v >= UNTIL ? 0 : v),
         });
-        pane.appendChild(secs.row);
+        pane.appendChild(adv(secs.row));
         // One label width, so the tracks line up.
         const alignLabel = (row) => { const l = row.firstChild; if (l && l.style) l.style.minWidth = '56px'; };
         alignLabel(secs.row);
@@ -7695,7 +9199,7 @@
           get: () => Math.min(150, Math.max(90, Number(getSetting('notifySize')) || 110)),
           commit: (v) => setSetting('notifySize', v),
         });
-        pane.appendChild(size.row);
+        pane.appendChild(adv(size.row));
         alignLabel(size.row);
         const styleRow = h('div', 'awoo-cp-slider');
         const styleLab = h('span', 'awoo-cp-sub', 'Style');
@@ -7705,7 +9209,7 @@
         const paintStyle = () => {
           const next = pair([{ value: 'quiet', label: 'Quiet' }, { value: 'bold', label: 'Bold' }],
             getSetting('notifyStyle') === 'quiet' ? 'quiet' : 'bold', (v) => { setSetting('notifyStyle', v); paintStyle(); });
-          next.title = 'Bold frames the whole notice in its colour over a faint tint of it. Quiet is a thin coloured edge.';
+          next.title = 'Bold frames the whole notification in its colour over a faint tint of it. Quiet is a thin coloured edge.';
           if (stylePair) styleRow.replaceChild(next, stylePair); else styleRow.appendChild(next);
           stylePair = next;
         };
@@ -7715,12 +9219,13 @@
         const clickRow = h('div');
         const paintClick = () => {
           clickRow.innerHTML = '';
-          clickRow.appendChild(labelledTick('Click anywhere on a notice to close it', getSetting('notifyClickClose') !== false,
+          clickRow.appendChild(labelledTick('Click anywhere on a notification to close it', getSetting('notifyClickClose') !== false,
             (v) => setSetting('notifyClickClose', v)));
         };
         paintClick();
-        pane.appendChild(clickRow);
-        pane.appendChild(sub('Party\'s run reminders always stay until you close them.'));
+        // Timing, size and click-to-close are Advanced (R159); Where and Style are not.
+        pane.appendChild(adv(clickRow));
+        pane.appendChild(adv(sub('Party\'s run reminders always stay until you close them.')));
 
         const actions = h('div', 'awoo-ui-actionrow');
         actions.appendChild(btn('Defaults', () => {
@@ -7736,7 +9241,7 @@
         }));
         pane.appendChild(actions);
 
-        // History (R118): the last notices, newest first. A notice that
+        // History (R118): the last pop-ups, newest first. A pop-up that
         // changed in place (the update check) is one line, its last words.
         category(pane, 'History');
         const histHead = h('div', 'awoo-ui-actionrow');
@@ -7745,7 +9250,7 @@
           options: NOTIFY_KEEP.map((n) => ({ value: String(n), label: String(n) })),
           onChange: (v) => { setSetting('notifyKeep', Number(v)); writeNotifyLog(readNotifyLog()); },
         });
-        histHead.appendChild(keepRow);
+        histHead.appendChild(adv(keepRow));
         histHead.appendChild(btn('Clear', () => clearNotifyLog(), { small: true }));
         pane.appendChild(histHead);
         const histList = h('div', 'awoo-cp-notifylog');
@@ -7753,7 +9258,7 @@
         const paintHistory = () => {
           histList.innerHTML = '';
           const list = readNotifyLog();
-          if (!list.length) { histList.appendChild(sub('No notices yet.')); return; }
+          if (!list.length) { histList.appendChild(sub('No notifications yet.')); return; }
           for (const e of list) {
             const row = h('div', 'awoo-cp-notifyline awoo-cp-notifyline-' + (e.type || 'info'));
             row.appendChild(h('span', 'awoo-cp-notifyat',
@@ -7768,9 +9273,9 @@
       })();
       category(paneLayout, 'The AWOO+ menu');
       const menuSizeRow = ui.inputRow({
-        label: 'Size', type: 'select', value: getSetting('menuLayout') === 'wide' ? 'wide' : 'compact',
-        options: [{ value: 'compact', label: 'Compact' }, { value: 'wide', label: 'Wide, with a second column' }],
-        info: 'The menu\'s own header has the same switch.',
+        label: 'Menu width', type: 'select', value: getSetting('menuLayout') === 'wide' ? 'wide' : 'compact',
+        options: [{ value: 'compact', label: 'Compact' }, { value: 'wide', label: 'Wide' }],
+        info: 'Wide adds a second column beside the list. The menu\'s own header has the same switch.',
         onChange: (v) => setSetting('menuLayout', v === 'wide' ? 'wide' : 'compact'),
       });
       const menuPanelRow = ui.inputRow({
@@ -7784,21 +9289,63 @@
         if (menuPanelRow._input) menuPanelRow._input.value = getSetting('menuWidePanel') === 'overview' ? 'overview' : 'details';
       });
       paneLayout.appendChild(menuSizeRow);
-      paneLayout.appendChild(menuPanelRow);
+      // The second column and the search bar are Advanced (R159).
+      paneLayout.appendChild(adv(menuPanelRow));
       const menuSearchRow = labelledTick('Search bar', getSetting('menuSearch') === true, (v) => setSetting('menuSearch', !!v));
       menuSearchRow.title = 'A search box at the top of the menu that also finds hidden modules and Control Panel pages.';
-      paneLayout.appendChild(menuSearchRow);
+      paneLayout.appendChild(adv(menuSearchRow));
       onReset(() => { const i = menuSearchRow.querySelector('input[type="checkbox"]'); if (i) i.checked = getSetting('menuSearch') === true; });
-      category(paneLayout, 'This panel');
-      paneLayout.appendChild(navRow);
+      // The sidebar style sits with the panel's other options (Advanced).
+      cpHost.appendChild(navRow);
+      // What a click on a module in the menu does: beside the menu's other
+      // options (it sat on the Modules page until the redesign).
+      const clickRow = ui.inputRow({
+        label: 'Clicking a module in the menu', type: 'select', value: getSetting('menuClick') === 'window' ? 'window' : 'load',
+        options: [{ value: 'load', label: 'Loads or unloads it' }, { value: 'window', label: 'Only opens its window' }],
+        info: 'Load/unload is the default: the menu is where modules you do not always need are switched on. '
+          + '"Only opens its window" never stops a module from the menu; switch it off under Features instead.',
+        onChange: (v) => { setSetting('menuClick', v === 'window' ? 'window' : 'load'); if (coreUi) renderDropdown(); },
+      });
+      onReset(() => { if (clickRow._input) clickRow._input.value = getSetting('menuClick') === 'window' ? 'window' : 'load'; });
+      paneLayout.appendChild(adv(clickRow));
       category(paneLayout, 'Top bar');
+      // THE TOP BAR'S BUTTON LIMIT, previewed while the cap is dragged: the
+      // real bar fills with placeholder buttons at their real size, so "how
+      // many fit" is answered by looking, not by guessing. Applied on
+      // release. Redrawn when the page is opened or the count changes, never
+      // mid-drag (barPreview is not in its signature).
+      const barBoxHost = h('div', 'awoo-cp-block');
+      paneLayout.appendChild(barBoxHost);
+      const barUsed = () => Object.values(modules).filter((m) => m.enabled && m.quickButton !== false && m.kind !== 'tweak' && !isIn('barHidden', m.id)).length;
+      function renderBarBox() {
+        barBoxHost.innerHTML = '';
+        const row = h('div', 'awoo-cp-slider');
+        row.appendChild(h('span', 'awoo-cp-sub', 'Buttons on the bar'));
+        const input = document.createElement('input');
+        input.type = 'range';
+        input.min = String(AWOO_CORE_BAR_MAX_RANGE[0]);
+        input.max = String(AWOO_CORE_BAR_MAX_RANGE[1]);
+        input.value = String(barPreview !== null ? barPreview : registry.barMax);
+        input.setAttribute('aria-label', 'Maximum top-bar buttons');
+        const val = h('b', 'awoo-cp-sliderval', input.value);
+        input.addEventListener('input', () => { val.textContent = input.value; previewBarMax(Number(input.value)); });
+        input.addEventListener('change', () => { previewBarMax(null); setBarMax(Number(input.value)); });
+        row.appendChild(input);
+        row.appendChild(val);
+        barBoxHost.appendChild(row);
+        const used = barUsed();
+        barBoxHost.appendChild(sub(`${Math.min(used, registry.barMax)} of ${registry.barMax} used. Drag to preview the buttons on the real bar; `
+          + 'modules past the limit are still in the menu. Which modules have a button is the Bar column under Features.'));
+      }
+      refreshWhen(paneLayout, () => JSON.stringify([registry.barMax, barUsed()]), renderBarBox);
       const profileBarRow = labelledTick('Show Profile Sync on the top bar', registry.profileOnBar !== false, (v) => setProfileOnBar(v));
       paneLayout.appendChild(profileBarRow);
-      paneLayout.appendChild(sub('Its own button, beside AWOO+. It does not count toward the module limit (Modules › Modules).'));
+      paneLayout.appendChild(sub('Its own button, beside AWOO+. It does not count toward the limit above.'));
       onReset(() => { const i = profileBarRow.children[0]; if (i) i.checked = registry.profileOnBar !== false; });
       const dotRow = labelledTick('Sync dot', getSetting('barSyncDot') !== false, (v) => setSetting('barSyncDot', !!v));
       dotRow.title = 'The dot on the Profile Sync icon that turns amber when data a module uses is old. Off hides the dot only: its hover card and the Profile Sync page still say it.';
-      paneLayout.appendChild(dotRow);
+      // The sync dot and the top bar's own scale are Advanced (R159).
+      paneLayout.appendChild(adv(dotRow));
       onReset(() => { const i = dotRow.children[0]; if (i) i.checked = getSetting('barSyncDot') !== false; renderProfileButton(); });
       // Its own scale, or the UI scale's (2026-09-25). The slider shows only
       // while it applies, so an unticked box never leaves a dead control.
@@ -7813,8 +9360,8 @@
       });
       barOwnRow.title = 'Off: the top bar follows the UI scale. On: it has its own, height included, so it can fit the game\'s menu bar.';
       barSlider.row.hidden = getSetting('barScaleOwn') !== true;
-      paneLayout.appendChild(barOwnRow);
-      paneLayout.appendChild(barSlider.row);
+      paneLayout.appendChild(adv(barOwnRow));
+      paneLayout.appendChild(adv(barSlider.row));
       onReset(() => {
         const i = barOwnRow.querySelector('input[type="checkbox"]');
         if (i) i.checked = getSetting('barScaleOwn') === true;
@@ -7822,11 +9369,13 @@
         barSlider.sync();
         applyBarScale();
       });
-      category(paneLayout, 'Recover');
-      const recover = h('div', 'awoo-ui-actionrow');
-      recover.appendChild(btn('Bring all panels on-screen', () => resetPositions()));
-      recover.appendChild(btn('Reset panel sizes', () => resetAllWindowSizes()));
-      paneLayout.appendChild(recover);
+      // The two window resets, under General › Reset beside Reset settings
+      // (R236): one place for every way back.
+      recoverHost.appendChild(btn('Bring windows on-screen', () => resetPositions(), {
+        title: 'Moves every AWOO+ window that is off the screen back onto it. Sizes are kept.' }));
+      // The one "Reset window sizes" (its twin under Windows went, 2026-10-13).
+      recoverHost.appendChild(btn('Reset window sizes', () => resetAllWindowSizes(), {
+        title: 'Every window\'s position and size back to its default, the Control Panel included.' }));
 
       // ---- Module settings: one page per module, set apart in the sidebar ----
       //
@@ -7837,13 +9386,53 @@
       // module's probe because someone opened the panel to change the theme.
       // A module that is OFF is listed too, dimmed, so its settings are where
       // the player expects them; its page says why it is empty and loads it.
+      //
+      // Since the redesign (R232) Tweaks have pages too, in the sidebar's
+      // Feature settings; their settings no longer open inside the list. Each
+      // page opens with the feature's own header instead of a tab strip:
+      // where it sits, its name and description, its light and reading, its
+      // switch, and its window. The header is redrawn on every refresh (it is
+      // small); the settings below it only when the module's run changes.
       for (const id of orderedIds(Object.keys(modules))) {
         const mod = modules[id];
-        if (!mod || mod.kind === 'tweak') continue;
+        if (!mod) continue;
         const spec = mod.settings;
-        const hasRender = spec && typeof spec.render === 'function';
-        void hasRender; // every module gets a page: its reset lives there
         const pane = addPage('m:' + id, 'main', (spec && spec.label) || mod.label || id);
+        pane.classList.add(awooCls('awoo-cp-featpage'));
+        const headHost = h('div', 'awoo-cp-fhead');
+        const bodyHost = h('div', 'awoo-cp-fbody');
+        let headSig = '';
+        const paintHead = () => {
+          const m = modules[id];
+          if (!m) return;
+          const st = listStatus(m);
+          const sig = JSON.stringify([m.enabled, m.open, st]);
+          if (sig === headSig) return;
+          headSig = sig;
+          headHost.innerHTML = '';
+          const tweak = m.kind === 'tweak';
+          const parent = subParentOf(id);
+          const text = h('div', 'awoo-cp-fheadtext');
+          text.appendChild(h('div', 'awoo-cp-crumb', ['Feature settings', m.category || 'Other', tweak ? 'Tweak' : 'Module'].join(' › ')));
+          const title = h('div', 'awoo-cp-ftitle awoo-cp-name');
+          // A sub-module names its parent first, as its row does.
+          if (parent) title.appendChild(h('span', 'awoo-cp-subof', `${parent.label} ›`));
+          title.appendChild(audLabel(h, 'awoo-cp-label', m.label, m.audience));
+          text.appendChild(title);
+          if (m.description) text.appendChild(h('div', 'awoo-cp-fdesc', m.description));
+          headHost.appendChild(text);
+          const ctl = h('div', 'awoo-cp-fctl');
+          const stl = h('span', 'awoo-cp-stat');
+          stl.appendChild(statusDot(st.slot));
+          stl.appendChild(h('span', 'awoo-cp-live' + (st.tone ? ' ' + st.tone : ''), st.text));
+          ctl.appendChild(stl);
+          // No On/Off here (the maintainer, 2026-10-17: "that's what the
+          // features tab is for"); the off note below says where it is.
+          if (!tweak && m.quickButton !== false && m.enabled) {
+            ctl.appendChild(btn(m.open ? 'Close window' : 'Open window', () => safely(id, 'onQuickClick'), { small: true }));
+          }
+          headHost.appendChild(ctl);
+        };
         // Drawn for the run that exists NOW, and redrawn when the module loads
         // or unloads while the panel is open: a pane built by one run holds
         // controls wired to that run, which an unload has just discarded.
@@ -7856,7 +9445,8 @@
         const resetFoot = (defaultsBtn) => {
           const m = modules[id];
           const label = (m && m.label) || id;
-          category(pane, 'Reset');
+          footHost.innerHTML = '';
+          category(footHost, 'Reset');
           const row = h('div', 'awoo-ui-actionrow');
           if (defaultsBtn) row.appendChild(defaultsBtn);
           row.appendChild(btn('Reset saved data…', async () => {
@@ -7874,31 +9464,37 @@
             drawnFor = null;
             toast(`${label}: saved data reset (${removed.length} item${removed.length === 1 ? '' : 's'}).`, { type: 'success', duration: 4000 });
           }));
-          pane.appendChild(row);
-          pane.appendChild(sub((defaultsBtn ? 'Defaults resets the settings above. ' : '')
+          footHost.appendChild(row);
+          footHost.appendChild(sub((defaultsBtn ? 'Defaults resets the settings above. ' : '')
             + 'Reset saved data is for when something in it is broken; your other modules and AWOO+ settings are kept.'));
         };
+        pane.appendChild(headHost);
+        pane.appendChild(bodyHost);
+        // Reset in a host of its own, after the module's settings, so it is
+        // always the last thing on the page (2026-10-17), even when a module
+        // adds to its page after drawing it.
+        const footHost = h('div', 'awoo-cp-fbody awoo-cp-ffoot');
+        pane.appendChild(footHost);
         pane._refresh = () => {
+          paintHead();
           const m = modules[id];
           const key = m && m.enabled && m.started ? m.ctx : 'off';
           if (key === drawnFor) return;
           drawnFor = key;
-          pane.innerHTML = '';
+          bodyHost.innerHTML = '';
           if (!m || !m.enabled) {
-            pane.appendChild(sub(`${(m && m.label) || id} is off, so its settings are not loaded. They are kept, and apply when it loads.`));
-            const a = h('div', 'awoo-ui-actionrow');
-            a.appendChild(btn(`Load ${(m && m.label) || id}`, () => setEnabled(id, true), { primary: true }));
-            pane.appendChild(a);
+            // The switch is in Features, so the note says where.
+            bodyHost.appendChild(h('div', 'awoo-cp-offnote', `${(m && m.label) || id} is off, so its settings are not loaded. They are kept, and apply when it ${m && m.kind === 'tweak' ? 'is switched on' : 'loads'}. Switch it on in Features.`));
             resetFoot();
             return;
           }
           const sp = m.settings;
           let defaultsBtn = null;
-          if (!sp || typeof sp.render !== 'function') pane.appendChild(sub('This module has no settings.'));
+          if (!sp || typeof sp.render !== 'function') bodyHost.appendChild(sub(`${m.label} has no settings of its own.`));
           else {
-            try { sp.render(pane); } catch (e) {
+            try { sp.render(bodyHost); } catch (e) {
               console.error('[AwooCore] settings tab for ' + id + ' threw', e);
-              pane.appendChild(sub('This module\'s settings could not be shown.'));
+              bodyHost.appendChild(sub(`${m.label}'s settings could not be shown.`));
             }
             // THE SAME DEFAULTS BUTTON ON EVERY MODULE PAGE (R69 round 7).
             // Each module used to draw its own, or none: Pet Slot Alarm had one
@@ -7938,7 +9534,14 @@
       return {
         root,
         // Old flat ids still land (TARGETS, above): a module's gear passes its own id.
-        selectTab: (id) => { const [sec, pg] = resolveTarget(id); selectPageLazily(sec, pg); },
+        selectTab: (id) => {
+          const [sec, pg] = resolveTarget(id);
+          // An Advanced-only page asked for by name (the Companion) turns
+          // Advanced on rather than opening onto a page Basic hides (R159).
+          if (sec === 'development' && pg === 'companion' && basicMode()) setSetting('cpMode', 'advanced');
+          // Basic has no Changelog tab: what changed is under Updates.
+          selectPageLazily(sec, sec === 'general' && pg === 'changelog' && basicMode() ? 'updates' : pg);
+        },
         // Called whenever a module or the registry changes while the panel is
         // open. Each page redraws only if what it shows actually changed, so a
         // countdown ticking once a second does not rebuild a table under the
@@ -7969,7 +9572,6 @@
               : (c.source === 'setting' || c.source === 'remembered') ? ' · game wins'
               : c.source === 'sample' ? ' · read from a number on the page'
               : ' · using browser until the game is read');
-          renderAppearanceSummary();
           numStatus.innerHTML = '';
           const line1 = document.createElement('div');
           line1.textContent = `Sample: ${formatNumber(1234567.8)}  (decimal "${c.decimal}", thousands "${c.group}")`;
@@ -7981,16 +9583,17 @@
           line2.textContent = guessing ? 'Not read from the game yet. Pick one below.'
             : auto ? `✓ Auto-detected from ${sourceLabel}.` : `Forced by you (not auto-detected).`;
           const line3 = document.createElement('div');
-          line3.className = 'awoo-ui-note';
+          // The detection line is Advanced (R159); the sample and its source are not.
+          line3.className = 'awoo-ui-note awoo-adv';
           line3.textContent = detectLine;
           numStatus.appendChild(line1);
           numStatus.appendChild(line2);
           numStatus.appendChild(line3);
+          const stored = numberFormatOverride();
           for (const { key, btn } of numBtns) {
-            let stored = null;
-            try { stored = localStorage.getItem(OVERRIDE_KEY); } catch (e) { /* ignore */ }
-            const active = key === stored || (key === null && stored === null);
-            btn.style.cssText = active ? 'font-weight:700; border-color: var(--awoo-primary); color: var(--awoo-primary);' : '';
+            const active = key === stored;
+            btn.className = active ? 'awoo-m-on' : '';
+            btn.setAttribute('aria-pressed', String(active));
           }
         },
       };
@@ -8001,11 +9604,12 @@
     // closure) while staying visually consistent with it.
     function Core_ui_toggleRow({ label, info, checked, onChange }) {
       const row = document.createElement('label');
-      row.style.cssText = 'display:flex; align-items:center; gap:7px; font-size:11.5px; cursor:pointer; margin:4px 0;';
+      // A class, not an inline style (2026-10-06): the Control Panel's house
+      // style sets its size and ink, which an inline style would outrank.
+      row.className = 'awoo-ui-toggle-row';
       const input = document.createElement('input');
       input.type = 'checkbox';
       input.checked = checked;
-      input.style.cssText = 'margin:0;';
       input.addEventListener('change', () => onChange(input.checked));
       const text = document.createElement('span');
       text.textContent = label;
@@ -8137,29 +9741,58 @@
     // Everything the menu can find. With no search: the modules and tools the
     // player keeps in the menu. With a search: everything, including what is
     // hidden from the menu, tweaks, every Control Panel page and actions.
+    // The Control Panel's pages as they are since the redesign (R230-R236):
+    // [label, page, keywords]. Old words stay in the keywords, so a player
+    // who searches for what a page used to be called still finds it.
     const PALETTE_PAGES = [
-      ['General', 'general', 'backup reset developer'], ['Profile Sync', 'sync', 'profile data sections'],
-      ['Updates', 'updates', 'version install check'], ['Changelog', 'changelog', 'changes new history release notes'], ['Diagnostics', 'diag', 'debug errors bug storage check-in'],
-      ['Style', 'style', 'theme numbers fonts appearance'], ['Layout', 'layout', 'size sidebar panels windows recover'],
-      ['Modules', 'modules', 'load unload order bar menu'], ['Tools', 'tools', 'calculators'],
-      ['Tweaks', 'tweaks', 'qol page'], ['Info', 'info', 'legend status marks'], ['Companion', 'companion', 'jobs host'],
+      ['General', 'general', 'basic advanced mode time zone backup welcome tour setup reset defaults'], ['Profile Sync', 'sync', 'profile sync automatically account data'],
+      ['Updates', 'updates', 'version install check changelog'], ['Changelog', 'changelog', 'changes new history release notes'], ['Diagnostics', 'diag', 'debug errors bug storage check-in'],
+      ['UI', 'theme', 'theme colours colors dark light ui scale control panel size style appearance'],
+      ['Formatting', 'fonts', 'text fonts numbers typeface number format decimal thousands'],
+      ['Menu', 'menu', 'menu width search top bar buttons limit sync dot layout'],
+      ['Notifications', 'notify', 'notices notifications pop-ups popups toasts where style history'],
+      ['Modules & Tweaks', 'modules', 'features load unload order bar menu tweaks quality of life qol legend marks info'],
+      ['Tools', 'tools', 'calculators order'],
+    ];
+    // ADVANCED SETTINGS, FOUND BY NAME (R159). Basic hides them in the
+    // Control Panel, and the search still finds every one: choosing it turns
+    // Advanced on and opens the page it is on. [label, page, keywords].
+    const PALETTE_ADVANCED = [
+      ['Developer info', 'general', 'developer dev tooltips hover'],
+      ['Export or import settings', 'general', 'backup export import file another browser'],
+      ['Window resizing', 'theme', 'resize resizing drag corner window'],
+      ['Control Panel sidebar and on top', 'theme', 'control panel sidebar width style tree on top keep'],
+      ['Reopen windows on reload', 'theme', 'reload reopen restore windows'],
+      ['Menu second column, search bar and click', 'menu', 'menu second column details overview search bar click load window'],
+      ['Sync dot and top bar scale', 'menu', 'sync dot top bar scale size'],
+      ['Notification timing and size', 'notify', 'notice notices pop-up how long seconds size click close keep'],
+      ['Update checking', 'updates', 'update checks how often schedule notice'],
+      ['Background reads and sections', 'sync', 'background reads profile sync sections kept view data copy json'],
+      ['Start times and Switch all off', 'modules', 'start time unload all switch off order drag'],
+      ['Companion', 'companion', 'jobs host companion'],
     ];
     function paletteActions() {
       return [
         { label: 'Copy debug info', hint: 'For sharing a problem', kw: 'bug diagnostics share log', run: () => palEls().bugBtn.click() },
         { label: 'Check for updates', hint: 'Updates', kw: 'version install', run: () => palEls().updBtn.click() },
-        { label: 'Sync profile now', hint: 'Profile Sync', kw: 'refresh data', run: () => { resyncProfile(); toast('Requested profile sync…', { type: 'info', duration: 2500 }); } },
+        { label: 'Sync now', hint: 'Profile Sync', kw: 'sync profile refresh data', run: () => { resyncProfile(); toast('Requested profile sync…', { type: 'info', duration: 2500 }); } },
         { label: 'Profile data', hint: 'Every synced value', kw: 'synced values sections view raw json', run: () => { closePalette(); openProfileData(); } },
-        { label: 'Bring all panels on-screen', hint: 'Layout', kw: 'lost window reset position recover', run: () => { closePalette(); resetPositions(); } },
-        { label: 'Unload every module', hint: 'Modules', kw: 'disable all off stop', run: () => { closePalette(); openSettingsWindow('modules'); } },
+        { label: 'Bring all windows on-screen', hint: 'Layout', kw: 'lost window panel reset position recover', run: () => { closePalette(); resetPositions(); } },
+        { label: 'Unload every module', hint: 'Modules', kw: 'disable all off stop', run: () => { closePalette(); openAdvanced('modules'); } },
       ];
+    }
+    // Opens a Control Panel page with Advanced on (R159): what the player
+    // searched for is on that page, and Basic would hide it.
+    function openAdvanced(target) {
+      if (getSetting('cpMode') === 'basic') setSetting('cpMode', 'advanced');
+      openSettingsWindow(target);
     }
     const palEls = () => coreUi.pal;
     function paletteItems() {
       const q = palState.q.trim().toLowerCase();
       const hit = (...parts) => !q || parts.filter(Boolean).join(' ').toLowerCase().includes(q);
       const out = [];
-      for (const id of orderedIds(Object.keys(modules))) {
+      for (const id of subOrdered(orderedIds(Object.keys(modules)))) {
         const m = modules[id];
         if (m.kind === 'tweak') continue;
         if (!q && isIn('menuHidden', id)) continue;
@@ -8175,18 +9808,26 @@
         const label = (modules[id] && modules[id].label) || id;
         if (hit(label)) out.push({ kind: 'notice', id: id + ':dup', group: 'Modules', text: `${label}: installed twice`, page: 'diag' });
       }
+      // Tweaks are in the menu too (R229): a click switches one on or off, its
+      // gear opens its settings. They have no window, so they are not counted
+      // in "n of m loaded". Since R232 the Menu column hides one, as it does
+      // a module; a search still finds it.
+      for (const id of orderedIds(Object.keys(modules))) {
+        const m = modules[id];
+        if (m.kind === 'tweak' && !q && isIn('tweakMenuHidden', id)) continue;
+        if (m.kind === 'tweak' && hit(m.label, m.shortLabel, m.description, 'tweak')) out.push({ kind: 'module', id, group: 'Tweaks' });
+      }
       for (const id of orderedIds(Object.keys(tools))) {
         const t = tools[id];
         if (!q && isIn('toolMenuHidden', id)) continue;
         if (hit(t.label, t.description, 'tool')) out.push({ kind: 'tool', id, group: 'Tools' });
       }
       if (q) {
-        for (const id of orderedIds(Object.keys(modules))) {
-          const m = modules[id];
-          if (m.kind === 'tweak' && hit(m.label, m.description, 'tweak')) out.push({ kind: 'module', id, group: 'Tweaks' });
-        }
         for (const [label, target, kw] of PALETTE_PAGES) {
           if (hit(label, kw, 'control panel settings')) out.push({ kind: 'page', id: 'page:' + target, group: 'Control Panel', label, target });
+        }
+        for (const [label, target, kw] of PALETTE_ADVANCED) {
+          if (hit(label, kw, 'control panel settings advanced')) out.push({ kind: 'page', id: 'adv:' + label, group: 'Control Panel', label, target, adv: true });
         }
         for (const id of orderedIds(Object.keys(modules))) {
           const m = modules[id];
@@ -8239,7 +9880,7 @@
       // reporting a countdown calls this every second, and rebuilding the
       // rows would replace the one under the pointer mid-click.
       const sig = JSON.stringify([items.map((x) => x.kind + ':' + x.id), wide, getSetting('menuWidePanel'),
-        registry.menuHidden, registry.toolMenuHidden, registry.profileOnBar,
+        registry.menuHidden, registry.tweakMenuHidden, registry.toolMenuHidden, registry.profileOnBar,
         items.filter((x) => x.kind === 'module').map((x) => [modules[x.id].enabled, !!modules[x.id].open])]);
       if (sig === P.sig && P.rows) {
         palState.items = items;
@@ -8279,7 +9920,7 @@
       if (!palState.items.length && !noModules) {
         P.list.appendChild(pmk('div', 'awoo-pal-empty', palState.q
           ? 'Nothing matches. Try a module name, "debug" or "font".'
-          : 'Nothing is in the menu. Control Panel › Modules chooses what shows here.'));
+          : 'Nothing is in the menu. Control Panel › Features chooses what shows here.'));
       }
       P.side.hidden = !wide;
       if (wide) renderPaletteSide();
@@ -8333,9 +9974,18 @@
         row.appendChild(audLabel(pmk, 'awoo-pal-name', m.label, m.audience));
         if (m.open) row.classList.add('awoo-m-open');
         if (!m.enabled) row.classList.add('awoo-m-off');
-        if (isIn('menuHidden', it.id) && it.group === 'Modules') row.appendChild(pmk('span', 'awoo-pal-tag', 'hidden'));
+        if (m.kind === 'tweak' && m.settings && typeof m.settings.render === 'function') {
+          const gear = pmk('button', 'awoo-pal-manage awoo-pal-gear', '⚙');
+          gear.type = 'button';
+          gear.title = `${m.label} settings`;
+          gear.setAttribute('aria-label', `${m.label} settings`);
+          gear.addEventListener('click', (e) => { e.stopPropagation(); closePalette(); openSettingsWindow(it.id); });
+          row.appendChild(gear);
+        }
+        if (isIn(menuKey(it.id), it.id)) row.appendChild(pmk('span', 'awoo-pal-tag', 'hidden'));
         right = pmk('span', 'awoo-pal-right' + (st.tone ? ' ' + st.tone : ''), st.text);
-        row.title = !m.enabled ? `${m.label} is off. ${getSetting('menuClick') === 'window' ? 'Click' : 'Click'} to load it and open it.`
+        if (m.kind === 'tweak') row.title = `Click to switch ${m.label} ${m.enabled ? 'off' : 'on'}.`;
+        else row.title = !m.enabled ? `${m.label} is off. ${getSetting('menuClick') === 'window' ? 'Click' : 'Click'} to load it and open it.`
           : getSetting('menuClick') === 'window' ? 'Click to open or close its window; right-click for more.'
             : 'Click to unload it; right-click for more.';
       } else if (it.kind === 'tool') {
@@ -8351,7 +10001,7 @@
       } else if (it.kind === 'page' || it.kind === 'action') {
         row.appendChild(pmk('span', 'awoo-pal-toolmark awoo-pal-chev', '›'));
         row.appendChild(pmk('span', 'awoo-pal-name', it.label));
-        right = pmk('span', 'awoo-pal-right', it.kind === 'page' ? 'Control Panel' : it.hint);
+        right = pmk('span', 'awoo-pal-right', it.kind === 'page' ? (it.adv ? 'Control Panel · Advanced' : 'Control Panel') : it.hint);
       } else if (it.kind === 'notice') {
         row.appendChild(dotEl('attention'));
         row.appendChild(pmk('span', 'awoo-pal-name', it.text));
@@ -8385,16 +10035,18 @@
       if (it.kind === 'module') {
         const m = modules[it.id];
         if (!m) return;
-        if (m.kind === 'tweak') { setEnabled(it.id, !m.enabled); return; }
-        if (getSetting('menuClick') === 'window' && m.enabled) { safely(it.id, 'onQuickClick'); renderPalette(); return; }
+        const tweak = m.kind === 'tweak';
+        if (!tweak && getSetting('menuClick') === 'window' && m.enabled) { safely(it.id, 'onQuickClick'); renderPalette(); return; }
         const was = m.enabled;
         setEnabled(it.id, !was);
         // Easy to press by accident, so it says what happened and offers the
-        // way back (an unload saved first; loading again restores it).
-        toast(`${m.label} ${was ? 'unloaded' : 'loaded'}.`, {
+        // way back (an unload saved first; loading again restores it). A
+        // Tweak too: switched off, its change to the page just disappears.
+        toast(`${m.label} ${tweak ? (was ? 'switched off' : 'switched on') : (was ? 'unloaded' : 'loaded')}.`, {
           type: 'info', duration: 5000, action: 'Undo', onAction: () => setEnabled(it.id, was),
         });
       } else if (it.kind === 'tool') { closePalette(); openTool(it.id); }
+      else if (it.kind === 'page' && it.adv) { closePalette(); openAdvanced(it.target); }
       else if (it.kind === 'page') { closePalette(); openSettingsWindow(it.target); }
       else if (it.kind === 'action') { it.run(); }
       else if (it.kind === 'notice' && it.reload) { location.reload(); }
@@ -8410,10 +10062,10 @@
       if (m.enabled && hasWindow) items.push({ label: m.open ? 'Close window' : 'Open window', onClick: () => safely(id, 'onQuickClick') });
       items.push({ label: m.enabled ? 'Unload' : 'Load', onClick: () => setEnabled(id, !m.enabled) });
       items.push({ separator: true });
-      if (m.enabled && hasWindow) items.push({ label: 'Shown on the bar', checked: !isIn('barHidden', id), onClick: () => setShown(id, 'bar', isIn('barHidden', id)) });
-      if (m.kind !== 'tweak') items.push({ label: 'Shown in the menu', checked: !isIn('menuHidden', id), onClick: () => setShown(id, 'menu', isIn('menuHidden', id)) });
+      if (m.enabled && hasWindow) items.push({ label: 'Shown on the top bar', checked: !isIn('barHidden', id), onClick: () => setShown(id, 'bar', isIn('barHidden', id)) });
+      items.push({ label: 'Shown in the menu', checked: !isIn(menuKey(id), id), onClick: () => setShown(id, 'menu', isIn(menuKey(id), id)) });
       items.push({ separator: true });
-      items.push({ label: 'Settings…', onClick: () => { closePalette(); openSettingsWindow(m.kind === 'tweak' ? 'tweaks' : id); } });
+      items.push({ label: 'Settings…', onClick: () => { closePalette(); openSettingsWindow(id); } });
       if (m.enabled && hasWindow) items.push({ label: 'Bring window on-screen', onClick: () => safely(id, 'onResetPosition') });
       if (m.crashed || m.errored || m.saveError) items.push({ label: 'Show in Diagnostics', onClick: () => { closePalette(); openSettingsWindow('diag'); } });
       return items;
@@ -8481,7 +10133,7 @@
         const acts = pmk('div', 'awoo-pal-acts');
         if (m.enabled && hasWindow) acts.appendChild(act(m.open ? 'Close' : 'Open', () => { safely(it.id, 'onQuickClick'); renderPalette(); }, true));
         acts.appendChild(act(m.enabled ? 'Unload' : 'Load and open', () => setEnabled(it.id, !m.enabled), !m.enabled));
-        acts.appendChild(act('Settings', () => { closePalette(); openSettingsWindow(m.kind === 'tweak' ? 'tweaks' : it.id); }));
+        acts.appendChild(act('Settings', () => { closePalette(); openSettingsWindow(it.id); }));
         if (m.enabled && hasWindow) acts.appendChild(act('On-screen', () => safely(it.id, 'onResetPosition')));
         box.appendChild(acts);
         if (m.kind !== 'tweak') {
@@ -8518,7 +10170,7 @@
         box.appendChild(acts);
         box.appendChild(tickRow('In the menu', !isIn('toolMenuHidden', it.id), (v) => setShown(it.id, 'menu', v)));
         if ((t.uses || []).length) {
-          box.appendChild(pmk('div', 'awoo-pal-label', 'Fills in from your profile'));
+          box.appendChild(pmk('div', 'awoo-pal-label', 'Fills in from your account data'));
           const c = chipsFor(t.uses);
           box.appendChild(c.el);
           if (c.old) box.appendChild(act('Sync now', () => { resyncProfile(); toast('Requested profile sync…', { type: 'info', duration: 2500 }); }));
@@ -8675,6 +10327,17 @@
     // The clock is Date.now(), not a count of timer callbacks (§4.4, S8).
     const STORE_DELAY_MS = 2000;
     const STORE_MIN_INTERVAL_MS = 10 * 1000;
+    // A payload as compared for "unchanged" (R149): its JSON, without a
+    // top-level savedAt. Two modules stamp one (Pet Slot Alarm, Fighter
+    // Allocator) and neither reads it back; it still lands with every real
+    // change. Key order counts: a module builds its snapshot the same way each
+    // time, and a reordered payload only costs a write, never a lost one.
+    function storeCompareForm(value, json) {
+      if (!value || typeof value !== 'object' || Array.isArray(value) || !('savedAt' in value)) return json;
+      const rest = Object.assign({}, value);
+      delete rest.savedAt;
+      return JSON.stringify(rest);
+    }
     const liveStores = new Set();
     const saveErrorsToasted = new Set();
     function makeStore(ownerId, key, { delayMs = STORE_DELAY_MS } = {}) {
@@ -8688,6 +10351,29 @@
       // that registered it; if its write landed, the dead run's state would
       // overwrite what the fresh run saved. A closed store drops the write.
       let closed = false;
+      // R149 (found live 2026-10-03): every store rewrote its payload on each
+      // flush whether or not it had changed. An idle Pet Slot Alarm saved the
+      // same 265 B every 10 s with only its savedAt moved; a second tab did
+      // the same. A flush now compares with what storage HOLDS (not with what
+      // this store last wrote: another tab may have written since, and then
+      // this tab's write is a real change and still lands), ignoring a
+      // top-level savedAt, which says when, not what. lastRaw/lastCmp cache
+      // the comparison form of this store's own last write, so the usual case
+      // (storage still holds exactly that) costs a string compare, not a parse.
+      let lastRaw = null;
+      let lastCmp = null;
+      function storeSameAsStored(value, json) {
+        let raw;
+        try { raw = localStorage.getItem(key); } catch (e) { return false; }   // unreadable: write
+        if (raw == null) return false;
+        let rawCmp;
+        if (raw === lastRaw) rawCmp = lastCmp;
+        else {
+          try { const parsed = JSON.parse(raw); rawCmp = storeCompareForm(parsed, JSON.stringify(parsed)); } catch (e) { return false; }
+          lastRaw = raw; lastCmp = rawCmp;
+        }
+        return rawCmp === storeCompareForm(value, json);
+      }
       const store = {
         key,
         get closed() { return closed; },
@@ -8720,8 +10406,17 @@
           let value = pending;
           try {
             if (typeof value === 'function') value = value();
+            const json = JSON.stringify(value);
+            // R149: storage already holds this payload, so there is nothing
+            // to write. See storeSameAsStored below.
+            if (storeSameAsStored(value, json)) {
+              hasPending = false; pending = undefined;
+              if (modules[ownerId]) modules[ownerId].saveError = null;
+              return true;
+            }
             lastSetAt = Date.now();   // a failed attempt counts too: retries keep the same pace
-            localStorage.setItem(key, JSON.stringify(value));
+            localStorage.setItem(key, json);
+            lastRaw = json; lastCmp = storeCompareForm(value, json);
             hasPending = false; pending = undefined;
             if (modules[ownerId]) modules[ownerId].saveError = null;
             return true;
@@ -8819,6 +10514,11 @@
         onProvide: { value: (name, fn) => track('unsub', onProvide(name, fn)) },
         registerLink: { value: (tool) => { registerLink(tool); if (tool && tool.id && tools[tool.id]) track('tool', tool.id); } },
         store: { value: (key, opts) => track('store', makeStore(id, key, opts)) },
+        companion: {
+          value: Object.create(companionApi, {
+            feature: { value: (spec) => { const h = makeCompanionFeature(spec); if (h) track('unsub', () => h.dispose()); return h; } },
+          }),
+        },
       });
       return {
         api,
@@ -8912,12 +10612,27 @@
     // A module seen for the FIRST time joins the menu only while the menu has
     // fewer than five modules in it (the maintainer, 2026-09-25): a first
     // install starts with everything off and a short, readable menu; the rest
-    // are one search, or one tick in Control Panel > Modules, away.
+    // are one search, or one tick in Features, away. A Tweak always joins the
+    // menu: it is a single line that switches on or off, and is not counted.
     const MENU_FIRST_SHOWN = 5;
-    function placeNewInMenu(id) {
-      if (registry.order.includes(id)) return;
+    function placeNewInMenu(id, about) {
+      if (registry.order.includes(id) || (about && about.kind === 'tweak')) return;
       const shown = registry.order.filter((x) => modules[x] && modules[x].kind !== 'tweak' && !isIn('menuHidden', x)).length;
       if (shown >= MENU_FIRST_SHOWN) setIn('menuHidden', id, true);
+    }
+
+    // ON BY DEFAULT (R179): a Tweak that declares `defaultOn: true` is
+    // loaded the first time this player's Core sees it, and saved so, so the
+    // choice is theirs from then on: switched off, it stays off. "Seen" is
+    // the registry's `order`, which holds every id ever adopted; a v1
+    // registry's order holds only what was on, so it is not trusted here.
+    // Windowed modules never start on their own (FRAMEWORK.md §3a).
+    function placeNewDefaultOn(id, about) {
+      if (!about || about.defaultOn !== true || about.kind !== 'tweak') return;
+      if (registry.order.includes(id) || !orderIsComplete) return;
+      setIn('loaded', id, true);
+      noteOrder(id);
+      saveState();
     }
 
     // Registered from its declaration, not by running it (claim(), below).
@@ -8929,7 +10644,8 @@
         renderDropdown();
         return;
       }
-      placeNewInMenu(entry.id);
+      placeNewInMenu(entry.id, a);
+      placeNewDefaultOn(entry.id, a);
       modules[entry.id] = Object.assign({ badge: false, open: false, state: 'idle' }, modules[entry.id] || {}, {
         id: entry.id,
         label: a.label || entry.id,
@@ -8940,6 +10656,8 @@
         uses: Array.isArray(a.uses) ? a.uses.slice() : [],
         // Who it is for (R97): lists colour a name not every player has.
         audience: a.audience || null,
+        // Who to send feedback to (R171), from its .release.json.
+        author: a.author || null,
         carriedTools: Array.isArray(a.tools) ? a.tools.slice() : [],
         quickButton: a.quickButton === false ? false : undefined,
         lifecycle: a.lifecycle,
@@ -8984,7 +10702,9 @@
     }
 
     // "enabled" in code is "Loaded" in the UI (GLOSSARY.md).
-    function setEnabled(id, enabled) {
+    // `quiet` (R185): load without opening the module's window, as a page load
+    // does. The setup wizard loads several at once and opens none of them.
+    function setEnabled(id, enabled, { quiet = false } = {}) {
       const mod = modules[id];
       if (!mod || mod.enabled === enabled) return;
       mod.enabled = enabled;
@@ -8992,7 +10712,7 @@
       noteOrder(id);
       saveState();
       if (mod.lifecycle >= 2) {
-        if (enabled) startModule(id, { userAction: true });
+        if (enabled) startModule(id, { userAction: !quiet });
         else stopModule(id);
       } else {
         // Before v14, and still for a module that has not opted in: the code is
@@ -9006,9 +10726,15 @@
       renderDropdown();
     }
 
+    // Which "hidden from the menu" list an id's choice lives in.
+    function menuKey(id) {
+      if (tools[id] && !modules[id]) return 'toolMenuHidden';
+      return modules[id] && modules[id].kind === 'tweak' ? 'tweakMenuHidden' : 'menuHidden';
+    }
+
     // Where a loaded module shows. Never stops or starts anything.
     function setShown(id, where, shown) {
-      const key = where === 'bar' ? 'barHidden' : where === 'menu' ? (tools[id] && !modules[id] ? 'toolMenuHidden' : 'menuHidden') : null;
+      const key = where === 'bar' ? 'barHidden' : where === 'menu' ? menuKey(id) : null;
       if (!key) return;
       setIn(key, id, !shown);
       noteOrder(id);
@@ -9040,17 +10766,20 @@
       return {
         id, label: m.label, shortLabel: m.shortLabel || null, description: m.description || '',
         category: m.category || 'Other', kind: m.kind || 'module', uses: (m.uses || []).slice(),
+        author: m.author || null,
         carriedTools: (m.carriedTools || []).slice(), version: m.version || null,
         lifecycle: m.lifecycle || 1, loaded: !!m.enabled, started: m.lifecycle >= 2 ? !!m.started : !!m.enabled,
         crashed: !!m.crashed, errored: !!m.errored, saveError: m.saveError || null,
         open: !!m.open, state: m.state || 'idle', stateDetail: m.stateDetail || null,
         startMs: Number.isFinite(m.startMs) ? m.startMs : null,
         held: m.ctx ? m.ctx.stats() : null,
-        shownOnBar: !isIn('barHidden', id), shownInMenu: !isIn('menuHidden', id),
+        shownOnBar: !isIn('barHidden', id), shownInMenu: !isIn(menuKey(id), id),
         hasWindow: m.quickButton !== false && m.kind !== 'tweak',
+        // A sub-module's parent id (SUB_MODULES), when that parent is installed.
+        parent: subParentOf(id) ? SUB_MODULES[id] : null,
       };
     }
-    function listModules() { return orderedIds(Object.keys(modules)).map(moduleInfo); }
+    function listModules() { return subOrdered(orderedIds(Object.keys(modules))).map(moduleInfo); }
 
     // A name not every player has (R97): the class that colours it, and what
     // its hover says. Trusted and village are both not in the public AWOO+;
@@ -9772,6 +11501,14 @@
           handle._sync();
           return g;
         },
+        // Stops handshake changes reaching this handle (and its onModeChange
+        // closure). A module's tracking API calls it on unload; before that,
+        // every load of a module left one more handle behind for the life of
+        // the page (modules audit 2026-10-06, finding 4).
+        dispose() {
+          const i = companionFeatures.indexOf(handle);
+          if (i !== -1) companionFeatures.splice(i, 1);
+        },
         _group: null,
         _error: null,
         // The same sentence the status line shows. Exposed because a module may
@@ -10293,6 +12030,32 @@
         });
     }
 
+    // DEV PROXY ONLY (DEV_VERSIONS is null in every other build). The
+    // maintainer's question at a glance: how far behind the dev build are the
+    // published versions? AWOO+ comes from the live public manifest, the one
+    // file a live Core's own check reads, with no credentials. Extras is gated:
+    // a gated install on this page answers through its own manifest (the same
+    // fetch checkForUpdates makes); otherwise the version of the last gated cut
+    // committed in the repo stands in, marked "last cut". Nothing here holds a
+    // key. Read-only, one notice, and nothing is remembered.
+    function checkLiveVersions() {
+      const dv = DEV_VERSIONS;
+      const note = toast('Checking live versions…', { type: 'info', duration: 0 });
+      const dev = `dev ${RELEASE.version}, ${dv.unreleased} unreleased change${dv.unreleased === 1 ? '' : 's'}`;
+      const core = dv.manifestUrl
+        ? fetchJsonWithin(dv.manifestUrl).then((m) => (m && m.core && m.core.version) || null).catch(() => null)
+        : Promise.resolve(null);
+      const extrasBase = window.__awooExtras && window.__awooExtras.base;
+      const extras = extrasBase
+        ? fetchJsonWithin(`${extrasBase}/manifest.json`).then((gm) => (gm && gm.extras && gm.extras.version) || null).catch(() => null)
+        : Promise.resolve(null);
+      Promise.all([core, extras]).then(([c, x]) => {
+        const xs = x ? `Extras ${x}` : dv.extrasCut ? `Extras ${dv.extrasCut} (last cut)` : 'Extras gated: not readable';
+        const text = `Live: AWOO+ ${c || 'not readable'} · ${xs} — ${dev} (Extras ${dv.extrasDev})`;
+        note.set(text, { type: c ? 'info' : 'warn', duration: 9000 });
+      });
+    }
+
     function openUpdate(entry) {
       if (!entry || !entry.url) return;
       window.open(entry.url, '_blank', 'noopener');
@@ -10599,6 +12362,13 @@
       get __windowsForTest() { return windowRegistry; },
       // shared number handling - modules must use these, never their own parser
       parseNumber, formatNumber,
+      // v18 (R168): numbers in full, in the player's convention — int(x),
+      // fixed(x, digits, { trim, group }), pct(x, digits, opts). A module never
+      // calls toLocaleString/toFixed for display (tests/number-format.mjs).
+      // Guard with `Core.num` before use: an older Core has none of it.
+      num: Object.freeze({ int: numInt, fixed: numFixed, pct: numPct }),
+      // v18 (R168): fn once <body> exists; returns a disposer for the scope.
+      whenBodyReady,
       // SPA route changes, detected once by Core and shared (v9). A module
       // must not wrap history itself — see notifyNavigation above.
       onNavigate,
@@ -10607,7 +12377,10 @@
       // to server time; this only changes how a timestamp is DRAWN. Guard with
       // `typeof Core.time === 'object'` before use: an older Core beneath a
       // newer module has none of this and every timestamp stays in UTC.
-      time: { zone: resolvedTimeZone, format: timeFormat, parts: timeParts, onChange: onTimeZoneChange },
+      // v18 (R168) adds span(ms, { units, floor, zeros }): a duration, "3h 18m";
+      // guard it on its own (`typeof Core.time.span === 'function'`), since a
+      // v17 Core has .time without it.
+      time: { zone: resolvedTimeZone, format: timeFormat, parts: timeParts, onChange: onTimeZoneChange, span: timeSpan },
       // v15: named services between modules (see "THE DAY ONE DID" above).
       provide: (name, api) => provideService('core', name, api),
       use: useService,
@@ -10654,7 +12427,91 @@
       get barMax() { return registry.barMax; },
       get order() { return registry.order.slice(); },
       __registryForTest: { migrate: migrateRegistry, get current() { return JSON.parse(JSON.stringify(registry)); } },
+      // R185: the seam for the setup wizard, a Core part
+      // (src/core/setup-wizard.js). Not a module API: `boot` is what this
+      // page load's first reads found ('fresh' | 'existing' | 'unreadable').
+      __setup: {
+        boot: setupBoot,
+        register(hooks) {
+          if (!hooks || typeof hooks.open !== 'function') return;
+          setupHooks = hooks;
+          renderSetupButton();
+          paintSetupRow();
+        },
+        // Loading off the wizard's list: the Control Panel's own path, quietly.
+        setLoaded: (id, on) => setEnabled(id, !!on, { quiet: true }),
+        pickSettingsFile,
+        fonts: () => ({ text: FONT_CHOICES.text.map((f) => ({ id: f.id, label: f.label })), num: FONT_CHOICES.num.map((f) => ({ id: f.id, label: f.label })) }),
+        // Every installed tool, and whether it is in the menu now.
+        tools: () => orderedIds(Object.keys(tools)).filter((id) => !modules[id]).map((id) => ({
+          id, label: tools[id].label || id, description: tools[id].description || '', shown: !isIn('toolMenuHidden', id),
+        })),
+        // In the menu or not: the Control Panel's own path (Tools › Menu).
+        setToolShown: (id, on) => { if (tools[id] && !modules[id]) setShown(id, 'menu', !!on); },
+        renderButton: renderSetupButton,
+        // Round 2 (2026-10-13). Number format: the stored choice (null is
+        // Auto-detect), the three choices, the Control Panel's own setter, and
+        // a sample in a given choice's separators (Auto-detect: the game's,
+        // else the browser's, as detection would pick).
+        numberFormat: {
+          get: numberFormatOverride,
+          choices: () => NUMBER_FORMAT_CHOICES.map((c) => ({ key: c.key, label: c.label })),
+          set: (key) => setNumberLocaleOverride(key && NUMBER_LOCALE_MAP[key] ? key : null),
+          sample: (key) => {
+            let c;
+            if (key && NUMBER_LOCALE_MAP[key]) c = separatorsFor(NUMBER_LOCALE_MAP[key]);
+            else {
+              const det = (getConvention().detected) || {};
+              c = det.game && NUMBER_LOCALE_MAP[det.game] ? separatorsFor(NUMBER_LOCALE_MAP[det.game]) : (det.browser || { group: ',', decimal: '.' });
+            }
+            return (value, digits = 2) => {
+              const [whole, frac] = Math.abs(value).toFixed(digits).split('.');
+              return (value < 0 ? '−' : '') + groupDigits(whole, c.group) + (frac ? c.decimal + frac : '');
+            };
+          },
+        },
+        // The live preview (previewOn above), on the wizard's own window and
+        // on the Control Panel's window when it is open; `null` puts both back.
+        preview: (el, draft) => {
+          const panel = settingsHandle && settingsHandle.isOpen() ? settingsHandle.el : null;
+          if (draft) { previewOn(el, draft); if (panel) previewOn(panel, draft); }
+          else { clearPreview(el); if (settingsHandle) clearPreview(settingsHandle.el); }
+        },
+        // Core's window drag, for the wizard's header.
+        drag: (head, box) => attachDrag(head, box, null),
+        // The Control Panel's window, for tests of the preview.
+        get panelEl() { return settingsHandle ? settingsHandle.el : null; },
+        // The bar's elements, for the Welcome step's shine and the fold.
+        bar: () => (coreUi ? { group: coreUi.group, coreBtn: coreUi.coreBtn, setupBtn: coreUi.setupBtn } : null),
+      },
     };
+
+    // ---- whenBodyReady (v18, REGISTER.md R168) ----
+    // Runs fn once <body> exists: now, if it already does. Modules start at
+    // document-start, before the body, and Fighter Allocator and Pet Slot
+    // Alarm each carried the same observer for it. Returns a disposer, so a
+    // module hands it to its scope (scope.own) and an unload before the body
+    // arrives leaves nothing behind. Watches <html>'s own children only: the
+    // body is one of them, and a subtree watch fired on every node the page
+    // parsed until then.
+    function whenBodyReady(fn) {
+      if (typeof fn !== 'function') return () => {};
+      if (document.body) { fn(); return () => {}; }
+      let done = false;
+      const run = () => { if (done || !document.body) return; done = true; stop(); fn(); };
+      let obs = null;
+      const stop = () => {
+        if (obs) { obs.disconnect(); obs = null; }
+        try { document.removeEventListener('DOMContentLoaded', run); } catch (e) { /* no document events */ }
+      };
+      if (typeof MutationObserver === 'function' && document.documentElement) {
+        obs = new MutationObserver(run);
+        obs.observe(document.documentElement, { childList: true });
+      }
+      // The backstop for a document without an observer to give.
+      try { document.addEventListener('DOMContentLoaded', run); } catch (e) { /* no document events */ }
+      return () => { done = true; stop(); };
+    }
 
     // THE MENU MOUNTS AT STARTUP (R24). It used to be built only when a module
     // registered, so AWOO+ alone, or AWOO+ with nothing but tool shelves
@@ -11303,6 +13160,11 @@
       if (context.characterCurrency && typeof context.characterCurrency === 'object') {
         data.currency = context.characterCurrency;
       }
+      // The premium timers document (characterPremium: vip, qol), on every
+      // page like the currency. Section `premium` below (REGISTER.md R197).
+      if (context.characterPremium && typeof context.characterPremium === 'object') {
+        data.premium = context.characterPremium;
+      }
       if (context.characterLevels && typeof context.characterLevels === 'object') {
         data.levels = context.characterLevels;
       }
@@ -11606,6 +13468,19 @@
           intelligence: num(d.boosts && d.boosts.intelligence),
           stats: pick(d.stats, ['strength', 'health', 'agility', 'dexterity']),
           skills: pick(d.skills, ['hunting', 'mining', 'woodcutting', 'stonecarving']),
+          // Stored partner XP per skill (REGISTER.md R153): the same skills
+          // document's `<skill>Experience`, the figure the Partners page
+          // prints in brackets beside each level, "[stored / per level]"
+          // (PartnerSkills-gYykWHTo.js reads e.skills[c[skill]], c being
+          // types-DknJtTjH.js `l` = { hunting: 'huntingExperience', ... };
+          // the 2026-09-28 bundle). Kept by skill name; one the document does
+          // not carry stays null, never 0.
+          storedXp: d.skills && typeof d.skills === 'object' ? {
+            hunting: num(d.skills.huntingExperience),
+            mining: num(d.skills.miningExperience),
+            woodcutting: num(d.skills.woodcuttingExperience),
+            stonecarving: num(d.skills.stonecarvingExperience),
+          } : null,
         })),
       };
     }
@@ -11932,6 +13807,58 @@
       }
     }
 
+    // 13. Cave tools, house rooms and the currencies cave upgrades cost
+    // (REGISTER.md R141, for the Caves tool). Names only, no formula: Core
+    // consumes no facts.
+    //   caveTools: getCaveTools { characterId } answers ONE document with a
+    //     level per tool name. The game's Fighter Caves tools page reads it
+    //     as `tools[name] || 0` for its twelve names (page-D3UoF72q, the
+    //     2026-09-28 bundle: Exploration & Navigation scouting, compass,
+    //     map, repeater, chisel, lure; Loot Enhancement brush, backpack,
+    //     knife, sieve, trowel, mallet), so a name the document lacks is
+    //     read as 0 exactly as the game does; no document at all is null.
+    //   house: getHouse { characterId }, one level per room; the cave
+    //     description card reads `house.candlestick` for room size
+    //     (DescriptionHoverCard-B8ac7_J5 `V`). The fourteen room names are
+    //     the game's; a room the document lacks is null.
+    //   currency: the character provider's characterCurrency (on every page,
+    //     read on every capture, as `core.gold` already is): diamonds and the
+    //     four resources with their shattered twins, which the game's "use
+    //     shattered" switch spends on cave upgrades too. Floored by the
+    //     provider. A currency it does not carry is null.
+    const CAVE_TOOL_NAMES = ['scouting', 'compass', 'map', 'repeater', 'chisel', 'lure', 'brush', 'backpack', 'knife', 'sieve', 'trowel', 'mallet'];
+    const HOUSE_ROOMS = ['chairs', 'sink', 'stove', 'basket', 'pitchfork', 'fountain', 'tools', 'shed', 'table', 'carpet', 'couch', 'candlestick', 'crate', 'painting'];
+    const CAVE_CURRENCIES = ['diamonds', 'meat', 'iron', 'wood', 'stone', 'shatteredMeat', 'shatteredIron', 'shatteredWood', 'shatteredStone'];
+    const rawCaveTools = q['fighters.fighterCaves.queries.getCaveTools'];
+    let caveTools = null;
+    if (rawCaveTools && typeof rawCaveTools === 'object' && !Array.isArray(rawCaveTools)) {
+      caveTools = {};
+      for (const t of CAVE_TOOL_NAMES) caveTools[t] = num(rawCaveTools[t]) ?? 0;
+    }
+    const rawHouse = q['character.house.public.getHouse'];
+    let house = null;
+    if (rawHouse && typeof rawHouse === 'object' && !Array.isArray(rawHouse)) {
+      house = {};
+      for (const r of HOUSE_ROOMS) house[r] = num(rawHouse[r]);
+      if (HOUSE_ROOMS.every((r) => house[r] === null)) house = null;
+    }
+    let currency = null;
+    for (const c of CAVE_CURRENCIES) {
+      const v = currencyValue(c);
+      if (v !== null) (currency = currency || Object.fromEntries(CAVE_CURRENCIES.map((k) => [k, null])))[c] = v;
+    }
+
+    // 14. Premium timers (REGISTER.md R197, for the Sanctum Estimator's stat
+    // and relic drop rates). The character provider's characterPremium on
+    // every page, the same document as the official API's /character/premium:
+    // `vip` and `qol` are when each runs out, epoch ms. The game counts VIP as
+    // running while `vip > Date.now()` (the sidebar, page-Cz0tcgy_.js; the
+    // drop tables' `b('vip', premium)`, utils-3mSBLgCB.js, 2026-09-28 bundle).
+    // Names only: what VIP is worth is a data/ fact the consumer reads (Core
+    // consumes none). A timer the document lacks is null, never 0.
+    const rawPremium = fiber.premium && typeof fiber.premium === 'object' && !Array.isArray(fiber.premium) ? fiber.premium : null;
+    const premium = rawPremium ? { vip: num(rawPremium.vip), qol: num(rawPremium.qol) } : null;
+
     // 12. Your village rank's tax rates (REGISTER.md R139). The facts behind
     // every line here are data/formulas/village.json village.ranks.*: the
     // Ranks page (2026-09-28 bundle) opens getRanks { villageId }, every rank
@@ -12001,6 +13928,10 @@
       loadouts,
       village,
       villageTaxes,
+      caveTools,
+      house,
+      currency,
+      premium,
       party,
       partyActions,
       partyLastAction,
@@ -12320,6 +14251,13 @@
     { section: 'loadouts', name: 'sanctum.skilltree.public.getSkillTreePoints', args: { skillTreeId: SKILL_TREE }, every: 12 * HOUR_MS },
     { section: 'loadouts', name: 'sets.public.getCharacterItemSets', args: { characterId: OWN }, every: 12 * HOUR_MS },
     { section: 'fighters', name: 'fighters.public.getCharacterFightersRaw', args: { characterId: OWN }, every: 5 * HOUR_MS },
+    // CAVES (R141). Both are opened with { characterId } by the game's own
+    // pages: the Fighter Caves tools page and the cave description card
+    // (getCaveTools), the house page and the same card (getHouse). Levels
+    // change only when the player buys one. Read-only: the tools page's
+    // upgrade and reset mutations are never called.
+    { section: 'caveTools', name: 'fighters.fighterCaves.queries.getCaveTools', args: { characterId: OWN }, every: 5 * HOUR_MS },
+    { section: 'house', name: 'character.house.public.getHouse', args: { characterId: OWN }, every: 5 * HOUR_MS },
     // The village pages ask by village: getVillage with { id }, the other two
     // with { villageId }, both from the character document's villageId
     // (page-wqOaeWAP). No villageId observed: not asked.
@@ -13526,6 +15464,939 @@
   Core.__profileSyncForTest.ambientMs = () => ambientMs;
   })();
 
+  // ---- core part: userscripts/src/core/setup-wizard.js ----
+  (function () {
+  // THE FIRST-TIME SETUP WIZARD — PART OF CORE (REGISTER.md R185, with R184).
+  //
+  // NO-PROVENANCE: interface only; reads no data/ fact.
+  //
+  // The maintainer, 2026-10-07: a welcome for people who have just installed
+  // the script, at most three Next clicks, an image of where the menu and the
+  // Control Panel are, "Later" (or a click outside) folding it into a button
+  // on the top bar until it is done or skipped, a subtle import, a way to run
+  // it again from General, and an extended version with fonts and the like.
+  // The design is the mockup <https://claude.ai/artifact/CU5GFEmm3v7K2HWyYRNczR>.
+  //
+  // ROUND 2 (the maintainer, 2026-10-13). An unnumbered first page, "Get
+  // started", then 1 General (theme, time zone, number format, Profile Sync)
+  // and 2 Modules; Extended adds Appearance (theme, fonts, UI scale) and Top
+  // bar & notices. The progress bar sits at the bottom of the window. Theme,
+  // fonts and UI scale preview live on this window (and on the Control Panel
+  // if it is open), with an example value box and table row; nothing else in
+  // AWOO+ changes until Done, and Later, Close or Esc put the look back. Top
+  // bar & notices draws a small top bar and a notice in the chosen options.
+  // The window moves by its header (Core's own window drag) and is about
+  // 760x600, clamped to the screen. Lists follow the Control Panel's order,
+  // and a sub-module (Pet Slot Alarm) sits under its parent (Party).
+  //
+  // WHO SEES IT. Every player who has never been offered it, once: a fresh
+  // install, and (the maintainer, 2026-10-13) a player who already had AWOO+
+  // before the wizard existed. "Never offered" is the setting below being
+  // absent. If either of Core's first reads failed (Core.__setup.boot ===
+  // 'unreadable'), nothing is shown: a blocked storage says nothing about
+  // whether it was offered (rule 3). General's "Reset to defaults" offers it
+  // again (Core sets 'open'), and Run setup again opens it any time.
+  //
+  // WHAT THE MODULES STEP TICKS. A fresh install (Core.__setup.boot ===
+  // 'fresh' when it was first offered, remembered as setupWizardFresh, since
+  // the first write makes every later load look like an existing player)
+  // starts from the maintainer's picks, FRESH_ON and FRESH_TOOLS, plus what
+  // Core already loaded (the grid overlay, about.defaultOn). Anyone else
+  // starts from exactly what they have now: the wizard never quietly
+  // changes an existing setup.
+  //
+  // ITS STATE is one setting, setupWizard:
+  //   (absent)  never offered, or a read that failed
+  //   'open'    offered and not yet answered; opens again on the next load
+  //   'later'   folded away: the gold Setup button sits on the top bar
+  //   'done' / 'skipped'  answered; the button never comes back
+  //
+  // DORMANT FOR EVERYONE ELSE. Boot does one comparison on settings Core has
+  // already read. Nothing is drawn, injected or listened to until the wizard
+  // opens; even then it holds no document or window listener at rest (the
+  // scrim takes the outside click, the dialog takes Esc; Core's window drag
+  // listens on the document only while the header is held), and closing it
+  // removes it all.
+  //
+  // NOTHING CHANGES UNTIL DONE. Every choice is a draft; Done writes the
+  // settings that changed and loads or unloads modules through the Control
+  // Panel's own path (Core.__setup.setLoaded, quietly: no windows pop up).
+  // The live preview is inline custom properties on this window and on the
+  // Control Panel's (Core.__setup.preview), never the page's own.
+
+  const S = Core.__setup;
+  if (!S || typeof Core.getSetting !== 'function') return;
+
+  const KEY = 'setupWizard';
+  const FRESH_KEY = 'setupWizardFresh';
+  // The fresh-install picks (the maintainer, 2026-10-13): Fighter Allocator,
+  // Dungeon Win Rate, and Cost Tables in the menu. Only what is installed is
+  // listed, so a pick that is not installed simply does not appear.
+  const FRESH_ON = ['fighter-allocator', 'dungeon-win-rate'];
+  const FRESH_TOOLS = ['cost-tables'];
+  const STYLE_ID = 'awoo-setup-style';
+  const STEP_NAME = { start: 'Get started', general: 'General', modules: 'Modules', appearance: 'Appearance', bar: 'Top bar & notifications' };
+  const WORDS = ['no', 'one', 'two', 'three', 'four', 'five'];
+  // The window's size (the maintainer, 2026-10-13: "larger by default"),
+  // clamped to the screen with a 12px margin on each side.
+  const SIZE = { w: 760, h: 600, margin: 12 };
+  const reducedMotion = () => { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } };
+
+  // ---- what the dialog holds while open; null when closed ----
+  let W = null;
+
+  const el = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  };
+
+  // The General step's Theme pair maps onto the themes every player already
+  // has: Default follows the device, Claude is its light set and Slate its
+  // dark set (DESIGN.md §10a). Any other theme shows no side pressed and is
+  // kept; Extended's Appearance step lists every theme.
+  const LOOK_THEME = { auto: 'partners', light: 'claude', dark: 'slate' };
+  function lookOf(theme) {
+    for (const k of Object.keys(LOOK_THEME)) if (LOOK_THEME[k] === theme) return k;
+    return null;
+  }
+  const NOTIFY_POS = [['br', 'Bottom right'], ['bl', 'Bottom left'], ['tr', 'Top right'], ['tl', 'Top left'], ['tc', 'Top centre'], ['menu', 'Beside the menu']];
+
+  const numFmt = () => S.numberFormat || null;
+  function readDraft() {
+    const fonts = Core.getSetting('fonts') || {};
+    const aw = fonts.awoo || {};
+    const tz = Core.getSetting('timeZone');
+    return {
+      theme: Core.getSetting('theme'),
+      time: tz === 'local' ? 'local' : tz === 'server' || tz == null ? 'server' : null,
+      numFmt: numFmt() ? numFmt().get() : null,
+      sync: Core.getSetting('profileAutoSync') !== false,
+      fontText: aw.text || 'public',
+      fontNum: aw.num || 'public',
+      uiScale: Number(Core.getSetting('uiScale')) || 100,
+      menuLayout: Core.getSetting('menuLayout') === 'wide' ? 'wide' : 'compact',
+      menuSearch: Core.getSetting('menuSearch') === true,
+      barSyncDot: Core.getSetting('barSyncDot') !== false,
+      notifyPos: Core.getSetting('notifyPos') || 'br',
+      notifyStyle: Core.getSetting('notifyStyle') === 'quiet' ? 'quiet' : 'bold',
+      mods: null,   // read when the Modules step is first shown: modules register after Core
+      tools: null,  // the same, for the tools in the menu
+    };
+  }
+  // Installed modules and Tweaks, in the Control Panel's order (Core's
+  // listModules: the player's order, a sub-module under its parent), ticked
+  // as they are now; on a fresh install, also the fresh picks (see the head
+  // of this file). What is loaded stays ticked either way: a fresh player who
+  // switched something on from the Control Panel before opening the wizard
+  // keeps it.
+  function installed() {
+    const list = typeof Core.listModules === 'function' ? Core.listModules() : [];
+    return list.filter((m) => m && m.id);
+  }
+  function installedTools() {
+    const list = typeof S.tools === 'function' ? S.tools() : [];
+    return list.filter((t) => t && t.id);
+  }
+  const freshPicks = () => !W.rerun && Core.getSetting(FRESH_KEY) === true;
+  function modsDraft() {
+    if (!W.d.mods) {
+      const fresh = freshPicks();
+      W.d.mods = {};
+      for (const m of installed()) W.d.mods[m.id] = !!m.loaded || (fresh && FRESH_ON.includes(m.id));
+    }
+    return W.d.mods;
+  }
+  function toolsDraft() {
+    if (!W.d.tools) {
+      const fresh = freshPicks();
+      W.d.tools = {};
+      for (const t of installedTools()) W.d.tools[t.id] = fresh ? FRESH_TOOLS.includes(t.id) : !!t.shown;
+    }
+    return W.d.tools;
+  }
+
+  // The first page is not a step: "Step 1" is General.
+  function steps() { return W.extended ? ['start', 'general', 'modules', 'appearance', 'bar'] : ['start', 'general', 'modules']; }
+  const counted = () => steps().slice(1);
+
+  // ---- the styles, injected on first open and never before ----
+  // Text inside the window is sized in em from the window's own font, which
+  // follows the UI scale: so the UI scale preview reaches every line.
+  function injectStyle() {
+    if (!document.head || document.getElementById(STYLE_ID)) return;
+    const st = document.createElement('style');
+    st.id = STYLE_ID;
+    st.textContent = `
+      @property --awoo-setup-ang { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+      .awoo-setup-scrim { position: fixed; inset: 0; z-index: 1000900; background: rgba(20,22,26,.42); }
+      .awoo-setup { position: fixed; z-index: 1000901; display: flex; flex-direction: column;
+        box-sizing: border-box; background: var(--awoo-solid-card, var(--awoo-card)); color: var(--awoo-ink, var(--awoo-foreground));
+        border: 1px solid var(--awoo-border-strong, var(--awoo-border)); border-radius: var(--awoo-r-md, 6px);
+        box-shadow: 0 12px 34px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.14); overflow: hidden;
+        font: calc(12.5px * var(--awoo-ui-scale, 1))/1.45 var(--awoo-font, system-ui, sans-serif); }
+      .awoo-setup:focus { outline: none; }
+      .awoo-setup *, .awoo-setup *::before, .awoo-setup *::after { box-sizing: border-box; }
+      .awoo-setup-head { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 6px 0 12px; flex: none; cursor: move; user-select: none;
+        background: color-mix(in oklab, var(--awoo-solid-card, var(--awoo-card)) 55%, var(--awoo-surface-2));
+        border-bottom: 1px solid color-mix(in oklab, var(--awoo-accent-edge, var(--awoo-border)) 55%, var(--awoo-border)); }
+      .awoo-setup-head b { font-weight: 700; }
+      .awoo-setup-step { color: var(--awoo-ink-soft); font-size: .88em; font-variant-numeric: tabular-nums; }
+      .awoo-setup-sp { flex: 1; }
+      .awoo-setup-mark { font-size: .72em; letter-spacing: .05em; text-transform: uppercase; border: 1px solid currentColor;
+        border-radius: 3px; padding: 0 3px; color: var(--awoo-ink-mute); line-height: 1.5; }
+      .awoo-setup-x { width: 22px; height: 22px; display: inline-grid; place-items: center; border: 1px solid transparent;
+        border-radius: 3px; background: none; color: var(--awoo-ink-soft); cursor: pointer; font: inherit; font-size: 1.2em; line-height: 1; padding: 0; }
+      .awoo-setup-x:hover { border-color: var(--awoo-border-strong); color: var(--awoo-ink); }
+      .awoo-setup-body { flex: 1; min-height: 0; padding: 14px 18px 10px; overflow: auto; }
+      /* THE PROGRESS BAR, at the bottom (the maintainer, 2026-10-13): one
+         segment per numbered step, named under it, the current one bold. */
+      .awoo-setup-prog { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px;
+        padding: 10px 14px 0; border-top: 1px solid var(--awoo-border); flex: none; }
+      .awoo-setup-prog > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+      .awoo-setup-prog i { display: block; height: 5px; border-radius: 2px; background: var(--awoo-surface-3, var(--awoo-border)); }
+      .awoo-setup-prog .awoo-m-on i { background: var(--awoo-accent-fill, var(--awoo-accent)); }
+      .awoo-setup-prog span { font-size: .8em; color: var(--awoo-ink-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .awoo-setup-prog .awoo-m-on span { color: var(--awoo-ink-soft); }
+      .awoo-setup-prog .awoo-m-cur span { color: var(--awoo-ink); font-weight: 700; }
+      .awoo-setup-foot { display: flex; align-items: center; gap: 6px; padding: 8px 12px 10px; flex: none; }
+      .awoo-setup-eb { font-family: var(--awoo-font-mono, ui-monospace, monospace); font-size: .76em; letter-spacing: .11em;
+        text-transform: uppercase; color: var(--awoo-accent); margin: 0 0 4px; }
+      .awoo-setup h2 { margin: 0; font-size: 1.44em; font-weight: 700; line-height: 1.2; color: var(--awoo-ink); }
+      .awoo-setup-lead { margin: 4px 0 0; color: var(--awoo-ink-soft); }
+      .awoo-setup-lead b { color: var(--awoo-ink); }
+      .awoo-setup-h { margin: 0 0 2px; font-size: 1.2em; font-weight: 700; color: var(--awoo-ink); }
+      .awoo-setup-sub { margin: 0 0 12px; color: var(--awoo-ink-soft); font-size: .96em; }
+      .awoo-setup-frm { display: grid; grid-template-columns: 9.5em minmax(0,1fr); gap: 8px 14px; align-items: center; margin-bottom: 12px; }
+      .awoo-setup-lbl { min-width: 0; cursor: default; color: var(--awoo-ink); }
+      .awoo-setup-lbl[title] { cursor: help; }
+      .awoo-setup-lbl:hover[title] { color: var(--awoo-accent); }
+      .awoo-setup-ctl { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
+      .awoo-setup-hint { color: var(--awoo-ink-soft); font-size: .92em; font-variant-numeric: tabular-nums; }
+      .awoo-setup-seg { display: inline-flex; gap: 2px; padding: 2px; background: var(--awoo-surface-2);
+        border: 1px solid var(--awoo-border-control, var(--awoo-border)); border-radius: var(--awoo-in-radius, 3px); }
+      .awoo-setup-seg > button { background: none; border: none; color: var(--awoo-ink-soft); font: inherit; font-size: .92em;
+        font-weight: 600; padding: 1px 9px; border-radius: 2px; cursor: pointer; white-space: nowrap; }
+      .awoo-setup-seg > button:hover { color: var(--awoo-ink); }
+      .awoo-setup-seg > button.awoo-m-on { background: var(--awoo-surface, var(--awoo-card)); color: var(--awoo-ink); box-shadow: var(--awoo-shadow, 0 1px 2px rgba(0,0,0,.12)); }
+      .awoo-setup-head .awoo-setup-seg > button { font-size: .88em; padding: 0 7px; }
+      .awoo-setup-sel { font: inherit; font-size: .96em; color: var(--awoo-ink); background: var(--awoo-surface-2);
+        border: 1px solid var(--awoo-border-control, var(--awoo-border)); border-radius: var(--awoo-in-radius, 3px); padding: 2px 4px; }
+      .awoo-setup-range { display: inline-flex; align-items: center; gap: 8px; }
+      .awoo-setup-range input { width: 170px; accent-color: var(--awoo-accent-fill, var(--awoo-accent)); }
+      .awoo-setup-range span { min-width: 3.2em; text-align: right; font-variant-numeric: tabular-nums; }
+      .awoo-setup-note { display: flex; gap: 9px; align-items: flex-start; border: 1px solid var(--awoo-info, var(--awoo-border));
+        background: var(--awoo-bg-info, var(--awoo-surface-2)); border-radius: var(--awoo-r-md, 6px); padding: 7px 10px; font-size: .96em; line-height: 1.4; margin-bottom: 12px; }
+      .awoo-setup-note b, .awoo-setup-note .awoo-setup-g { color: var(--awoo-info, var(--awoo-ink)); font-weight: 700; }
+      .awoo-setup-note.awoo-m-off { border-color: var(--awoo-border-strong); background: var(--awoo-surface-2); }
+      .awoo-setup-note.awoo-m-off b, .awoo-setup-note.awoo-m-off .awoo-setup-g { color: var(--awoo-ink-soft); }
+      .awoo-setup-grp { font-family: var(--awoo-font-mono, ui-monospace, monospace); font-size: .76em; letter-spacing: .09em; text-transform: uppercase;
+        color: var(--awoo-ink-mute); display: flex; align-items: center; gap: 6px; margin: 10px 0 3px; }
+      .awoo-setup-grp::after { content: ""; flex: 1; height: 1px; background: var(--awoo-border); order: 1; }
+      .awoo-setup-grp .awoo-setup-cnt { order: 2; font-family: var(--awoo-font, system-ui, sans-serif); text-transform: none; letter-spacing: 0; font-size: 1.15em; color: var(--awoo-ink-soft); }
+      .awoo-setup-row { display: grid; grid-template-columns: 13px 13em minmax(0,1fr); align-items: center; gap: 9px;
+        min-height: 24px; padding: 1px 6px; border-radius: 3px; cursor: pointer; }
+      .awoo-setup-row:hover { background: var(--awoo-hover, color-mix(in srgb, var(--awoo-accent) 6%, transparent)); }
+      .awoo-setup-row b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .awoo-setup-row > span { color: var(--awoo-ink-soft); font-size: .92em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+      /* A sub-module (Pet Slot Alarm under Party): indented, "Party ›" small before it. */
+      .awoo-setup-row.awoo-m-sub { padding-left: 22px; grid-template-columns: 13px calc(13em - 16px) minmax(0,1fr); }
+      .awoo-setup-subof { color: var(--awoo-ink-mute); font-weight: 500; font-size: .85em; margin-right: 4px; }
+      .awoo-setup input[type="checkbox"] { appearance: none; -webkit-appearance: none; width: 13px; height: 13px; margin: 0; padding: 0;
+        border: 1px solid var(--awoo-accent-fill, var(--awoo-accent)); border-radius: 2px; background: transparent; cursor: pointer;
+        display: inline-grid; place-content: center; }
+      .awoo-setup input[type="checkbox"]:checked::after { content: ""; width: 7px; height: 4px; border: solid var(--awoo-accent);
+        border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg); }
+      .awoo-setup-tools, .awoo-setup-empty { color: var(--awoo-ink-mute); font-size: .92em; margin: 8px 0 0; }
+      .awoo-setup-btn { font: inherit; font-size: .96em; font-weight: 500; color: var(--awoo-ink); background: var(--awoo-surface-2);
+        border: 1px solid var(--awoo-border-control, var(--awoo-border)); border-radius: var(--awoo-in-radius, 3px); padding: 3px 12px; cursor: pointer; white-space: nowrap; }
+      .awoo-setup-btn:hover { border-color: var(--awoo-accent-fill, var(--awoo-accent)); color: var(--awoo-accent); }
+      .awoo-setup-btn.awoo-m-primary { background: var(--awoo-accent-fill, var(--awoo-primary)); border-color: var(--awoo-accent-fill, var(--awoo-primary));
+        color: var(--awoo-on-accent, var(--awoo-primary-foreground)); font-weight: 600; }
+      .awoo-setup-btn.awoo-m-primary:hover { filter: brightness(1.08); color: var(--awoo-on-accent, var(--awoo-primary-foreground)); }
+      .awoo-setup-quiet { background: none; border: 1px solid transparent; border-radius: var(--awoo-in-radius, 3px); color: var(--awoo-ink-soft);
+        font: inherit; font-size: .96em; padding: 3px 7px; cursor: pointer; }
+      .awoo-setup-quiet:hover { color: var(--awoo-accent); border-color: var(--awoo-border); }
+      .awoo-setup-link { background: none; border: 0; padding: 0; font: inherit; font-size: .92em; color: var(--awoo-ink-mute); cursor: pointer; }
+      .awoo-setup-link:hover { color: var(--awoo-accent); }
+      /* THE EXAMPLE (the maintainer: "a sample value box and table row in
+         the house style"): a field row with its value cell and a table row,
+         in the draft's theme, fonts, UI scale and number format. */
+      .awoo-setup-pv { border: 1px dashed var(--awoo-border-strong, var(--awoo-border)); border-radius: var(--awoo-r-md, 6px); padding: 8px 10px 10px;
+        background: var(--awoo-ground, var(--awoo-surface-2)); }
+      .awoo-setup-pvh { font-family: var(--awoo-font-mono, ui-monospace, monospace); font-size: .72em; letter-spacing: .09em; text-transform: uppercase;
+        color: var(--awoo-ink-mute); margin-bottom: 6px; }
+      .awoo-setup-pvgrid { display: grid; grid-template-columns: minmax(0,1fr) 9em; gap: 4px 12px; align-items: center; max-width: 24em;
+        padding: 7px 9px; background: var(--awoo-surface, var(--awoo-card)); border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md, 6px); margin-bottom: 8px; }
+      .awoo-setup-pvgrid > span { font-size: .96em; color: var(--awoo-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .awoo-setup-cell { display: grid; grid-template-columns: .7em minmax(0,1fr); align-items: center; gap: 4px; height: 1.6em; padding: 0 6px;
+        border-radius: var(--awoo-in-radius, 3px); border: 1px solid color-mix(in oklab, var(--awoo-success-fill, var(--awoo-success)) 35%, var(--awoo-border));
+        background: color-mix(in oklab, var(--awoo-success-fill, var(--awoo-success)) 9%, var(--awoo-surface, var(--awoo-card))); color: var(--awoo-ink-soft); }
+      .awoo-setup-cell.awoo-m-typed { border-color: var(--awoo-info); background: var(--awoo-surface, var(--awoo-card)); color: var(--awoo-ink); }
+      .awoo-setup-cell i { width: 7px; height: 7px; border-radius: 50%; background: var(--awoo-success-fill, var(--awoo-success)); justify-self: center; }
+      .awoo-setup-cell.awoo-m-typed i { background: var(--awoo-info); }
+      .awoo-setup-num { font-family: var(--awoo-font-num, inherit); font-variant-numeric: tabular-nums; text-align: right; }
+      .awoo-setup-pvt { border-collapse: collapse; font-size: .92em; background: var(--awoo-surface, var(--awoo-card)); border: 1px solid var(--awoo-border); }
+      .awoo-setup-pvt th { font-family: var(--awoo-font-mono, ui-monospace, monospace); font-size: .78em; font-weight: 500; text-transform: uppercase; letter-spacing: .04em;
+        color: var(--awoo-ink-mute); background: var(--awoo-surface-2); text-align: left; padding: 2px 10px; border-bottom: 1px solid var(--awoo-border); }
+      .awoo-setup-pvt td { padding: 2px 10px; border-top: 1px solid var(--awoo-border); white-space: nowrap; color: var(--awoo-ink); }
+      .awoo-setup-pvt .awoo-m-n { text-align: right; font-family: var(--awoo-font-num, inherit); font-variant-numeric: tabular-nums; }
+      .awoo-setup-pvt tr.awoo-m-sel td { background: var(--awoo-bg-accent, transparent); border-top-color: var(--awoo-accent-edge, var(--awoo-border)); border-bottom: 1px solid var(--awoo-accent-edge, var(--awoo-border)); }
+      .awoo-setup-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: var(--awoo-success-fill, var(--awoo-success)); }
+      .awoo-setup-pvt td.awoo-setup-good { color: var(--awoo-success); }
+      /* TOP BAR & NOTICES: a small top bar and menu, and a small screen with
+         a notice where it would appear, both in the options chosen. */
+      .awoo-setup-samples { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; align-items: start; }
+      .awoo-setup-sbox { border: 1px dashed var(--awoo-border-strong, var(--awoo-border)); border-radius: var(--awoo-r-md, 6px); padding: 8px 10px 10px;
+        background: var(--awoo-ground, var(--awoo-surface-2)); min-width: 0; }
+      .awoo-setup-sbar { display: inline-flex; align-items: center; gap: 2px; height: 26px; padding: 1px; border: 1px solid var(--awoo-border-strong); border-radius: 5px;
+        background: var(--awoo-solid-card, var(--awoo-card)); }
+      .awoo-setup-core { height: 100%; padding: 0 8px; display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: 4px;
+        color: var(--awoo-primary, var(--awoo-accent)); font-weight: 700; font-size: 1.04em; }
+      .awoo-setup-isep { width: 1px; height: 14px; background: var(--awoo-border-strong); margin: 0 3px; }
+      .awoo-setup-idb { color: var(--awoo-ink-soft); padding: 0 5px; display: inline-flex; position: relative; }
+      .awoo-setup-idb svg { width: 16px; height: 16px; display: block; }
+      .awoo-setup-idb b { position: absolute; right: 2px; top: 1px; width: 6px; height: 6px; border-radius: 50%; background: var(--awoo-success-fill, var(--awoo-success));
+        box-shadow: 0 0 0 1.5px var(--awoo-solid-card, var(--awoo-card)); }
+      .awoo-setup-ghost { height: 100%; display: inline-flex; align-items: center; padding: 0 7px; border: 1px dashed var(--awoo-border-strong);
+        border-radius: 4px; color: var(--awoo-ink-mute); font-size: .92em; }
+      .awoo-setup-smenu { display: flex; margin-top: 4px; width: 13em; background: var(--awoo-solid-card, var(--awoo-card)); border: 1px solid var(--awoo-border-strong);
+        border-radius: 5px; overflow: hidden; font-size: .88em; }
+      .awoo-setup-smenu.awoo-m-wide { width: 100%; max-width: 22em; }
+      .awoo-setup-smenu > div { flex: 1; min-width: 0; }
+      .awoo-setup-smenu .awoo-setup-sside { flex: .9; border-left: 1px solid var(--awoo-border); padding: 4px 7px; color: var(--awoo-ink-soft); background: var(--awoo-surface-2); }
+      .awoo-setup-ssearch { margin: 4px 5px 2px; padding: 1px 5px; border: 1px solid var(--awoo-border-control, var(--awoo-border)); border-radius: 3px; color: var(--awoo-ink-mute);
+        background: var(--awoo-surface-2); }
+      .awoo-setup-mr { height: 1.75em; padding: 0 8px; display: flex; align-items: center; gap: 5px; color: var(--awoo-ink); white-space: nowrap; overflow: hidden; }
+      .awoo-setup-mr.awoo-m-sel { background: var(--awoo-hover, transparent); }
+      .awoo-setup-screen { position: relative; height: 128px; border: 1px solid var(--awoo-border-strong); border-radius: 5px; background: var(--awoo-surface, var(--awoo-card)); overflow: hidden; }
+      .awoo-setup-screen::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 14px; background: var(--awoo-surface-2); border-bottom: 1px solid var(--awoo-border); }
+      .awoo-setup-screen > em { position: absolute; left: 6px; top: 1px; font-style: normal; font-weight: 700; font-size: .7em; color: var(--awoo-primary, var(--awoo-accent)); }
+      .awoo-setup-toast { position: absolute; max-width: 62%; padding: 3px 7px; font-size: .78em; line-height: 1.3; border-radius: 4px; color: var(--awoo-ink);
+        background: var(--awoo-solid-card, var(--awoo-card)); border: 1px solid var(--awoo-border-strong); border-left: 3px solid var(--awoo-info); box-shadow: 0 2px 6px rgba(0,0,0,.18); }
+      .awoo-setup-toast.awoo-m-bold { border: 1px solid var(--awoo-info); background: color-mix(in oklab, var(--awoo-info) 14%, var(--awoo-solid-card, var(--awoo-card))); font-weight: 600; }
+      .awoo-setup-toast.awoo-m-tl { left: 6px; top: 20px; } .awoo-setup-toast.awoo-m-tr { right: 6px; top: 20px; }
+      .awoo-setup-toast.awoo-m-tc { left: 50%; top: 20px; transform: translateX(-50%); }
+      .awoo-setup-toast.awoo-m-bl { left: 6px; bottom: 6px; } .awoo-setup-toast.awoo-m-br { right: 6px; bottom: 6px; }
+      .awoo-setup-toast.awoo-m-menu { left: 44px; top: 18px; }
+      /* THE PICTURE on Get started: the bar and the menu at about 1.25x,
+         drawn, not a screenshot, so it wears the player's own theme. */
+      .awoo-setup-ill { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 18px; align-items: center; margin: 14px 0 10px;
+        padding: 14px 16px; border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md, 6px); background: var(--awoo-surface-2); }
+      .awoo-setup-draw { display: grid; grid-template-columns: auto 18px; grid-template-rows: auto auto; column-gap: 6px; row-gap: 7px; align-items: center; }
+      .awoo-setup-draw > .awoo-setup-n:last-child { align-self: end; margin-bottom: 7px; }
+      .awoo-setup-n { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 3px; border: 1px solid var(--awoo-accent-edge, var(--awoo-border));
+        background: var(--awoo-bg-accent, transparent); color: var(--awoo-accent); font-weight: 700; font-size: .8em; flex: none; }
+      .awoo-setup-bar { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 1px; border: 1px solid var(--awoo-border-strong); border-radius: 5px;
+        background: var(--awoo-solid-card, var(--awoo-card)); }
+      .awoo-setup-menu { width: 200px; background: var(--awoo-solid-card, var(--awoo-card)); border: 2px solid var(--awoo-border); border-radius: 6px; font-size: .96em; overflow: hidden; }
+      .awoo-setup-mt { display: flex; gap: 6px; padding: 5px 8px; border-bottom: 1px solid var(--awoo-border); }
+      .awoo-setup-mt b { color: var(--awoo-primary, var(--awoo-accent)); }
+      .awoo-setup-mf { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-top: 1px solid var(--awoo-border); margin-top: 3px; }
+      .awoo-setup-cp { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border: 1px solid transparent; border-radius: 4px; }
+      .awoo-setup-cp svg { width: 13px; height: 13px; }
+      .awoo-setup-key { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; font-size: .96em; color: var(--awoo-ink-soft); }
+      .awoo-setup-key li { display: grid; grid-template-columns: 16px minmax(0,1fr); gap: 7px; align-items: start; }
+      .awoo-setup-key b { color: var(--awoo-ink); font-weight: 600; }
+      /* THE SHINE, only while Get started shows: a sweep of the theme's
+         amber round the AWOO+ button and Control Panel, in the picture and on
+         the real bar. A still glow with reduced motion. */
+      .awoo-setup-shine { border: 1px solid transparent !important;
+        background: linear-gradient(var(--awoo-setup-bg, var(--awoo-solid-card, var(--awoo-card))), var(--awoo-setup-bg, var(--awoo-solid-card, var(--awoo-card)))) padding-box,
+          conic-gradient(from var(--awoo-setup-ang), var(--awoo-warn) 0 12%, color-mix(in srgb, var(--awoo-warn) 30%, transparent) 30% 70%, var(--awoo-warn) 88%) border-box !important;
+        box-shadow: 0 0 9px color-mix(in srgb, var(--awoo-warn) 50%, transparent); animation: awoo-setup-spin 2.6s linear infinite; }
+      @keyframes awoo-setup-spin { to { --awoo-setup-ang: 360deg; } }
+      #awoo-core-group.awoo-setup-spot { position: relative; z-index: 1000902; }
+      /* On the real bar the button sits on the game's own nav, whose colour
+         is not ours to paint under it: a glow border, no fill. */
+      #awoo-core-btn.awoo-setup-glow { border-color: var(--awoo-warn) !important;
+        box-shadow: 0 0 0 1px color-mix(in srgb, var(--awoo-warn) 40%, transparent), 0 0 10px color-mix(in srgb, var(--awoo-warn) 55%, transparent); }
+      @media (prefers-reduced-motion: reduce) { .awoo-setup-shine { animation: none; } }
+    `;
+    document.head.appendChild(st);
+  }
+
+  const SVG_DB = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><ellipse cx="8" cy="4" rx="5" ry="2"/><path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4"/><path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2"/></svg>';
+  const SVG_GEAR = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M3.6 12.4l1.3-1.3M11.1 4.9l1.3-1.3"/></svg>';
+
+  // ---- small builders ----
+  function seg(options, value, onPick, label) {
+    const wrap = el('span', 'awoo-setup-seg');
+    wrap.setAttribute('role', 'group');
+    if (label) wrap.setAttribute('aria-label', label);
+    for (const [v, text] of options) {
+      const b = el('button', String(v) === String(value) ? 'awoo-m-on' : '', text);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(String(v) === String(value)));
+      b.addEventListener('click', () => { onPick(v); render(); });
+      wrap.appendChild(b);
+    }
+    return wrap;
+  }
+  function label(text, tip) {
+    const l = el('span', 'awoo-setup-lbl', text);
+    if (tip) l.title = tip;
+    return l;
+  }
+  function ctl(...kids) {
+    const c = el('span', 'awoo-setup-ctl');
+    for (const k of kids) if (k) c.appendChild(k);
+    return c;
+  }
+  function button(text, cls, onClick, tip) {
+    const b = el('button', cls, text);
+    b.type = 'button';
+    if (tip) b.title = tip;
+    b.addEventListener('click', (e) => { if (e && e.stopPropagation) e.stopPropagation(); onClick(); });
+    return b;
+  }
+  function select(options, value, onPick, aria) {
+    const s = el('select', 'awoo-setup-sel');
+    s.setAttribute('aria-label', aria);
+    for (const [v, text] of options) {
+      const o = el('option', null, text);
+      o.value = v;
+      if (v === value) o.selected = true;
+      s.appendChild(o);
+    }
+    s.value = value;
+    s.addEventListener('change', () => onPick(s.value));
+    return s;
+  }
+  // A number in the draft's number format (Core's own grouping).
+  function fmt(value, digits) {
+    const n = numFmt();
+    return n ? n.sample(W.d.numFmt)(value, digits) : String(value);
+  }
+
+  // ---- the example: a value box and a table row in the house style ----
+  function example(body) {
+    const pv = el('div', 'awoo-setup-pv');
+    pv.dataset.example = '1';
+    pv.appendChild(el('div', 'awoo-setup-pvh', 'Example · how AWOO+ will look'));
+    const g = el('div', 'awoo-setup-pvgrid');
+    g.appendChild(el('span', null, 'Gold per hour'));
+    const c1 = el('span', 'awoo-setup-cell');
+    c1.title = 'Synced from the game';
+    c1.appendChild(el('i'));
+    c1.appendChild(el('span', 'awoo-setup-num', fmt(1234567.8)));
+    g.appendChild(c1);
+    g.appendChild(el('span', null, 'Target slot level'));
+    const c2 = el('span', 'awoo-setup-cell awoo-m-typed');
+    c2.title = 'Typed by you';
+    c2.appendChild(el('i'));
+    c2.appendChild(el('span', 'awoo-setup-num', fmt(160, 0)));
+    g.appendChild(c2);
+    pv.appendChild(g);
+    const t = el('table', 'awoo-setup-pvt');
+    const hr = el('tr');
+    for (const [x, c] of [['Module', ''], ['Status', ''], ['Gold / h', 'awoo-m-n'], ['Win rate', 'awoo-m-n']]) hr.appendChild(el('th', c, x));
+    const th = el('thead');
+    th.appendChild(hr);
+    t.appendChild(th);
+    const tb = el('tbody');
+    const row = (name, status, gold, rate, sel) => {
+      const r = el('tr', sel ? 'awoo-m-sel' : '');
+      r.appendChild(el('td', null, name));
+      const st = el('td');
+      st.appendChild(el('span', 'awoo-setup-dot'));
+      st.appendChild(el('span', null, status));
+      r.appendChild(st);
+      r.appendChild(el('td', 'awoo-m-n', gold));
+      r.appendChild(el('td', 'awoo-m-n awoo-setup-good', rate));
+      tb.appendChild(r);
+    };
+    row('Fighter Allocator', 'plan ready', fmt(98765.43), `${fmt(97.5, 1)} %`, true);
+    row('Dungeon Win Rate', 'running', fmt(12345.6), `${fmt(81.25, 1)} %`, false);
+    t.appendChild(tb);
+    pv.appendChild(t);
+    body.appendChild(pv);
+  }
+
+  // ---- the steps ----
+  function startBody(body) {
+    body.appendChild(el('div', 'awoo-setup-eb', `AWOO+ ${(Core.release && Core.release.version) || ''}`.trim()));
+    body.appendChild(el('h2', null, W.rerun ? 'Welcome tour, again' : 'Welcome'));
+    const n = WORDS[counted().length] || String(counted().length);
+    const lead = el('p', 'awoo-setup-lead');
+    if (W.rerun) lead.textContent = `The same ${n} steps. Nothing changes until you press Done.`;
+    else if (Core.getSetting(FRESH_KEY) !== true) {
+      lead.appendChild(el('b', null, 'AWOO+'));
+      lead.appendChild(el('span', null, ` now has a short welcome tour: ${n} steps, ticked as you have it now. Nothing changes until you press Done.`));
+    } else {
+      lead.appendChild(el('span', null, 'You have installed '));
+      lead.appendChild(el('b', null, 'AWOO+'));
+      lead.appendChild(el('span', null, `: helpers for Queslar. ${n.charAt(0).toUpperCase() + n.slice(1)} short steps set it up.`));
+    }
+    body.appendChild(lead);
+    // The picture: (1) the AWOO+ button on the game's top bar, (2) Control
+    // Panel at the foot of its menu, (3) where module buttons appear.
+    const ill = el('div', 'awoo-setup-ill');
+    const draw = el('div', 'awoo-setup-draw');
+    const bar = el('span', 'awoo-setup-bar');
+    bar.appendChild(el('span', 'awoo-setup-core awoo-setup-shine', 'AWOO+ ▾'));
+    bar.appendChild(el('span', 'awoo-setup-isep'));
+    const db = el('span', 'awoo-setup-idb');
+    db.innerHTML = SVG_DB;
+    bar.appendChild(db);
+    bar.appendChild(el('span', 'awoo-setup-isep'));
+    bar.appendChild(el('span', 'awoo-setup-ghost', 'Module'));
+    draw.appendChild(bar);
+    draw.appendChild(el('span', 'awoo-setup-n', '1'));
+    const menu = el('div', 'awoo-setup-menu');
+    const mt = el('div', 'awoo-setup-mt');
+    mt.appendChild(el('b', null, 'AWOO+'));
+    menu.appendChild(mt);
+    menu.appendChild(el('div', 'awoo-setup-mr', 'Modules'));
+    menu.appendChild(el('div', 'awoo-setup-mr', 'Tools'));
+    const mf = el('div', 'awoo-setup-mf');
+    const cp = el('span', 'awoo-setup-cp awoo-setup-shine');
+    cp.innerHTML = SVG_GEAR;
+    cp.appendChild(el('span', null, 'Control Panel'));
+    mf.appendChild(cp);
+    menu.appendChild(mf);
+    draw.appendChild(menu);
+    draw.appendChild(el('span', 'awoo-setup-n', '2'));
+    ill.appendChild(draw);
+    const key = el('ol', 'awoo-setup-key');
+    for (const [k, b, rest] of [
+      ['1', 'AWOO+ ▾', ' on the game\'s top bar opens the menu.'],
+      ['2', 'Control Panel', ', at the foot of the menu: every setting.'],
+      ['3', '', 'Modules you switch on get a button on the top bar.'],
+    ]) {
+      const li = el('li');
+      li.appendChild(el('span', 'awoo-setup-n', k));
+      const t = el('span');
+      if (b) t.appendChild(el('b', null, b));
+      t.appendChild(el('span', null, rest));
+      li.appendChild(t);
+      key.appendChild(li);
+    }
+    ill.appendChild(key);
+    body.appendChild(ill);
+    if (!W.rerun) {
+      body.appendChild(button('Import previous settings…', 'awoo-setup-link', () => S.pickSettingsFile({ afterApply: () => Core.setSetting(KEY, 'done') }),
+        'Used AWOO+ in another browser? Load the file you saved with Export settings.'));
+    }
+  }
+
+  function generalBody(body) {
+    const d = W.d;
+    body.appendChild(el('div', 'awoo-setup-h', 'General'));
+    body.appendChild(el('p', 'awoo-setup-sub', 'All of these are in the Control Panel later.'));
+    const f = el('div', 'awoo-setup-frm');
+    f.appendChild(label('Theme', 'Auto follows your device. Every theme is in Full › Appearance, or Control Panel › Appearance.'));
+    f.appendChild(ctl(seg([['auto', 'Auto'], ['light', 'Light'], ['dark', 'Dark']], lookOf(d.theme), (v) => { d.theme = LOOK_THEME[v]; }, 'Theme')));
+    f.appendChild(label('Time zone', 'Display only. Server is the game\'s clock (UTC).'));
+    f.appendChild(ctl(seg([['server', 'Server (UTC)'], ['local', 'This computer']], d.time, (v) => { d.time = v; }, 'Time zone')));
+    if (numFmt()) {
+      f.appendChild(label('Number format', 'Comma or dot. Auto-detect reads the game\'s own setting.'));
+      f.appendChild(ctl(seg(numFmt().choices().map((c) => [c.key === null ? 'auto' : c.key, c.label]), d.numFmt || 'auto',
+        (v) => { d.numFmt = v === 'auto' ? null : v; }, 'Number format'), el('span', 'awoo-setup-hint', fmt(1234567.8))));
+    }
+    f.appendChild(label('Sync automatically', 'Keeps your account data up to date in the background. Off: it only updates when you press Sync now.'));
+    f.appendChild(ctl(seg([['on', 'On'], ['off', 'Off']], d.sync ? 'on' : 'off', (v) => { d.sync = v === 'on'; }, 'Sync automatically')));
+    body.appendChild(f);
+    const n = el('div', 'awoo-setup-note' + (d.sync ? '' : ' awoo-m-off'));
+    n.appendChild(el('span', 'awoo-setup-g', 'i'));
+    const t = el('span');
+    if (d.sync) {
+      t.appendChild(el('b', null, 'Profile Sync (local)'));
+      t.appendChild(el('span', null, ' saves your account data in this browser, so the modules and tools can use it.'));
+    } else {
+      t.appendChild(el('b', null, 'Off.'));
+      t.appendChild(el('span', null, ' Your account data updates only when you press Sync now, so modules may show old numbers.'));
+    }
+    n.appendChild(t);
+    body.appendChild(n);
+    example(body);
+  }
+
+  function modulesBody(body) {
+    const ch = modsDraft();
+    const tch = toolsDraft();
+    const list = installed();
+    const tlist = installedTools();
+    body.appendChild(el('div', 'awoo-setup-h', 'Modules'));
+    body.appendChild(el('p', 'awoo-setup-sub', 'Tick what to switch on. Control Panel › Features changes it any time.'));
+    if (!list.length && !tlist.length) body.appendChild(el('p', 'awoo-setup-empty', 'No modules are installed yet.'));
+    const labelOf = (id) => { const m = list.find((x) => x.id === id); return m ? m.label : id; };
+    const row = (m, draft = ch, attr = 'mod') => {
+      const r = el('label', 'awoo-setup-row' + (m.parent ? ' awoo-m-sub' : ''));
+      r.dataset[attr] = m.id;
+      const box = el('input');
+      box.type = 'checkbox';
+      box.checked = !!draft[m.id];
+      box.addEventListener('change', () => { draft[m.id] = !!box.checked; render(); });
+      r.appendChild(box);
+      const name = el('b');
+      // A sub-module (Pet Slot Alarm): "Party ›" small before its name.
+      if (m.parent) name.appendChild(el('span', 'awoo-setup-subof', `${labelOf(m.parent)} ›`));
+      name.appendChild(el('span', null, m.label || m.id));
+      r.appendChild(name);
+      const desc = el('span', null, m.description || '');
+      if (m.description) desc.title = m.description;
+      r.appendChild(desc);
+      return r;
+    };
+    const group = (title, items, count) => {
+      if (!items.length) return;
+      const g = el('div', 'awoo-setup-grp', title);
+      if (count) g.appendChild(el('span', 'awoo-setup-cnt', `${items.filter((m) => ch[m.id]).length} on`));
+      body.appendChild(g);
+      for (const m of items) body.appendChild(row(m));
+    };
+    group('Modules · on the top bar', list.filter((m) => m.kind !== 'tweak'), true);
+    group('Tweaks · on the game\'s pages', list.filter((m) => m.kind === 'tweak'), false);
+    if (tlist.length) {
+      body.appendChild(el('div', 'awoo-setup-grp', 'Tools · in the menu'));
+      for (const t of tlist) body.appendChild(row(t, tch, 'tool'));
+      body.appendChild(el('p', 'awoo-setup-tools', 'A tool opens from the menu. Nothing runs until you open one.'));
+    }
+  }
+
+  function appearanceBody(body) {
+    const d = W.d;
+    const fonts = S.fonts();
+    body.appendChild(el('div', 'awoo-setup-h', 'Appearance'));
+    body.appendChild(el('p', 'awoo-setup-sub', 'For everything AWOO+ draws, never the game. This window shows each choice at once; the rest of AWOO+ changes when you press Done.'));
+    const f = el('div', 'awoo-setup-frm');
+    f.appendChild(label('Theme', 'Tools you open from the menu use it too.'));
+    const themes = (Core.themes || []).map((t) => [t.id, t.label]);
+    f.appendChild(ctl(select(themes, d.theme, (v) => { d.theme = v; render(); }, 'Theme')));
+    f.appendChild(label('Text font'));
+    f.appendChild(ctl(seg(fonts.text.map((x) => [x.id, x.label]), d.fontText, (v) => { d.fontText = v; }, 'Text font')));
+    f.appendChild(label('Number font', 'Roboto Mono marks its zero.'));
+    f.appendChild(ctl(seg(fonts.num.map((x) => [x.id, x.label.replace(/\s*\(.*\)$/, '')]), d.fontNum, (v) => { d.fontNum = v; }, 'Number font')));
+    f.appendChild(label('UI scale', 'Everything AWOO+ draws, 80-130 %. Applies when you let go.'));
+    const rw = el('span', 'awoo-setup-range');
+    const r = el('input');
+    r.type = 'range'; r.min = '80'; r.max = '130'; r.step = '5'; r.value = String(d.uiScale);
+    r.setAttribute('aria-label', 'UI scale');
+    const v = el('span', null, `${d.uiScale} %`);
+    r.addEventListener('input', () => { v.textContent = `${r.value} %`; });
+    // On release, as the Control Panel's slider (DESIGN.md §9): applying
+    // mid-drag would rescale the slider under the pointer.
+    r.addEventListener('change', () => { d.uiScale = Number(r.value) || 100; render(); });
+    rw.appendChild(r);
+    rw.appendChild(v);
+    f.appendChild(ctl(rw));
+    body.appendChild(f);
+    example(body);
+  }
+
+  function barBody(body) {
+    const d = W.d;
+    body.appendChild(el('div', 'awoo-setup-h', 'Top bar & notifications'));
+    body.appendChild(el('p', 'awoo-setup-sub', 'How the menu opens and where notifications appear. The samples below follow each choice.'));
+    const f = el('div', 'awoo-setup-frm');
+    f.appendChild(label('Menu width', 'Wide adds a second column: the selected item\'s details.'));
+    f.appendChild(ctl(seg([['compact', 'Compact'], ['wide', 'Wide']], d.menuLayout, (v) => { d.menuLayout = v; }, 'Menu width')));
+    f.appendChild(label('Search bar', 'A search box at the top of the menu.'));
+    f.appendChild(ctl(seg([['off', 'Off'], ['on', 'On']], d.menuSearch ? 'on' : 'off', (v) => { d.menuSearch = v === 'on'; }, 'Search bar')));
+    f.appendChild(label('Sync dot', 'The dot on the Profile Sync icon. Amber means data a module uses is old.'));
+    f.appendChild(ctl(seg([['on', 'On'], ['off', 'Off']], d.barSyncDot ? 'on' : 'off', (v) => { d.barSyncDot = v === 'on'; }, 'Sync dot')));
+    f.appendChild(label('Notifications', 'AWOO+\'s own notifications: where they appear and how they look.'));
+    f.appendChild(ctl(select(NOTIFY_POS, d.notifyPos, (v) => { d.notifyPos = v; render(); }, 'Where notifications appear'),
+      seg([['bold', 'Bold'], ['quiet', 'Quiet']], d.notifyStyle, (v) => { d.notifyStyle = v; }, 'Notice style')));
+    body.appendChild(f);
+
+    const samples = el('div', 'awoo-setup-samples');
+    // The top bar and its menu, as they will look.
+    const a = el('div', 'awoo-setup-sbox');
+    a.dataset.sample = 'bar';
+    a.appendChild(el('div', 'awoo-setup-pvh', 'Top bar and menu'));
+    const bar = el('span', 'awoo-setup-sbar');
+    bar.appendChild(el('span', 'awoo-setup-core', 'AWOO+ ▾'));
+    bar.appendChild(el('span', 'awoo-setup-isep'));
+    const db = el('span', 'awoo-setup-idb');
+    db.innerHTML = SVG_DB;
+    if (d.barSyncDot) db.appendChild(el('b', 'awoo-setup-syncdot'));
+    bar.appendChild(db);
+    bar.appendChild(el('span', 'awoo-setup-isep'));
+    bar.appendChild(el('span', 'awoo-setup-ghost', 'Party'));
+    a.appendChild(bar);
+    const menu = el('div', 'awoo-setup-smenu' + (d.menuLayout === 'wide' ? ' awoo-m-wide' : ''));
+    const listCol = el('div');
+    if (d.menuSearch) listCol.appendChild(el('div', 'awoo-setup-ssearch', 'Search…'));
+    listCol.appendChild(el('div', 'awoo-setup-mr awoo-m-sel', 'Fighter Allocator'));
+    listCol.appendChild(el('div', 'awoo-setup-mr', 'Party'));
+    listCol.appendChild(el('div', 'awoo-setup-mr', 'Cost Tables ↗'));
+    menu.appendChild(listCol);
+    if (d.menuLayout === 'wide') menu.appendChild(el('div', 'awoo-setup-sside', 'Fighter Allocator: plan ready. Details of the selected item.'));
+    a.appendChild(menu);
+    samples.appendChild(a);
+    // A notice, where it will appear and in its style.
+    const b = el('div', 'awoo-setup-sbox');
+    b.dataset.sample = 'notice';
+    b.appendChild(el('div', 'awoo-setup-pvh', 'A notice'));
+    const screen = el('div', 'awoo-setup-screen');
+    screen.appendChild(el('em', null, 'AWOO+ ▾'));
+    const toast = el('div', `awoo-setup-toast awoo-m-${d.notifyPos} awoo-m-${d.notifyStyle}`, 'Party run in 15 min.');
+    screen.appendChild(toast);
+    b.appendChild(screen);
+    samples.appendChild(b);
+    body.appendChild(samples);
+  }
+
+  // ---- the live preview: theme, fonts and UI scale, on this window ----
+  // (and the Control Panel's) only; everything else waits for Done. Fonts
+  // and UI scale count only while Extended is on, as Done writes them only
+  // then. A draft that matches what is saved clears the preview instead.
+  function lookDraft() {
+    const d = W.d;
+    const now = readDraft();
+    const draft = { theme: d.theme };
+    let changed = d.theme !== now.theme;
+    if (W.extended) {
+      Object.assign(draft, { fontText: d.fontText, fontNum: d.fontNum, uiScale: d.uiScale });
+      changed = changed || d.fontText !== now.fontText || d.fontNum !== now.fontNum || d.uiScale !== now.uiScale;
+    }
+    return changed ? draft : null;
+  }
+  function preview() {
+    if (!W || typeof S.preview !== 'function') return;
+    try { S.preview(W.box, lookDraft()); } catch (e) { /* the saved look stands */ }
+  }
+
+  // ---- drawing ----
+  function render() {
+    if (!W) return;
+    const st = steps();
+    if (W.step >= st.length) W.step = st.length - 1;
+    const name = st[W.step];
+    const last = W.step === st.length - 1;
+    const nums = counted();
+    const box = W.box;
+    box.innerHTML = '';
+
+    const head = el('div', 'awoo-setup-head');
+    head.appendChild(el('b', null, 'AWOO+ welcome tour'));
+    if (W.rerun) head.appendChild(el('span', 'awoo-setup-mark', 'again'));
+    head.appendChild(el('span', 'awoo-setup-step', name === 'start' ? STEP_NAME.start
+      : `Step ${nums.indexOf(name) + 1} of ${nums.length} · ${STEP_NAME[name]}`));
+    head.appendChild(el('span', 'awoo-setup-sp'));
+    // Quick or Full (R236: "Short" and "Extended" until 2026-10-16).
+    const len = seg([['short', 'Quick'], ['ext', 'Full']], W.extended ? 'ext' : 'short', (v) => { W.extended = v === 'ext'; }, 'Tour length');
+    len.title = 'Full adds Appearance (theme, fonts, UI scale) and Top bar & notifications.';
+    head.appendChild(len);
+    const x = button('×', 'awoo-setup-x', () => later(), W.rerun ? 'Close. Nothing changes.' : 'Later: keeps a Welcome button on the top bar.');
+    x.setAttribute('aria-label', W.rerun ? 'Close' : 'Later');
+    head.appendChild(x);
+    box.appendChild(head);
+    // Moved by its header, with Core's window drag (it skips buttons).
+    if (typeof S.drag === 'function') { try { S.drag(head, box); } catch (e) { /* stays where it is */ } }
+
+    const body = el('div', 'awoo-setup-body');
+    ({ start: startBody, general: generalBody, modules: modulesBody, appearance: appearanceBody, bar: barBody })[name](body);
+    box.appendChild(body);
+
+    // The progress bar, at the bottom: the numbered steps only.
+    const prog = el('div', 'awoo-setup-prog');
+    prog.setAttribute('aria-label', name === 'start' ? 'Not started' : `Step ${nums.indexOf(name) + 1} of ${nums.length}`);
+    const at = nums.indexOf(name);
+    nums.forEach((s, i) => {
+      const seg2 = el('div', (i <= at ? 'awoo-m-on' : '') + (i === at ? ' awoo-m-cur' : ''));
+      seg2.appendChild(el('i'));
+      seg2.appendChild(el('span', null, `${i + 1} · ${STEP_NAME[s]}`));
+      prog.appendChild(seg2);
+    });
+    box.appendChild(prog);
+
+    const foot = el('div', 'awoo-setup-foot');
+    foot.appendChild(button(W.rerun ? 'Close' : 'Later', 'awoo-setup-quiet', () => later(),
+      W.rerun ? 'Nothing changes.' : 'Keeps a Welcome button on the top bar until you finish or skip.'));
+    if (!W.rerun) {
+      foot.appendChild(button('Skip the tour', 'awoo-setup-quiet', () => skip(),
+        'Set things up yourself in the Control Panel. The tour will not come back; General › Welcome › Start welcome tour opens it.'));
+    }
+    foot.appendChild(el('span', 'awoo-setup-sp'));
+    if (W.step > 0) foot.appendChild(button('Back', 'awoo-setup-btn', () => { W.step--; render(); }));
+    foot.appendChild(button(last ? 'Done' : 'Next ›', 'awoo-setup-btn awoo-m-primary', () => { if (last) done(); else { W.step++; render(); } }));
+    box.appendChild(foot);
+
+    spotlight(name === 'start');
+    preview();
+  }
+
+  // The real AWOO+ button shines while Get started shows, lifted over the
+  // scrim so the picture and the bar can be matched up.
+  function spotlight(on) {
+    const bar = S.bar() || {};
+    const btn = bar.coreBtn;
+    const group = bar.group;
+    if (btn && btn.classList) btn.classList.toggle('awoo-setup-glow', !!on);
+    if (group && group.classList) group.classList.toggle('awoo-setup-spot', !!on);
+  }
+
+  // ---- opening and closing ----
+  function isOpen() { return !!W; }
+
+  // Never throws: Core loads under every module, so a wizard that cannot be
+  // drawn (a page refusing the style sheet, say) logs and leaves the page as
+  // it was. Its state is untouched, so it is offered again next time.
+  function open(opts) {
+    try { openNow(opts); } catch (e) {
+      try { console.warn('[AwooCore] the setup wizard could not open:', e); } catch (e2) { /* no console */ }
+      if (W) { try { S.preview(W.box, null); W.scrim.remove(); W.box.remove(); } catch (e3) { /* already gone */ } W = null; }
+      try { spotlight(false); S.renderButton(); } catch (e4) { /* nothing drawn */ }
+    }
+  }
+  // Centred, about 760x600, never larger than the screen allows.
+  function place(box) {
+    const de = document.documentElement || {};
+    const vw = Math.max(Number(window.innerWidth) || 0, Number(de.clientWidth) || 0) || 1366;
+    const vh = Math.max(Number(window.innerHeight) || 0, Number(de.clientHeight) || 0) || 768;
+    const w = Math.max(320, Math.min(SIZE.w, vw - SIZE.margin * 2));
+    const h = Math.max(320, Math.min(SIZE.h, vh - SIZE.margin * 2));
+    box.style.width = w + 'px';
+    box.style.height = h + 'px';
+    box.style.left = Math.max(0, Math.round((vw - w) / 2)) + 'px';
+    box.style.top = Math.max(0, Math.round((vh - h) / 2)) + 'px';
+  }
+  function openNow({ rerun = false, extended = false } = {}) {
+    if (W) return;
+    if (!document.body) return;
+    injectStyle();
+    const scrim = el('div', 'awoo-setup-scrim');
+    const box = el('div', 'awoo-setup');
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', 'AWOO+ welcome tour');
+    box.tabIndex = -1;
+    place(box);
+    W = { scrim, box, rerun: !!rerun, extended: !!extended, step: 0, d: readDraft() };
+    // The outside click is the scrim's, and Esc is the dialog's: no listener
+    // on the document or the window, so closing leaves nothing behind.
+    scrim.addEventListener('click', () => later());
+    box.addEventListener('keydown', (e) => { if (e && e.key === 'Escape') { e.stopPropagation(); later(); } });
+    document.body.appendChild(scrim);
+    document.body.appendChild(box);
+    render();
+    S.renderButton();
+    try { box.focus(); } catch (e) { /* no focus here */ }
+  }
+
+  // Removes the dialog and puts the look back. `toward` folds it into the
+  // Setup button (Later).
+  function close(toward) {
+    if (!W) return;
+    const { scrim, box } = W;
+    W = null;
+    spotlight(false);
+    try { S.preview(box, null); } catch (e) { /* nothing was previewed */ }
+    const finish = () => { scrim.remove(); box.remove(); };
+    let animated = false;
+    if (toward && !reducedMotion() && typeof box.animate === 'function') {
+      try {
+        const b = toward.getBoundingClientRect();
+        const r = box.getBoundingClientRect();
+        if (b.width && r.width) {
+          box.style.transformOrigin = `${b.left + b.width / 2 - r.left}px ${b.top + b.height / 2 - r.top}px`;
+          const a = box.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(.03)', opacity: 0 }],
+            { duration: 320, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'forwards' });
+          scrim.style.transition = 'opacity .32s';
+          scrim.style.opacity = '0';
+          // A hidden tab can hold an animation's finish; the timer lands it either way.
+          let landed = false;
+          const land = () => { if (!landed) { landed = true; finish(); } };
+          a.onfinish = land;
+          setTimeout(land, 400);
+          animated = true;
+        }
+      } catch (e) { animated = false; }
+    }
+    if (!animated) finish();
+  }
+
+  function later() {
+    if (!W) return;
+    if (W.rerun) { close(); return; }
+    // The button is shown first (Core's renderSetupButton hides it while the
+    // window is open), so the window has somewhere to fold to.
+    const holding = W;
+    W = null;
+    Core.setSetting(KEY, 'later');
+    W = holding;
+    const target = (S.bar() || {}).setupBtn;
+    close(target && !target.hidden ? target : null);
+    S.renderButton();
+  }
+
+  function skip() {
+    const wasRerun = W && W.rerun;
+    close();
+    if (wasRerun) return;
+    if (Core.getSetting(FRESH_KEY) === true) Core.setSetting(FRESH_KEY, false);
+    Core.setSetting(KEY, 'skipped');
+    S.renderButton();
+    Core.toast('Welcome tour skipped. Everything is in the Control Panel.', {
+      type: 'info', duration: 8000, action: 'Open', onAction: () => Core.openSettings('modules'),
+    });
+  }
+
+  // Writes what changed, then loads and unloads modules quietly.
+  function done() {
+    if (!W) return;
+    const d = W.d;
+    const wasRerun = W.rerun;
+    const now = readDraft();
+    const set = (k, v, before) => { if (v != null && v !== before) Core.setSetting(k, v); };
+    set('theme', d.theme, now.theme);
+    if (d.time) set('timeZone', d.time, now.time);
+    if (numFmt() && d.numFmt !== now.numFmt) numFmt().set(d.numFmt);
+    set('profileAutoSync', d.sync, now.sync);
+    if (W.extended) {
+      if (d.fontText !== now.fontText || d.fontNum !== now.fontNum) {
+        const f = { text: d.fontText, num: d.fontNum };
+        Core.setSetting('fonts', { awoo: Object.assign({}, f), tools: Object.assign({}, f) });
+      }
+      set('uiScale', d.uiScale, now.uiScale);
+      set('menuLayout', d.menuLayout, now.menuLayout);
+      set('menuSearch', d.menuSearch, now.menuSearch);
+      set('barSyncDot', d.barSyncDot, now.barSyncDot);
+      set('notifyPos', d.notifyPos, now.notifyPos);
+      set('notifyStyle', d.notifyStyle, now.notifyStyle);
+    }
+    if (d.mods) {
+      for (const m of installed()) {
+        if (Object.prototype.hasOwnProperty.call(d.mods, m.id) && !!d.mods[m.id] !== !!m.loaded) S.setLoaded(m.id, !!d.mods[m.id]);
+      }
+    }
+    if (d.tools && typeof S.setToolShown === 'function') {
+      for (const t of installedTools()) {
+        if (Object.prototype.hasOwnProperty.call(d.tools, t.id) && !!d.tools[t.id] !== !!t.shown) S.setToolShown(t.id, !!d.tools[t.id]);
+      }
+    }
+    close();
+    if (Core.getSetting(FRESH_KEY) === true) Core.setSetting(FRESH_KEY, false);
+    Core.setSetting(KEY, 'done');
+    S.renderButton();
+    Core.toast(wasRerun ? 'Saved.' : 'All set. Control Panel › General › Welcome runs the tour again.', { type: 'success', duration: 5000 });
+  }
+
+  S.register({ open, skip, isOpen });
+
+  // ---- the boot decision: one comparison, nothing drawn unless it is due ----
+  // Never offered (absent) or offered and unanswered ('open'). The first
+  // offer records whether this was a fresh install, for the Modules step.
+  if (S.boot !== 'unreadable') {
+    const state = Core.getSetting(KEY);
+    const due = state === 'open' || state == null;
+    if (due) {
+      if (state == null) {
+        if (S.boot === 'fresh') Core.setSetting(FRESH_KEY, true);
+        Core.setSetting(KEY, 'open');
+      }
+      if (typeof Core.whenBodyReady === 'function') Core.whenBodyReady(() => open());
+    }
+  }
+
+  // For tests: the drawn dialog, and its parts.
+  Core.__setupForTest = { get root() { return W ? W.box : null; }, get scrim() { return W ? W.scrim : null; }, get draft() { return W ? W.d : null; }, open, later, skip, done, isOpen };
+  })();
+
 })();
 
 
@@ -13543,7 +16414,7 @@
   // ==== END GENERATED ====
 
   // ---- What this module is, for a Core that has not started it (generated from dungeon-win-rate.release.json) ----
-  const AWOO_ABOUT = Object.freeze({"label":"Dungeon Win Rate","audience":"public","shortLabel":"Dungeon WR","description":"Scans dungeon history and summarizes wins, losses, attempts, and win rate.","category":"Fighters","kind":"module","uses":[],"needsCore":14,"lifecycle":2});
+  const AWOO_ABOUT = Object.freeze({"label":"Dungeon Win Rate","audience":"public","author":"Weeble","shortLabel":"Dungeon WR","description":"Scans dungeon history and summarizes wins, losses, attempts, and win rate.","category":"Fighters","kind":"module","uses":[],"needsCore":14,"lifecycle":2});
 
   // ---- Core intake shim (generated) ----
   // Requires the "AWOO+" userscript. Without it this module does nothing.
@@ -13555,7 +16426,7 @@
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("dungeon-win-rate", "0.1.2", function (Core) {
+  })("dungeon-win-rate", "0.1.3", function (Core) {
   if (AWOO_ABOUT.needsCore && !(Core.version >= AWOO_ABOUT.needsCore)) {
     if (Core.registerModule) Core.registerModule(Object.assign({ id: "dungeon-win-rate" }, AWOO_ABOUT));
     return null;
@@ -13578,22 +16449,24 @@ let scanEntry = null;
 
 // Numbers in the PLAYER's convention, not the browser's (toLocaleString used
 // the browser's locale, which is not what the game shows this character).
-function numberSeparators() {
-  try {
-    const c = typeof Core.getNumberConvention === 'function' ? Core.getNumberConvention() : null;
-    return { group: (c && c.group) || ',', decimal: (c && c.decimal) || '.' };
-  } catch (e) { return { group: ',', decimal: '.' }; }
-}
+// Through Core.num (v18, R168), the one home of grouping; an older Core
+// without it draws plain digits.
 function fmtInt(n) {
-  return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, numberSeparators().group);
+  const x = Math.round(Number(n) || 0);
+  return Core.num ? Core.num.int(x) : String(x);
 }
 function fmtPct(n) {
-  return (Number(n) || 0).toFixed(2).replace('.', numberSeparators().decimal) + '%';
+  const x = Number(n) || 0;
+  return Core.num ? Core.num.pct(x, 2) : String(Math.round(x * 100) / 100) + '%';
 }
+// A history card's moment, in the player's General > Time zone (Core.time,
+// v17) since R168; it used the browser's own zone. ISO UTC under an older Core.
 function fmtWhen(t) {
   if (!t) return '—';
-  try { return new Date(t).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
-  catch (e) { return new Date(t).toLocaleString(); }
+  if (Core.time && typeof Core.time.format === 'function') {
+    return Core.time.format(t, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+  return new Date(t).toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 }
 
 // Saved through Core.store (v14): batched, flushed on unload and when the tab
@@ -13601,6 +16474,31 @@ function fmtWhen(t) {
 // memory is the truth for this run; a fresh load reads it back from storage.
 const store = Core.store(STORAGE_KEY);
 let data = store.read() || {};
+// A scan saved by 0.1.2 or earlier may hold the rows a wrapper element made
+// (readCards now skips those). Saved rows keep no card text, so the wrapper
+// filter cannot be re-run on them; what is left is its footprint: a row that
+// has the SAME moment as another row and holds at least all of its wins and
+// losses, with more. Two real cards in one second with one contained in the
+// other do not occur (a win and a loss are not supersets of each other).
+// Recomputed on load so the summary on screen is right before any rescan.
+function dropWrapperRows(results) {
+  const rows = Object.entries(results || {});
+  const out = {};
+  for (const [key, r] of rows) {
+    const wraps = rows.some(([k2, o]) => k2 !== key && o.time === r.time
+      && Number(r.wins || 0) >= Number(o.wins || 0) && Number(r.losses || 0) >= Number(o.losses || 0)
+      && Number(r.wins || 0) + Number(r.losses || 0) > Number(o.wins || 0) + Number(o.losses || 0));
+    if (!wraps) out[key] = r;
+  }
+  return out;
+}
+if (data.results && typeof data.results === 'object') {
+  const kept = dropWrapperRows(data.results);
+  if (Object.keys(kept).length !== Object.keys(data.results).length) {
+    data = { ...data, results: kept, sum: summary(kept) };
+    store.write(data);
+  }
+}
 
 function load() {
   return data;
@@ -13616,10 +16514,16 @@ function clean(s) {
   return String(s || '').replace(/\s+/g, ' ').trim();
 }
 
+// The pending sleeps, all released by ONE teardown. Each sleep used to add a
+// teardown of its own that was never removed, so a long scan (thousands of
+// steps) left thousands behind in the scope (modules audit 2026-10-06
+// finding 9).
+const sleeping = new Set();
+scope.add(() => { for (const id of sleeping) clearTimeout(id); sleeping.clear(); });
 function sleep(ms) {
   return new Promise((resolve) => {
-    const id = setTimeout(resolve, ms);
-    scope.add(() => clearTimeout(id));
+    const id = setTimeout(() => { sleeping.delete(id); resolve(); }, ms);
+    sleeping.add(id);
   });
 }
 
@@ -13644,21 +16548,12 @@ function parseDate(text) {
   ).getTime();
 }
 
+// "3d 4h 12m", zero parts left out: Core.time.span (v18, R168), the one home
+// of duration text. An older Core without it draws whole minutes.
 function duration(ms) {
-  if (!ms || ms < 0) return '0m';
-
-  let s = Math.floor(ms / 1000);
-  const d = Math.floor(s / 86400);
-  s %= 86400;
-  const h = Math.floor(s / 3600);
-  s %= 3600;
-  const m = Math.floor(s / 60);
-
-  return [
-    d ? `${d}d` : '',
-    h ? `${h}h` : '',
-    (m || (!d && !h)) ? `${m}m` : '',
-  ].filter(Boolean).join(' ');
+  const x = Number.isFinite(ms) && ms > 0 ? ms : 0;
+  if (Core.time && typeof Core.time.span === 'function') return Core.time.span(x, { units: 3, floor: true, zeros: false });
+  return `${Math.floor(x / 60000)}m`;
 }
 
 function findScrollBox() {
@@ -13681,6 +16576,7 @@ function findScrollBox() {
 // that mention a dungeon result pay for innerText. The card-matching rules
 // below are unchanged, so what is counted is exactly what was counted before.
 const CARD_TEXT_MAX = 600;
+const DATE_RX_G = /[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4},\s+\d{2}:\d{2}:\d{2}/g;
 function readCards(results = {}) {
   const nodes = [...document.querySelectorAll('div,section,article,a')]
     .filter((el) => {
@@ -13698,6 +16594,11 @@ function readCards(results = {}) {
 
   for (const item of nodes) {
     const text = item.text;
+    // One card has one timestamp. An element under the size limit that holds
+    // two is a wrapper around two cards, and its combined text made a key of
+    // its own, counted on top of the two cards (modules audit 2026-10-06
+    // finding 9). The cards themselves are in `nodes` too.
+    if ((text.match(DATE_RX_G) || []).length > 1) continue;
     const time = parseDate(text);
     if (!time) continue;
 
@@ -14014,6 +16915,7 @@ function bootstrap() {
     onResetPosition: () => windowHandle.resetPosition(),
     // Unloaded mid-scan: end the loop. Every page it read is already saved.
     onUnload: () => { stopRequested = true; },
+    __forTest: { readCards, summary, dropWrapperRows, saved: () => data, sleep, scopeSize: () => scope.size },
   });
 
   renderWindow();
@@ -14043,7 +16945,7 @@ if (document.body) {
   // ==== END GENERATED ====
 
   // ---- What this module is, for a Core that has not started it (generated from sculpture-grid-labels.release.json) ----
-  const AWOO_ABOUT = Object.freeze({"label":"Sculpture Grid Labels","audience":"public","shortLabel":"Grid","description":"Shows sculpture mod names with roll percentages or item levels directly on the equipped grid.","category":"Fighters","kind":"tweak","quickButton":false,"uses":[],"needsCore":14,"lifecycle":2});
+  const AWOO_ABOUT = Object.freeze({"label":"Sculpture Grid Overlay","audience":"public","author":"Weeble","shortLabel":"Grid Overlay","description":"Shows sculpture mod names with roll percentages or item levels directly on the equipped grid.","category":"Fighters","kind":"tweak","defaultOn":true,"quickButton":false,"uses":[],"needsCore":14,"lifecycle":2});
 
   // ---- Core intake shim (generated) ----
   // Requires the "AWOO+" userscript. Without it this module does nothing.
@@ -14055,7 +16957,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("sculpture-grid-labels", "0.1.3", function (Core) {
+  })("sculpture-grid-labels", "0.1.4", function (Core) {
   if (AWOO_ABOUT.needsCore && !(Core.version >= AWOO_ABOUT.needsCore)) {
     if (Core.registerModule) Core.registerModule(Object.assign({ id: "sculpture-grid-labels" }, AWOO_ABOUT));
     return null;
@@ -14104,6 +17006,10 @@ let lastGridSignature = '';
 const VIEW_DEFAULTS = { show: 'roll', rotateButton: true };
 const viewStore = Core.store(`awoo:${MODULE_ID}:view`);
 let view = readView();
+// What the labels show right now. The saved view.show is only where the
+// overlay STARTS (the setting); the rotate button flips this and nothing is
+// saved, and turning the overlay on again starts from the saved choice.
+let showNow = view.show;
 function readView() {
   const raw = viewStore.read();
   const v = Object.assign({}, VIEW_DEFAULTS, raw && typeof raw === 'object' ? raw : {});
@@ -14111,6 +17017,7 @@ function readView() {
 }
 function setView(patch) {
   view = Object.assign({}, view, patch);
+  if (patch && 'show' in patch) showNow = view.show;
   viewStore.write(view);
   lastGridSignature = '';
   if (coreEnabled) queueDecorate();
@@ -14245,7 +17152,8 @@ function parseSize(size) {
 // it refuses rather than guesses, so an unreadable value is ABSENT here, never
 // zero (AGENTS.md rule 3). Output used to be toFixed(2) with a hard-coded dot;
 // it now uses the player's decimal separator. (Core.formatNumber is not used:
-// below 1,000 it rounds to whole numbers, and a roll reads 0.55%.)
+// below 1,000 it rounds to whole numbers, and a roll reads 0.55%; Core.num
+// draws it in full.)
 function statValue(v) {
   if (typeof v === 'string') {
     const text = v.trim();
@@ -14268,18 +17176,15 @@ function statValue(v) {
   return Math.abs(n) <= 1 ? n * 100 : n;
 }
 
-function decimalSeparator() {
-  try {
-    const c = typeof Core.getNumberConvention === 'function' ? Core.getNumberConvention() : null;
-    return (c && c.decimal) || '.';
-  } catch (e) { return '.'; }
-}
-
+// Through Core.num (v18, R168), the one home of separators; an older Core
+// without it draws plain digits.
 function formatRoll(v) {
   const n = statValue(v);
   if (n === null) return '—';
-  const fixed = Number.isInteger(n) ? n.toFixed(0) : n.toFixed(2);
-  return `${fixed.replace('.', decimalSeparator())}%`;
+  const digits = Number.isInteger(n) ? 0 : 2;
+  if (Core.num) return Core.num.pct(n, digits);
+  const k = Math.pow(10, digits);
+  return `${Math.round(n * k) / k}%`;
 }
 
 function looksLikeSculpture(obj) {
@@ -14493,8 +17398,9 @@ function findGrid() {
   return null;
 }
 
+const GRID_TILE_SELECTOR = 'button[data-drop-target-for-element="true"]';
 function getGridButtons() {
-  const buttons = [...document.querySelectorAll('button[data-drop-target-for-element="true"]')]
+  const buttons = [...document.querySelectorAll(GRID_TILE_SELECTOR)]
     .filter((button) => button.offsetParent !== null);
 
   if (buttons.length < 64) return [];
@@ -14566,7 +17472,12 @@ function ensurePageToggle() {
   // beside. Falls back to beside that heading if the grid is not on screen.
   const buttons = getGridButtons();
   const gridEl = buttons.length ? buttons[0].parentElement : null;
-  const heading = gridEl ? null : findHighlightHeading();
+  // The heading fallback reads the text of every div, span, label and p on
+  // the page, and this runs on every debounced page change. It used to run on
+  // EVERY page, grid or none, overlay on or off (modules audit 2026-10-06
+  // finding 8). Now only where the grid's own tiles exist at all: the
+  // sculpture page, with the grid not (yet) on screen.
+  const heading = gridEl || !document.querySelector(GRID_TILE_SELECTOR) ? null : findHighlightHeading();
   if (!gridEl && (!heading || !heading.parentElement)) return null;
 
   btn = document.createElement('button');
@@ -14640,11 +17551,14 @@ function ensureRotateButton(pill) {
     scope.on(rb, 'click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      setView({ show: view.show === 'ilevel' ? 'roll' : 'ilevel' });
+      showNow = showNow === 'ilevel' ? 'roll' : 'ilevel';
+      lastGridSignature = '';
+      ensureRotateButton(document.getElementById('awoo-sculpture-grid-labels-toggle'));
+      if (coreEnabled) queueDecorate();
     });
   }
   if (rb.previousElementSibling !== pill) pill.insertAdjacentElement('afterend', rb);
-  const tip = view.show === 'ilevel' ? 'Showing item levels. Click to show rolls.' : 'Showing rolls. Click to show item levels.';
+  const tip = showNow === 'ilevel' ? 'Showing item levels. Click to show rolls.' : 'Showing rolls. Click to show item levels.';
   if (rb.title !== tip) { rb.title = tip; rb.setAttribute('aria-label', tip); }
 }
 
@@ -14695,7 +17609,7 @@ function buildSignature(sculptures) {
       ].join('|');
     })
     .sort()
-    .join('::') + '#' + view.show;
+    .join('::') + '#' + showNow;
 }
 
 function decorate() {
@@ -15059,7 +17973,7 @@ function decorate() {
         `font-size:8.5px;font-weight:600;color:${statColor};max-width:94%;white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:.06em;text-transform:uppercase;opacity:.92;text-shadow:${LABEL_SHADOW};`;
 
       const pctEl = document.createElement('div');
-      pctEl.textContent = view.show === 'ilevel' ? lvText : pct;
+      pctEl.textContent = showNow === 'ilevel' ? lvText : pct;
 
       pctEl.style.cssText =
         `font-size:11.5px;font-weight:600;margin-top:3px;color:${statColor};font-variant-numeric:tabular-nums;text-shadow:${LABEL_SHADOW};`;
@@ -15079,7 +17993,9 @@ function decorate() {
 
 // The one place the visible state changes, and the one place Core is told.
 function sync() {
+  const wasEnabled = enabled;
   enabled = coreEnabled && labelsOn;
+  if (enabled && !wasEnabled) showNow = view.show; // starts as the setting says
   if (typeof Core.setState === 'function') Core.setState(MODULE_ID, enabled ? 'running' : 'idle', enabled ? 'Overlay on' : 'Overlay off');
   updateToggleAppearance(document.getElementById('awoo-sculpture-grid-labels-toggle'));
   ensureRotateButton(document.getElementById('awoo-sculpture-grid-labels-toggle'));
@@ -15129,7 +18045,7 @@ function queueDecorate() {
         clearOld();
       }
     } catch (err) {
-      console.debug('[Sculpture Grid Labels]', err);
+      console.debug('[Sculpture Grid Overlay]', err);
     } finally {
       running = false;
     }
@@ -15195,20 +18111,23 @@ function bootstrap() {
     clearOld();
   });
 
-  // A TWEAK since Core v14 (kind: 'tweak' in sculpture-grid-labels.release.json):
-  // it changes the game's own page and has no window, so the Control Panel
-  // lists it under Modules > Tweaks, not beside the windowed modules.
+  // A Tweak FEATURE (kind: 'tweak' in code since Core v14, in
+  // sculpture-grid-labels.release.json): it changes the game's own page and
+  // has no window, so the Control Panel lists it under Modules > Tweaks, not
+  // beside the windowed modules. Named Sculpture Grid Overlay since R179; the
+  // id, and so every storage key, stays sculpture-grid-labels (FRAMEWORK.md
+  // §5a: a rename of the id is a migration, not a find-and-replace).
   const registered = Core.registerModule({
     ...AWOO_ABOUT,
     id: MODULE_ID,
     onToggle: (next) => setEnabled(next),
     settings: {
-      label: 'Sculpture Grid Labels',
+      label: 'Sculpture Grid Overlay',
       render(container) {
         container.appendChild(Core.ui.inputRow({
-          label: 'Labels show', type: 'select', value: view.show,
+          label: 'Overlay starts as', type: 'select', value: view.show,
           options: [{ value: 'roll', label: 'Mod name and roll %' }, { value: 'ilevel', label: 'Mod name and item level' }],
-          onChange: (v) => setView({ show: v === 'ilevel' ? 'ilevel' : 'roll' }),
+          onChange: (v) => setView({ show: v === 'ilevel' ? 'ilevel' : 'roll' }), // the start state; the switch is the everyday control
         }));
         const row = document.createElement('label');
         row.style.cssText = 'display:flex; align-items:center; gap:var(--awoo-s3); font-size:var(--awoo-fs-control); cursor:pointer; margin:var(--awoo-s2) 0;';
@@ -15263,7 +18182,7 @@ if (document.body) {
 
   // ==== GENERATED TOOL PAYLOADS — DO NOT EDIT ====
   // Tool payload: userscripts/src/tools/cost-tables.html (generated facts inlined)
-  const AWOO_TOOL_COST_TABLES = "<!doctype html>\n<meta charset=\"utf-8\">\n<title>Cost Tables</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Azeret+Mono:wght@400;500;600&display=swap\">\n\n<meta name=\"awoo-tool\" content=\"cost-tables\">\n<style>\n/* ===========================================================================\n   AWOO+ THEME TOKENS — GENERATED, DO NOT EDIT BY HAND.\n\n   Source: the AWOO+ Design System (projects/ARTIFACT_STYLE_GUIDE.md Part II,\n   live at https://claude.ai/artifact/3Xv8kdGSd6Lth8MhQEtBrS). Injected into\n   every tool page by userscripts/build.mjs at the <!-- @AWOO_THEME_TOKENS@ -->\n   marker, so one palette correction reaches every tool on the next build.\n\n   SEVEN THEMES, FOUR FAMILIES. A family name carries no mode; the variant\n   does, and only where more than one exists — which is why Slate and Claude\n   Code have no suffix.\n\n     Beach        light · dimmed\n     Slate        (was \"war room\" before the merge)\n     Claude       light · medium · dark\n     Claude Code  (RECONSTRUCTED from the brand register, not sampled)\n\n   ONE CONTRACT. Every theme defines the same tokens and no component ever\n   names a colour, which is what makes an eighth theme a block of properties\n   rather than a rewrite. Three of those tokens exist for specific reasons:\n     --accent-edge     the soft edge of a tinted row. A full-strength accent\n                       ring reads as a frame around a table row, not emphasis\n                       on it.\n     --border-control  inputs, selects and buttons only, clearing WCAG\n                       1.4.11's 3:1 against surface. Table hairlines stay soft\n                       on --border.\n     --trusted         the name of a module or tool that not every player has\n                       (the trusted audience; REGISTER.md R97). A light blue,\n                       AA on surface and surface-2 in every theme, apart from\n                       --info (a user-facing note) and --dev (developer text).\n\n   Every text pair in every theme clears WCAG AA; tertiary \"muted\" text is\n   AA-large by design across the whole family.\n   =========================================================================== */\n:root{\n  /* Beach (light) is the base layer, so an un-stamped page is always legible. */\n  --ground:#EFE7D7;\n  --surface:#FAF5EC;\n  --surface-2:#F1E8D8;\n  --surface-3:#E7DCC7;\n  --border:#D8CBB2;\n  --border-strong:#C3B193;\n  --border-control:#8C7D64;\n  --ink:#33291D;\n  --ink-soft:#6B5C48;\n  --ink-mute:#94836C;\n  --accent:#8A4322;\n  --accent-fill:#A8552C;\n  --accent-edge:#D4AB93;\n  --bg-accent:#F3E2D8;\n  --on-accent:#FBF0E6;\n  --success:#3F5C33;\n  --success-fill:#4A6741;\n  --bg-success:#E4EBDC;\n  --danger:#8C2F2A;\n  --danger-fill:#A83A33;\n  --bg-danger:#F5E0DD;\n  --info:#41528A;\n  --bg-info:#E2E5F2;\n  --neutral:#6E5F49;\n  --bg-neutral:#EDE4D3;\n  --dev:#2E6B5C;\n  --bg-dev:#DCEBE6;\n  --trusted:#23618F;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n\n  /* TYPE, corrected 2026-09-21 after MEASURING the glyphs rather than\n     recalling them.\n\n     NUMBERS ARE PUBLIC SANS, NOT A MONO FACE. The requirement was a clear,\n     unmarked zero. Measured by rendering each zero at 200px and sampling the\n     centre of its counter (capital O as the control, which reads 0% ink in\n     every face, proving the method): Noto Sans Mono 83%, DM Mono 80%, Roboto\n     Mono 69%, IBM Plex Mono 93%, JetBrains Mono 95%, Space Mono 95%, Cousine\n     100%. Every one of them marks the zero. So does the earlier \"fix\":\n     font-feature-settings \"zero\" 0 changes NOTHING in any of them, because\n     the mark is the default glyph, not an optional feature.\n\n     Public Sans's own zero measures 0% — genuinely open — and\n     font-variant-numeric: tabular-nums makes every digit exactly the same\n     width (measured: all ten at 70px against 40.7-64.75 proportional). Fixed\n     width is what a column needs; a monospaced FACE was never the\n     requirement. So the number face is the text face, with tabular figures.\n\n     --font-mono stays a real mono for identifiers and formula text, where\n     letter alignment matters: Azeret Mono, the only mono of the eight tested\n     whose zero measured 0%. */\n  --font-display:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-body:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-num:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-mono:'Azeret Mono',ui-monospace,'Cascadia Mono',monospace;\n  --display-tracking:-.005em; --display-caps:none;\n  --radius:6px;\n\n  /* DENSITY, 2026-09-21. These are read as data, not prose: a table row and a\n     nav row both want to be tighter than a paragraph. Tokens rather than\n     literals so \"slightly more condensed\" is one edit, everywhere. */\n  --row-y:2px;        /* table cell vertical padding */\n  --row-x:12px;       /* table cell horizontal padding */\n  --nav-y:3px;        /* sidebar nav row */\n  --ctl-y:2px;        /* input and select vertical padding */\n  --ctl-x:6px;\n  --ctl-w:78px;       /* a number input's default width - subtle, not a field */\n  --pad-panel:11px;\n}\n\n/* No explicit choice and a dark OS: Slate. */\n@media (prefers-color-scheme: dark){\n  :root:not([data-theme]){\n    --ground:#14181D;\n    --surface:#1B2027;\n    --surface-2:#20262D;\n    --surface-3:#272F37;\n    --border:#2B323A;\n    --border-strong:#3A434C;\n    --border-control:#6A7684;\n    --ink:#E8EAEB;\n    --ink-soft:#A9B0B6;\n    --ink-mute:#78828B;\n    --accent:#E3B36B;\n    --accent-fill:#C4923F;\n    --accent-edge:#5A4522;\n    --bg-accent:#2E2412;\n    --on-accent:#241300;\n    --success:#84C4AA;\n    --success-fill:#4F8C74;\n    --bg-success:#172E25;\n    --danger:#E28270;\n    --danger-fill:#C1503C;\n    --bg-danger:#351F1A;\n    --info:#B4A4E0;\n    --bg-info:#241F36;\n    --neutral:#9AA6B2;\n    --bg-neutral:#222A32;\n    --dev:#78C8BC;\n    --bg-dev:#14302C;\n    --trusted:#8CC4EE;\n    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n  }\n}\n\n/* Beach (light) */\n:root[data-theme=\"beach\"]{\n  --ground:#EFE7D7;\n  --surface:#FAF5EC;\n  --surface-2:#F1E8D8;\n  --surface-3:#E7DCC7;\n  --border:#D8CBB2;\n  --border-strong:#C3B193;\n  --border-control:#8C7D64;\n  --ink:#33291D;\n  --ink-soft:#6B5C48;\n  --ink-mute:#94836C;\n  --accent:#8A4322;\n  --accent-fill:#A8552C;\n  --accent-edge:#D4AB93;\n  --bg-accent:#F3E2D8;\n  --on-accent:#FBF0E6;\n  --success:#3F5C33;\n  --success-fill:#4A6741;\n  --bg-success:#E4EBDC;\n  --danger:#8C2F2A;\n  --danger-fill:#A83A33;\n  --bg-danger:#F5E0DD;\n  --info:#41528A;\n  --bg-info:#E2E5F2;\n  --neutral:#6E5F49;\n  --bg-neutral:#EDE4D3;\n  --dev:#2E6B5C;\n  --bg-dev:#DCEBE6;\n  --trusted:#23618F;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n}\n\n/* Beach (dimmed) */\n:root[data-theme=\"beach-dim\"]{\n  --ground:#17181A;\n  --surface:#1E2022;\n  --surface-2:#25282A;\n  --surface-3:#2E3134;\n  --border:#33373A;\n  --border-strong:#4A4F53;\n  --border-control:#6D7378;\n  --ink:#E6E4E0;\n  --ink-soft:#A8A49D;\n  --ink-mute:#7C7872;\n  --accent:#F2B189;\n  --accent-fill:#CC7A50;\n  --accent-edge:#5C412C;\n  --bg-accent:#31241A;\n  --on-accent:#1B0D05;\n  --success:#7CC49A;\n  --success-fill:#3F8A61;\n  --bg-success:#17301F;\n  --danger:#EB8272;\n  --danger-fill:#C0453A;\n  --bg-danger:#341D1B;\n  --info:#A3AEDD;\n  --bg-info:#1F2130;\n  --neutral:#A09B92;\n  --bg-neutral:#26282A;\n  --dev:#7FC9B8;\n  --bg-dev:#16302A;\n  --trusted:#8CC4EE;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Slate */\n:root[data-theme=\"slate\"]{\n  --ground:#14181D;\n  --surface:#1B2027;\n  --surface-2:#20262D;\n  --surface-3:#272F37;\n  --border:#2B323A;\n  --border-strong:#3A434C;\n  --border-control:#6A7684;\n  --ink:#E8EAEB;\n  --ink-soft:#A9B0B6;\n  --ink-mute:#78828B;\n  --accent:#E3B36B;\n  --accent-fill:#C4923F;\n  --accent-edge:#5A4522;\n  --bg-accent:#2E2412;\n  --on-accent:#241300;\n  --success:#84C4AA;\n  --success-fill:#4F8C74;\n  --bg-success:#172E25;\n  --danger:#E28270;\n  --danger-fill:#C1503C;\n  --bg-danger:#351F1A;\n  --info:#B4A4E0;\n  --bg-info:#241F36;\n  --neutral:#9AA6B2;\n  --bg-neutral:#222A32;\n  --dev:#78C8BC;\n  --bg-dev:#14302C;\n  --trusted:#8CC4EE;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude (light) */\n:root[data-theme=\"claude\"]{\n  --ground:#F0EEE6;\n  --surface:#FFFFFF;\n  --surface-2:#F7F6F1;\n  --surface-3:#EBE9E0;\n  --border:#DEDACE;\n  --border-strong:#C5C0B2;\n  --border-control:#8A8474;\n  --ink:#191917;\n  --ink-soft:#57544C;\n  --ink-mute:#84806F;\n  --accent:#A8461F;\n  --accent-fill:#B4552F;\n  --accent-edge:#DEB49F;\n  --bg-accent:#F7E6DD;\n  --on-accent:#FFF4EE;\n  --success:#276048;\n  --success-fill:#317055;\n  --bg-success:#D3E8DC;\n  --danger:#9E2B22;\n  --danger-fill:#BE4034;\n  --bg-danger:#F8E2DF;\n  --info:#474C93;\n  --bg-info:#E5E6F4;\n  --neutral:#6B6759;\n  --bg-neutral:#EDEBE2;\n  --dev:#256657;\n  --bg-dev:#D8EBE5;\n  --trusted:#23618F;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n}\n\n/* Claude (medium) */\n:root[data-theme=\"claude-med\"]{\n  --ground:#26241F;\n  --surface:#2F2D27;\n  --surface-2:#37352E;\n  --surface-3:#403D35;\n  --border:#454239;\n  --border-strong:#5C5849;\n  --border-control:#807A68;\n  --ink:#EDEAE0;\n  --ink-soft:#B3AE9E;\n  --ink-mute:#8A8676;\n  --accent:#EFA189;\n  --accent-fill:#C26A4F;\n  --accent-edge:#66452F;\n  --bg-accent:#3B2A1E;\n  --on-accent:#1C0C03;\n  --success:#84C6A2;\n  --success-fill:#3C8A63;\n  --bg-success:#22342A;\n  --danger:#EE8B79;\n  --danger-fill:#BC4739;\n  --bg-danger:#3B2622;\n  --info:#AFA8E2;\n  --bg-info:#2B2839;\n  --neutral:#A8A292;\n  --bg-neutral:#343128;\n  --dev:#82C9B9;\n  --bg-dev:#1F3330;\n  --trusted:#8CC4EE;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude (dark) */\n:root[data-theme=\"claude-dark\"]{\n  --ground:#141312;\n  --surface:#1C1B19;\n  --surface-2:#232220;\n  --surface-3:#2C2A27;\n  --border:#31302C;\n  --border-strong:#47443E;\n  --border-control:#6E6A61;\n  --ink:#EFECE3;\n  --ink-soft:#ACA79A;\n  --ink-mute:#7E7A6E;\n  --accent:#F0A791;\n  --accent-fill:#C36E52;\n  --accent-edge:#523A26;\n  --bg-accent:#2B1D14;\n  --on-accent:#1A0A02;\n  --success:#82C9A3;\n  --success-fill:#3E8F66;\n  --bg-success:#14291D;\n  --danger:#F0907E;\n  --danger-fill:#C24A3B;\n  --bg-danger:#2E1B18;\n  --info:#B3ABE6;\n  --bg-info:#211E2E;\n  --neutral:#A5A092;\n  --bg-neutral:#26241F;\n  --dev:#7FCBBA;\n  --bg-dev:#132A26;\n  --trusted:#8CC4EE;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude Code */\n:root[data-theme=\"claude-code\"]{\n  --ground:#1F1E1D;\n  --surface:#262625;\n  --surface-2:#2E2E2C;\n  --surface-3:#383836;\n  --border:#3A3A38;\n  --border-strong:#54544F;\n  --border-control:#787870;\n  --ink:#F5F4EF;\n  --ink-soft:#B4B2A7;\n  --ink-mute:#88867C;\n  --accent:#E39070;\n  --accent-fill:#C2613F;\n  --accent-edge:#4A3227;\n  --bg-accent:#33221B;\n  --on-accent:#1A0A04;\n  --success:#7FC49E;\n  --success-fill:#3C8961;\n  --bg-success:#1C2E23;\n  --danger:#EE8B78;\n  --danger-fill:#BF4A39;\n  --bg-danger:#33211D;\n  --info:#ADA6E0;\n  --bg-info:#28253A;\n  --neutral:#A3A198;\n  --bg-neutral:#2C2C2A;\n  --dev:#7DC6B6;\n  --bg-dev:#1B2E2A;\n  --trusted:#8CC4EE;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* LEGACY ALIASES. The tool CSS written against the war-room names keeps\n   working; a new theme only has to fill the role names above. Do not use\n   these in new code. */\n:root,:root[data-theme]{\n  --brass:var(--accent); --brass-fill:var(--accent-fill);\n  --brass-text:var(--accent); --on-brass:var(--on-accent); --bg-brass:var(--bg-accent);\n  --ember:var(--danger); --ember-fill:var(--danger-fill); --bg-ember:var(--bg-danger);\n  --moss:var(--success); --moss-fill:var(--success-fill); --bg-moss:var(--bg-success);\n  --violet:var(--info); --bg-violet:var(--bg-info);\n  --steel:var(--neutral); --bg-steel:var(--bg-neutral);\n  --font-head:var(--font-display);\n}\n\n/* NUMBERS. Tabular figures give fixed-width digits, which is what makes a\n   column line up; the face itself is proportional and its zero is open.\n   `font-feature-settings: \"zero\" 0` is deliberately NOT used - it was tried,\n   and it does nothing, because in every mono face tested the slash or dot is\n   the default glyph rather than an optional feature. The fix is face choice,\n   not a feature flag. */\n.num,[data-num],table td,.stat .v,.mini .mr{\n  font-variant-numeric:tabular-nums;\n}\n\n/* DEVELOPER INFO (DESIGN.md §7, register R67). Hidden unless the reader has\n   turned it on, and tinted with its own hue so it is never mistaken for\n   something written for a player. */\n:root:not([data-dev=\"on\"]) [data-dev-only]{display:none!important}\n[data-dev-only]{color:var(--dev)}\n.devpill{\n  font-family:var(--font-mono);font-size:.6rem;font-weight:700;\n  padding:1px 6px;border-radius:3px;background:var(--bg-dev);color:var(--dev);\n}\n\n</style>\n<style>\n/* ===========================================================================\n   AWOO+ TOOL SETTINGS — the gear menu every tool shares.\n\n   Hand-written, unlike theme-tokens.css beside it. Injected by\n   userscripts/build.mjs at the <!-- @AWOO_TOOL_SETTINGS@ --> marker together\n   with tool-settings.js, for the same reason the tokens are injected rather\n   than copied: the menu, the theme inheritance and the \"Match game\" fallback\n   were about to exist four times, and the fallback is the part that has to\n   change in one place when Core's theme snapshot reaches tool payloads.\n\n   Every selector is prefixed `awoo-gear` because it lands inside pages whose\n   own `.btn` / `.panel` / `.note` rules differ from tool to tool.\n   ARTIFACT_STYLE_GUIDE.md Part II, \"Settings menu\".\n   =========================================================================== */\n\n/* THE INPUT TOKENS (2026-09-27). Sizes only, no colour, so they live with\n   the kit rather than in the generated theme contract: every theme shares\n   them. --in-fs is the box's text (it was .74rem, \"a size smaller than body\n   text\", until the maintainer found the boxes hard to read: \"adjust the\n   input boxes' font size ... more readable, and matching the game more\");\n   the widths are the at-rest text of each data-num-kind plus padding\n   (1,500,000 / 1,234.56% / 16.01), and apply only where a page sets none. */\n:root{\n  --in-fs:.8rem; --in-h:1.6rem; --in-radius:3px;\n  --in-w:6rem; --in-w-int:6.5rem; --in-w-pct:6rem; --in-w-dec:4.5rem; --in-w-game:5.5rem;\n}\n.awoo-gear{position:relative;flex:none}\n.awoo-gear-btn{\n  background:transparent; border:1px solid var(--border-control); color:var(--ink-soft);\n  border-radius:4px; padding:3px 8px; cursor:pointer;\n  font:inherit; font-size:.95rem; line-height:1;\n}\n.awoo-gear-btn:hover,.awoo-gear-btn[aria-expanded=\"true\"]{\n  color:var(--ink); border-color:var(--accent-fill); background:var(--surface-2);\n}\n.awoo-gear-menu{\n  position:absolute; right:0; top:calc(100% + 6px); z-index:60; width:250px;\n  background:var(--surface); color:var(--ink); border:1px solid var(--border-strong);\n  border-radius:6px; box-shadow:var(--shadow); padding:8px;\n  display:flex; flex-direction:column; gap:7px;\n  font-family:var(--font-body); font-size:14px; line-height:1.4; text-align:left;\n}\n/* Opening upward, for a gear that sits at the foot of the viewport. */\n.awoo-gear-menu.up{top:auto; bottom:calc(100% + 6px)}\n.awoo-gear-row{display:flex;flex-direction:column;gap:3px}\n.awoo-gear-row label{\n  font-size:.62rem;font-weight:700;letter-spacing:.08em;\n  text-transform:uppercase;color:var(--ink-mute);\n}\n.awoo-gear-row select{\n  background:var(--surface-2); color:var(--ink); border:1px solid var(--border-control);\n  border-radius:4px; padding:var(--ctl-y) var(--ctl-x); font:inherit; font-size:.76rem; width:100%;\n}\n.awoo-gear-check{flex-direction:row;align-items:center;gap:7px}\n.awoo-gear-check label{flex:1}\n.awoo-gear-check input{accent-color:var(--accent-fill);margin:0}\n.awoo-gear-note{font-size:.66rem;color:var(--ink-mute);line-height:1.4}\n.awoo-gear-note:empty{display:none}\n/* A fallback is information the reader needs, not a footnote: the page is\n   deliberately not in the theme they asked for, and it says so. */\n.awoo-gear-note.fallback{color:var(--info);background:var(--bg-info);border-radius:4px;padding:4px 6px}\n\n/* SIDEBAR PINNING (2026-09-21). The default is that a tool's sidebar scrolls\n   WITH the page, and is pinned only while the whole of it fits on screen — a\n   pinned sidebar taller than the window hides its own bottom until the page\n   ends, and an independently scrolling one is a second scrollbar to manage.\n   \"Sidebar scrolls on its own\" in the gear menu restores the older behaviour.\n   tool-settings.js measures and sets data-side-mode; nothing else should. */\n[data-awoo-sidebar][data-side-mode=\"sticky\"]{position:sticky;top:var(--side-top,20px)}\n[data-awoo-sidebar][data-side-mode=\"scroll\"]{\n  position:sticky; top:var(--side-top,20px);\n  max-height:calc(100vh - var(--side-top,20px) - 16px);\n  overflow-y:auto; overflow-x:hidden; scrollbar-width:thin;\n}\n\n/* ===========================================================================\n   THE SHARED TOOL KIT (2026-09-23): the title block, the sync card, the field\n   lights, the Live/Standard switch and the one tooltip. tool-sync.js renders\n   the dynamic parts; these rules are the whole of their look, so every tool\n   shows the same card and the same lights.\n   =========================================================================== */\n\n/* Title block: eyebrow, title, one line, and the gear top-right. The layout\n   Party Gold ROI and Stat Rate Optimizer settled, now the standard. */\n.awoo-head{position:relative;padding-right:2.4rem}\n.awoo-head .awoo-gear{position:absolute;top:0;right:0}\n.awoo-eyebrow{font-family:var(--font-mono);font-size:.63rem;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin:0 0 .3rem}\n.awoo-title{font-family:var(--font-display);font-weight:700;font-size:1.7rem;line-height:1.05;margin:0 0 .3rem;text-wrap:balance;letter-spacing:normal;text-transform:none;color:var(--ink)}\n.awoo-sub{color:var(--ink-soft);font-size:.78rem;line-height:1.45;margin:0}\n\n/* Buttons the kit renders. Tools keep their own .btn; these do not collide.\n   DESIGN.md §9 (checked 2026-09-27): square-ish corners (about 3px, never\n   pills), and a button in a row is OUTLINED on hover, not filled: the old\n   --surface-3 hover was a grey-to-beige step in every light theme. */\n.awoo-btn{\n  font-family:var(--font-body); font-size:.72rem; font-weight:500; color:var(--ink);\n  background:var(--surface-2); border:1px solid var(--border-control); border-radius:var(--in-radius);\n  padding:.28rem .6rem; cursor:pointer; white-space:nowrap; flex:1;\n}\n.awoo-btn:hover{border-color:var(--accent-fill);color:var(--accent)}\n.awoo-btn:disabled{opacity:.4;cursor:default}\n.awoo-btn:disabled:hover{border-color:var(--border-control);color:var(--ink-soft);background:var(--surface-2)}\n.awoo-btn-primary{color:var(--on-accent);background:var(--accent-fill);border-color:var(--accent-fill)}\n.awoo-btn-primary:hover{filter:brightness(1.07);color:var(--on-accent);background:var(--accent-fill)}\n\n/* The sync card: state and age on one line, the mode switch, two actions. */\n.awoo-sync{\n  background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border-strong);\n  border-radius:var(--radius); padding:var(--pad-panel); box-shadow:var(--shadow);\n  display:flex; flex-direction:column; gap:.45rem; font-family:var(--font-body); font-size:.75rem;\n}\n.awoo-sync[data-state=\"synced\"]{border-left-color:var(--success-fill)}\n.awoo-sync[data-state=\"stale\"]{border-left-color:var(--accent-fill)}\n.awoo-sync-head{display:flex;align-items:center;gap:.45rem}\n.awoo-sync-head .awoo-light{cursor:default;margin:0}\n.awoo-sync-state{font-weight:600;color:var(--ink);border-bottom:1px dotted var(--ink-mute);cursor:help}\n.awoo-sync-age{margin-left:auto;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--ink-mute);font-size:.68rem}\n.awoo-sync-actions{display:flex;gap:.35rem}\n\n/* Live / Standard. */\n.awoo-seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:2px;background:var(--surface-2);border:1px solid var(--border-control);border-radius:var(--in-radius)}\n.awoo-seg button{border:0;background:transparent;color:var(--ink-soft);font:inherit;font-size:.72rem;font-weight:600;padding:.22rem .4rem;border-radius:2px;cursor:pointer}\n.awoo-seg button:hover{color:var(--ink)}\n.awoo-seg button[aria-pressed=\"true\"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}\n[data-sync-mode=\"live\"] [data-mode-only=\"standard\"],\n[data-sync-mode=\"standard\"] [data-mode-only=\"live\"],\n:root:not([data-sync-mode]) [data-mode-only=\"standard\"]{display:none!important}\n\n/* A field's light. Filled means the game supplied it; hollow means it never\n   did (Core's convention: a state you cannot act on renders hollow). */\n.awoo-light{\n  display:inline-block; flex:none; width:.55rem; height:.55rem; border-radius:50%;\n  border:0; padding:0; margin:0 .3rem 0 0; vertical-align:middle; cursor:pointer;\n  background:transparent; box-shadow:inset 0 0 0 1.5px var(--ink-mute);\n}\n.awoo-light[data-state=\"synced\"]{background:var(--success-fill);box-shadow:none}\n.awoo-light[data-state=\"stale\"]{background:var(--accent-fill);box-shadow:none}\n.awoo-light[data-state=\"edited\"]{background:var(--info);box-shadow:none}\n/* A newer reading is waiting (R125): the box keeps its value, the dot gets a ring. */\n.awoo-light[data-pending=\"true\"]{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--accent-fill)}\n.awoo-light[data-off=\"true\"]{opacity:.35}\n.awoo-light:focus-visible{outline:2px solid var(--accent-fill);outline-offset:2px}\n\n/* The one tooltip. */\n#awooTip{\n  position:fixed; z-index:200; left:0; top:0; max-width:22rem; pointer-events:none;\n  background:var(--ink); color:var(--surface); white-space:pre-line;\n  font-family:var(--font-body); font-size:.73rem; font-weight:400; line-height:1.45; letter-spacing:normal; text-transform:none;\n  padding:.45rem .6rem; border-radius:6px; box-shadow:var(--shadow);\n  opacity:0; visibility:hidden; transition:opacity .1s;\n}\n#awooTip.on{opacity:1;visibility:visible}\n#awooTip .awoo-tip-dev{display:block;margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--ink-mute);color:var(--bg-dev)}\n.awoo-tip{border-bottom:1px dotted var(--ink-mute);cursor:help}\n@media (prefers-reduced-motion:reduce){#awooTip{transition:none}}\n\n/* Number boxes (data-num): tabular figures in the number font, right-aligned\n   so a column of them lines up on the last digit. The size is --in-fs (it was\n   a step smaller than body text, 2026-09-23, until 2026-09-27's \"more\n   readable\"). Every number box has a default width, its kind's where it says\n   one: without one a text box is as wide as twenty characters of its font,\n   which the larger font pushed out of Exploration Ceiling's stat grid. A page\n   rule with a class still wins, so a page sets a width only where its layout\n   needs one. */\ninput[data-num]{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:var(--in-fs);text-align:right;width:var(--in-w)}\ninput[data-num-kind=\"int\"]{width:var(--in-w-int)}\ninput[data-num-kind=\"pct\"]{width:var(--in-w-pct)}\ninput[data-num-kind=\"dec\"]{width:var(--in-w-dec)}\ninput[data-num-kind=\"game\"]{width:var(--in-w-game)}\n\n/* THE DEFAULT INPUT BOX is Pet Slot ROI's (the maintainer, 2026-09-25: \"I like\n   the input boxes from the pet ROI, make those default. They are nicely\n   compact in height\"). It lives here, in the kit every tool gets, because a\n   box each page styled for itself is how two of them went unstyled: Cost\n   Tables' level boxes became type=\"text\" for locale-aware numbers while its\n   rule still said input[type=number], and the optimizer's ratio boxes sat in\n   a table no rule reached. Both drew the browser's white box under the\n   theme's light ink, which is unreadable in every dark theme. A page rule with\n   a class still wins (this is element + attribute specificity; the select's\n   :not([multiple]) is there only to outrank a page's bare `select` reset), so a page sets\n   only what is its own: a width, an alignment. The gear menu keeps its own. */\ninput[type=number],input[type=text],input:not([type]),select:not([multiple]){\n  font-family:var(--font-num);font-size:var(--in-fs);font-weight:600;color:var(--ink);\n  background:var(--surface-2);border:1px solid var(--border-control);border-radius:var(--in-radius);\n  padding:var(--ctl-y) var(--ctl-x);min-width:0;font-variant-numeric:tabular-nums;\n  line-height:1.4;height:var(--in-h);box-sizing:border-box}\nselect:not([multiple]){font-family:var(--font-body);font-weight:400}\n/* NO SPINNERS, ANYWHERE (2026-09-27, the maintainer: \"input box arrows keep\n   showing when typing in the box, let's remove them entirely\"). !important\n   because a page's own number-box rule outranks this one on specificity, and\n   a spinner is never a page's call: the wheel steps a box instead\n   (tool-settings.js, \"THE WHEEL\"), and a spinner's gutter is what put\n   right-aligned numbers at two x positions in one column. */\ninput[type=number]{-moz-appearance:textfield!important;appearance:textfield!important;text-align:right}\ninput[type=number]::-webkit-outer-spin-button,\ninput[type=number]::-webkit-inner-spin-button{-webkit-appearance:none!important;appearance:none!important;margin:0;display:none}\ninput[type=number]:focus,input[type=text]:focus,input:not([type]):focus,select:focus{outline:2px solid var(--accent-fill);outline-offset:1px}\ninput[type=number]:disabled,input[type=text]:disabled,select:disabled{opacity:.45;cursor:not-allowed;background:var(--surface-3)}\n\n/* A SYNCED FIELD, BY STATE (2026-09-27; tool-sync.js \"THE ONE STANDARD FOR A\n   SYNCED INPUT\" sets the attributes). Synced or old: dimmed and read-only, a\n   quiet box that still reads clearly (the value is in use, so it is --ink-soft,\n   never faded out); hovering outlines it, because a click is what makes it\n   yours. Manual: the normal bright box with a bar in the edited light's colour\n   down its left edge. The class is doubled on purpose: it has to outrank a\n   page's `.fields input[type=text]`, which comes later in the page. */\ninput.awoo-field.awoo-field[data-sync-lock=\"true\"]{\n  color:var(--ink-soft); background:transparent; border-color:var(--border);\n  cursor:pointer; font-weight:500}\ninput.awoo-field.awoo-field[data-sync-lock=\"true\"]:hover{border-color:var(--accent-fill)}\ninput.awoo-field.awoo-field[data-sync=\"edited\"]{box-shadow:inset 3px 0 0 var(--info)}\n/* The ↺ beside a manual field: in the label, pushed to its end, so it sits\n   next to the box in a label-then-box row. */\n.awoo-field-reset{\n  flex:none; margin:0 0 0 auto; padding:0 .2rem; border:0; background:transparent;\n  color:var(--info); font:inherit; font-size:var(--in-fs); line-height:1; cursor:pointer}\n.awoo-field-reset:hover{color:var(--accent)}\n.awoo-field-reset[hidden]{display:none}\n.awoo-field-reset:focus-visible{outline:2px solid var(--accent-fill);outline-offset:1px}\n\n/* CHECKBOXES ARE OUTLINED IN THE THEME (DESIGN.md §9; Core's own rule since\n   R69 rounds 6-7, core.js, drawn the same here): an accent tick in an accent\n   frame, no fill, square-ish corners, never the browser's own blue box. The\n   tick is a drawn path masked to the accent, because a rotated border's\n   corner sat off-centre (R69 round 7). Unticked, the frame is\n   --border-control, the 3:1 control edge of the theme contract. */\ninput[type=checkbox]{\n  appearance:none; -webkit-appearance:none; width:.85rem; height:.85rem; margin:0; flex:none;\n  box-sizing:border-box; padding:0; border:1px solid var(--border-control); border-radius:var(--in-radius);\n  background:transparent; display:inline-grid; place-items:center; cursor:pointer; vertical-align:middle}\ninput[type=checkbox]:checked{border-color:var(--accent-fill)}\ninput[type=checkbox]:checked::after{\n  content:\"\"; width:80%; height:80%; background:var(--accent);\n  -webkit-mask:url(\"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 10%27%3E%3Cpath d=%27M1.5 5.2 4 7.6 8.6 2.4%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%271.8%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E\") center / contain no-repeat;\n  mask:url(\"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 10%27%3E%3Cpath d=%27M1.5 5.2 4 7.6 8.6 2.4%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%271.8%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E\") center / contain no-repeat}\ninput[type=checkbox]:hover{border-color:var(--accent-fill)}\ninput[type=checkbox]:focus-visible{outline:2px solid var(--accent-fill);outline-offset:1px}\ninput[type=checkbox]:disabled{opacity:.45;cursor:not-allowed}\ninput[type=checkbox]:disabled:hover{border-color:var(--border-control)}\n\n</style>\n<script>\n/* ===========================================================================\n   AWOO+ TOOL SETTINGS — theme, developer info and fonts, shared by every tool.\n\n   Hand-written. Injected by userscripts/build.mjs at <!-- @AWOO_TOOL_SETTINGS@ -->\n   (with tool-settings.css), so the inheritance rules below exist once rather\n   than once per tool. A page opts in by carrying the marker, naming itself in\n   <meta name=\"awoo-tool\" content=\"...\"> BEFORE the marker, and calling\n   AWOO_TOOL_SETTINGS.mount(el) from its own init.\n\n   INHERIT, THEN OVERRIDE (ARTIFACT_STYLE_GUIDE.md Part II and Part IV).\n   The theme, \"Show developer info\" and the tool fonts are the PLAYER's\n   settings, held by AWOO+ Core. Core hands them over when it opens a tool, as\n   window.AWOO_APPEARANCE, prepended to the payload the same way AWOO_LIVE is.\n   A choice made in this page's gear menu overrides the inherited one and is\n   remembered per tool; \"Match game\" hands the decision back to Core.\n\n   THE FALLBACKS, stated because each one is a deliberate answer rather than\n   whatever happened to render:\n     - Opened outside the game (nothing inherited): the OS preference decides,\n       Beach (light) or Slate — theme-tokens.css does that with no stamp.\n     - Core's theme is game-shaped (\"Match game\", or the AWOO Turquoise preset):\n       a tool opened in its own tab cannot read the game page's variables, and\n       Core's snapshot of them does not reach tool payloads yet. So the page\n       shows SLATE AND SAYS SO in the menu — never an unstyled page, never a\n       silent substitute. When the snapshot does reach the payload, this\n       branch is the one place that changes.\n   =========================================================================== */\n(function(){\n'use strict';\n\nvar THEMES = [\n  ['beach','Beach (light)'], ['beach-dim','Beach (dimmed)'], ['slate','Slate'],\n  ['claude','Claude (light)'], ['claude-med','Claude (medium)'], ['claude-dark','Claude (dark)'],\n  ['claude-code','Claude Code']\n];\nvar THEME_IDS = THEMES.map(function(t){ return t[0]; });\n// Core's two themes that are defined by the GAME's variables rather than by\n// our contract. Neither can be rendered in a separate tab yet.\nvar GAME_SHAPED = { matchGame:'Match game', awooTurquoise:'AWOO Turquoise' };\nvar FALLBACK_THEME = 'slate';\n\n// The two font lists of Settings > Fonts. Core carries the same two lists for\n// the overlay; userscripts/tests/tool-theme-contract.mjs fails if they drift apart.\n//   text: Public Sans (default) · Open Sans · Figtree\n//   num:  Public Sans with tabular figures (default) · Roboto Mono\n// Roboto Mono marks its zero (69% ink in the counter, measured); it is offered\n// because it was asked for, and labelled for what it is in Core's picker.\nvar FONT_TEXT = {\n  public:  { stack:\"'Public Sans',system-ui,-apple-system,sans-serif\", family:'Public+Sans:wght@400;500;600;700' },\n  open:    { stack:\"'Open Sans',system-ui,-apple-system,sans-serif\",   family:'Open+Sans:wght@400;500;600;700' },\n  figtree: { stack:\"'Figtree',system-ui,-apple-system,sans-serif\",     family:'Figtree:wght@400;500;600;700' }\n};\nvar FONT_NUM = {\n  public: { stack:\"'Public Sans',system-ui,-apple-system,sans-serif\", family:'Public+Sans:wght@400;500;600;700' },\n  roboto: { stack:\"'Roboto Mono',ui-monospace,monospace\",             family:'Roboto+Mono:wght@400;500;600' }\n};\n\n// NUMBER PRESENTATION (2026-09-23: moved here from Cost Tables, so every tool\n// carries it). The game keeps two per-character settings, both CODE facts in\n// data/tables/number-display.json: numberFormatting (standard | exponential |\n// letters) and numberLocale ('Local' -> the browser, '1.000,00', '1,000.00').\n// Core hands the player's own over in AWOO_APPEARANCE.number; the gear menu\n// can override either, per tool. The suffix ladder starts at 1e3, and below\n// 1e6 every mode falls through to standard, which is the game's own rule.\nvar NUM_MODES = ['letters', 'standard', 'exponential'];\nvar LADDER = ['k','m','b','t','qa','qi','sx','sp','oc','no','dc','ud'];\nvar LOCALE_MAP = { 'Local':null, '1.000,00':'de-DE', '1,000.00':'en-US' };\n\nvar root = document.documentElement;\nvar meta = document.querySelector('meta[name=\"awoo-tool\"]');\nvar TOOL = (meta && meta.getAttribute('content')) || 'tool';\nvar LS = 'awoo:tool:' + TOOL + ':appearance';\n\nvar local = { theme:null, dev:null, sideScroll:false, numMode:null, numLocale:null, fontText:null, fontNum:null };\ntry {\n  var raw = localStorage.getItem(LS);\n  if (raw){ var p = JSON.parse(raw); if (p && typeof p === 'object'){\n    local.theme = p.theme || null; local.dev = (typeof p.dev === 'boolean') ? p.dev : null; local.sideScroll = p.sideScroll === true;\n    local.numMode = NUM_MODES.indexOf(p.numMode) >= 0 ? p.numMode : null;\n    local.numLocale = Object.prototype.hasOwnProperty.call(LOCALE_MAP, p.numLocale) ? p.numLocale : null;\n    local.fontText = FONT_TEXT[p.fontText] ? p.fontText : null;\n    local.fontNum = FONT_NUM[p.fontNum] ? p.fontNum : null;\n  } }\n} catch(e){ /* private window or blocked storage: inherit everything */ }\nfunction persist(){\n  try { localStorage.setItem(LS, JSON.stringify(local)); } catch(e){ /* not durable, still applied */ }\n}\n\n// What Core handed over. AWOO_APPEARANCE is the channel; the profile section\n// is the older one Cost Tables was written against, kept so a page embedded\n// beside Core (not in its own tab) still inherits.\nfunction inherited(){\n  var out = { theme:null, dev:null, fonts:null };\n  var a = window.AWOO_APPEARANCE;\n  if (a && typeof a === 'object'){\n    if (typeof a.theme === 'string') out.theme = a.theme;\n    if (typeof a.dev === 'boolean') out.dev = a.dev;\n    if (a.fonts && typeof a.fonts === 'object') out.fonts = a.fonts;\n  }\n  try {\n    var core = window.AWOO_CORE || window.Core;\n    if (core && core.profile && typeof core.profile.section === 'function'){\n      var t = core.profile.section('settings.theme');\n      if (out.theme == null && t && typeof t.value === 'string') out.theme = t.value;\n      var d = core.profile.section('settings.showDeveloperInfo');\n      if (out.dev == null && d && typeof d.value === 'boolean') out.dev = d.value;\n    }\n  } catch(e){ /* absent is absent */ }\n  return out;\n}\n\n// The theme actually painted, and why. `note` is shown in the menu whenever\n// the page is not showing exactly what was asked for.\nfunction resolveTheme(){\n  if (local.theme && THEME_IDS.indexOf(local.theme) >= 0){\n    return { id:local.theme, source:'picked', note:'' };\n  }\n  var inh = inherited().theme;\n  if (inh && THEME_IDS.indexOf(inh) >= 0){\n    return { id:inh, source:'game', note:'' };\n  }\n  if (inh && GAME_SHAPED[inh]){\n    return { id:FALLBACK_THEME, source:'fallback',\n      note:'Your AWOO+ theme is ' + GAME_SHAPED[inh] + ', which a tool cannot read yet. Showing Slate.' };\n  }\n  return { id:null, source:'os', note:'No AWOO+ theme to match, so this follows your system: Beach or Slate.' };\n}\n\nfunction labelOf(id){\n  for (var i = 0; i < THEMES.length; i++) if (THEMES[i][0] === id) return THEMES[i][1];\n  return null;\n}\n\nfunction applyTheme(){\n  var r = resolveTheme();\n  if (r.id) root.setAttribute('data-theme', r.id);\n  else root.removeAttribute('data-theme');\n  return r;\n}\nfunction devOn(){\n  if (local.dev != null) return local.dev;\n  return !!inherited().dev;\n}\nfunction applyDev(){ root.setAttribute('data-dev', devOn() ? 'on' : 'off'); }\n\nfunction inheritedNumber(){\n  var a = window.AWOO_APPEARANCE && window.AWOO_APPEARANCE.number;\n  return {\n    mode: a && NUM_MODES.indexOf(a.formatting) >= 0 ? a.formatting : null,\n    locale: a && Object.prototype.hasOwnProperty.call(LOCALE_MAP, a.locale) ? a.locale : null\n  };\n}\nfunction numMode(){ return local.numMode || inheritedNumber().mode || 'letters'; }\nfunction numLocaleKey(){ return local.numLocale || inheritedNumber().locale || 'Local'; }\nfunction numLocaleTag(){\n  var tag = LOCALE_MAP[numLocaleKey()];\n  if (tag) return tag;\n  try { return navigator.language || 'en-US'; } catch(e){ return 'en-US'; }\n}\nfunction finite(n){ return typeof n === 'number' && isFinite(n); }\n// Grouped digits, rounded. A dash for anything that is not a number, so a\n// missing input never renders as a confident 0.\nfunction fmtInt(n){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  try { return Math.round(n).toLocaleString(numLocaleTag()); } catch(e){ return String(Math.round(n)); }\n}\n// Exactly d decimals, in the player's separators.\nfunction fmtDec(n, d){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  d = d == null ? 2 : d;\n  try { return n.toLocaleString(numLocaleTag(), { minimumFractionDigits:d, maximumFractionDigits:d }); }\n  catch(e){ return n.toFixed(d); }\n}\n// A fraction as a percentage: 0.1234 -> \"12.34%\".\nfunction fmtPct(frac, d){ return finite(frac) ? fmtDec(frac * 100, d == null ? 2 : d) + '%' : '\\u2014'; }\n// The game's own rule: below 1e6 standard (with up to `small` decimals for\n// small non-integers), from 1e6 letters / exponential / standard.\nfunction fmtNum(n, small){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  if (n === 0) return '0';\n  var mode = numMode(), abs = Math.abs(n);\n  if (abs < 1e6 || mode === 'standard'){\n    if (abs < 1000 && small && Math.round(n) !== n){\n      var dd = abs < 10 ? small : Math.max(0, small - 1);\n      try { return n.toLocaleString(numLocaleTag(), { maximumFractionDigits:dd }); } catch(e){ return n.toFixed(dd); }\n    }\n    return fmtInt(n);\n  }\n  if (mode === 'exponential') return n.toExponential(2);\n  var i = Math.min(LADDER.length - 1, Math.floor(Math.log10(abs) / 3) - 1);\n  var v = n / Math.pow(1000, i + 1);\n  // Always two decimals: the game's own letter form (NumberDisplay, CODE;\n  // data/tables/number-display.json display.letterFormat.threshold). Cost\n  // Tables showed one decimal from 100 up until 2026-09-23, which the game never does.\n  return fmtDec(v, 2) + LADDER[i];\n}\n// Reads what a person typed, in the player's separators, with the game's\n// letter suffixes (\"4.18t\"). null when it is not a number, never 0.\nfunction parseNum(str){\n  if (typeof str === 'number') return finite(str) ? str : null;\n  if (typeof str !== 'string') return null;\n  var t = str.trim().toLowerCase().replace(/[\\s%]/g, '');\n  if (!t) return null;\n  var mult = 1, m = t.match(/(qa|qi|sx|sp|oc|no|dc|ud|k|m|b|t)$/);\n  if (m){ mult = Math.pow(1000, LADDER.indexOf(m[1]) + 1); t = t.slice(0, -m[1].length); }\n  var dec = fmtDec(1.5, 1).replace(/[0-9]/g, '') || '.';\n  var group = dec === ',' ? '.' : ',';\n  t = t.split(group).join('');\n  if (dec !== '.') t = t.replace(dec, '.');\n  if (!/^[-+]?\\d*\\.?\\d+(e[-+]?\\d+)?$/.test(t)) return null;\n  var v = parseFloat(t) * mult;\n  return finite(v) ? v : null;\n}\nfunction numberNote(){\n  var inh = inheritedNumber(), parts = [];\n  if (!local.numMode) parts.push(inh.mode ? 'format from game' : 'format: letters (not opened from the game)');\n  if (!local.numLocale) parts.push(inh.locale ? 'separators from game' : 'separators: browser');\n  return parts.join(' \\u00b7 ');\n}\n\n// Fonts: Settings > Fonts in Core sets the tools' faces for every tool, and\n// since 2026-09-23 each tool's gear can override them for that tool alone\n// (the maintainer asked for the number font in every settings menu). \"Match\n// AWOO+\" hands the choice back to Core. A face outside the page's own\n// stylesheet link is fetched only when chosen.\nfunction loadFamily(family){\n  if (!family || document.querySelector('link[data-awoo-font=\"' + family + '\"]')) return;\n  var l = document.createElement('link');\n  l.rel = 'stylesheet';\n  l.href = 'https://fonts.googleapis.com/css2?family=' + family + '&display=swap';\n  l.setAttribute('data-awoo-font', family);\n  (document.head || root).appendChild(l);\n}\nfunction fontIds(){\n  var f = inherited().fonts;\n  var tools = f && (f.tools || f);\n  return {\n    text: local.fontText || (tools && FONT_TEXT[tools.text] ? tools.text : null),\n    num: local.fontNum || (tools && FONT_NUM[tools.num] ? tools.num : null)\n  };\n}\nfunction applyFonts(){\n  var ids = fontIds();\n  var text = ids.text && FONT_TEXT[ids.text];\n  var num = ids.num && FONT_NUM[ids.num];\n  if (text){\n    loadFamily(text.family);\n    root.style.setProperty('--font-body', text.stack);\n    root.style.setProperty('--font-display', text.stack);\n  }\n  if (num){\n    loadFamily(num.family);\n    root.style.setProperty('--font-num', num.stack);\n  }\n  // Switching back to \"Match AWOO+\" with nothing inherited must undo an\n  // override, not leave the last one painted.\n  var rm = root.style && typeof root.style.removeProperty === 'function' ? function(k){ root.style.removeProperty(k); } : function(){};\n  if (!text){ rm('--font-body'); rm('--font-display'); }\n  if (!num) rm('--font-num');\n}\nvar FONT_LABEL = { public:'Public Sans', open:'Open Sans', figtree:'Figtree', roboto:'Roboto Mono (marked 0)' };\n\n/* NUMBER INPUTS (2026-09-23). A box marked data-num shows thousands\n   separators while you are not in it, and plain digits while you edit (so the\n   caret never fights a separator). What you paste may carry separators, as\n   long as they are your format's; letter suffixes (\"4.18t\") work too.\n   num.read(el) is how a page reads one: the value, or null, never 0 for a\n   box that is empty or not a number.\n\n   KINDS (2026-09-27, the maintainer: \"visually showing the percentage and\n   rounded numbers ... accepting decimals when editing\"). data-num-kind picks\n   how the box READS while you are not in it; in it, every kind is the same\n   plain, full-precision number in your decimal separator, so what you edit\n   is never the rounded text:\n     (none)  grouped, up to data-num-digits decimals (default 6), as before\n     int     grouped, whole                          1,500,000\n     pct     percentage POINTS, fixed decimals        163.54%\n     dec     fixed decimals (a multiplier, a rate)    16.01\n     game    the game's own rule: letters from 1e6    105.44b\n   data-num-digits sets the decimals of pct / dec / game (default 2).\n   A pct box holds percentage points (163.54 means 163.54%), not a fraction:\n   every tool page already keeps its percent inputs in points (Pet Slot ROI's\n   \"Market %\" is 320, the optimizer's \"Enchants %\" 525.7), the label says %,\n   and parseNum already reads \"12%\" as 12. A page whose source is a fraction\n   scales it in its own read (Pet Slot ROI's goldBoost: gold * 100). The\n   precedent for the display is the game's own and the modules' (two\n   decimals, the player's separator: dungeon-win-rate fmtPct,\n   sculpture-grid-labels formatRoll); no module yet edits a formatted box.\n\n   THE ROUNDED TEXT NEVER LOSES THE VALUE. A box shown as \"163.54%\" may hold\n   163.5432; the full value rides on the element beside the text it was\n   shown as, and num.read returns it for as long as the text is unchanged.\n   Anything typed is read as typed. */\nvar KIND_DIGITS = { pct:2, dec:2, game:2 };\nfunction kindOf(el){ var k = el.getAttribute('data-num-kind'); return (k === 'int' || KIND_DIGITS[k] !== undefined) ? k : null; }\nfunction digitsOf(el, fallback){\n  var dig = el.getAttribute('data-num-digits');\n  var n = dig !== null ? parseInt(dig, 10) : NaN;\n  return isFinite(n) && n >= 0 ? n : fallback;\n}\n// What a box reads as while you are not in it.\nfunction numDisplay(el, v){\n  var kind = kindOf(el);\n  if (kind === 'int') return fmtInt(v);\n  if (kind === 'pct') return fmtDec(v, digitsOf(el, 2)) + '%';\n  if (kind === 'dec') return fmtDec(v, digitsOf(el, 2));\n  if (kind === 'game') return fmtNum(v, digitsOf(el, 2));\n  try { return v.toLocaleString(numLocaleTag(), { maximumFractionDigits:digitsOf(el, 6) }); } catch(e){ return String(v); }\n}\n// What it reads as while you edit: plain, and as precise as the value is\n// (8 decimals is past anything the game stores, and short of float noise).\nfunction numEditable(el, v){\n  var kind = kindOf(el);\n  var max = kind ? 8 : digitsOf(el, 6);\n  try { return v.toLocaleString(numLocaleTag(), { useGrouping:false, maximumFractionDigits:max }); } catch(e){ return String(v); }\n}\nfunction showNum(el, v){\n  if (v === null || v === undefined || !finite(v)){ return; }\n  var focused = document.activeElement === el;\n  el.value = focused ? numEditable(el, v) : numDisplay(el, v);\n  el.__awooNumV = v; el.__awooNumShown = el.value;\n}\nfunction readNum(el){\n  if (!el) return null;\n  if (el.__awooNumShown !== undefined && el.value === el.__awooNumShown) return el.__awooNumV;\n  return parseNum(el.value);\n}\nfunction enhanceNum(el){\n  if (!el || el.__awooNum) return;\n  el.__awooNum = true;\n  if (el.type === 'number') el.type = 'text';\n  el.setAttribute('inputmode', 'decimal');\n  el.setAttribute('autocomplete', 'off');\n  el.addEventListener('focus', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });\n  el.addEventListener('blur', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });\n  var v0 = readNum(el);\n  if (v0 === null && el.value){ var raw = parseFloat(el.value); if (isFinite(raw)) v0 = raw; }\n  if (v0 !== null) showNum(el, v0);\n}\nfunction enhanceAll(scope){\n  var list = (scope || document).querySelectorAll('input[data-num]');\n  for (var i = 0; i < list.length; i++) enhanceNum(list[i]);\n}\nfunction reformatAll(){\n  var list = document.querySelectorAll('input[data-num]');\n  for (var i = 0; i < list.length; i++){ if (document.activeElement !== list[i]){ var v = readNum(list[i]); if (v !== null) showNum(list[i], v); } }\n}\n\n/* THE WHEEL STEPS A NUMBER BOX, AND THE PAGE DOES NOT MOVE (2026-09-27).\n   The maintainer liked the browser's own wheel-to-step on a number box and\n   its per-box step sizes, and asked that the window never scroll while the\n   wheel is stepping a box. The browser only steps a FOCUSED type=number box,\n   and scrolls the page for everything else, data-num boxes included (they\n   are type=text). So one listener, not passive (a passive one cannot\n   preventDefault), steps any enabled number box under the pointer and keeps\n   the page still:\n     - a box that is disabled or read-only (a synced field, which tool-sync.js\n       locks until you click it) is not captured: the page scrolls, because\n       the wheel cannot change it anyway;\n     - a scroll already under way keeps scrolling the PAGE when the pointer\n       crosses a box, the way a browser latches a nested scroller: without\n       that, scrolling down a sidebar of boxes would change whichever box\n       happened to pass under the pointer, a silent wrong input;\n     - the step is the box's own (data-num-step, else its step attribute),\n       else it follows the number's size (230,000 steps by 1,000; 48.93% by\n       0.1), snapped to the step, and clamped to min/max.\n   Each step fires input and change, as typing does, so the page recomputes\n   and the sync kit marks the field manual. */\nvar WHEEL_LATCH_MS = 400;\nvar pageWheelAt = 0, wheelAcc = 0, wheelBox = null;\nfunction isNumBox(el){\n  if (!el || el.tagName !== 'INPUT') return false;\n  return el.type === 'number' || el.hasAttribute('data-num');\n}\nfunction stepDecimals(s){ var t = String(s); var i = t.indexOf('.'); return i < 0 ? 0 : t.length - i - 1; }\nfunction autoStep(el, v){\n  var kind = kindOf(el);\n  var whole = kind === 'int' || kind === 'game' || (!kind && digitsOf(el, 6) === 0) || el.type === 'number';\n  var floor = whole ? 1 : Math.pow(10, -Math.min(2, digitsOf(el, 2)));\n  if (!v) return whole ? 1 : Math.max(floor, kind === 'pct' ? 1 : 0.1);\n  var s = Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - 2);\n  return Math.max(floor, s);\n}\nfunction boxStep(el, v){\n  var attr = el.getAttribute('data-num-step') || el.getAttribute('step');\n  var s = attr && attr !== 'any' ? parseFloat(attr) : NaN;\n  if (isFinite(s) && s > 0) return s;\n  return el.type === 'number' && attr !== 'any' ? 1 : autoStep(el, v);\n}\nfunction boxValue(el){\n  if (el.hasAttribute('data-num')) return readNum(el);\n  var v = parseFloat(el.value);\n  return isFinite(v) ? v : null;\n}\nfunction fire(el, type){\n  var ev;\n  try { ev = new Event(type, { bubbles:true }); } catch(e){ ev = document.createEvent('Event'); ev.initEvent(type, true, false); }\n  el.dispatchEvent(ev);\n}\nfunction stepBox(el, dir){\n  var v0 = boxValue(el);\n  var cur = v0 === null ? 0 : v0;\n  var s = boxStep(el, cur);\n  var d = stepDecimals(s);\n  var v = Math.round((cur + dir * s) / s) * s;\n  var lo = parseFloat(el.getAttribute('min')), hi = parseFloat(el.getAttribute('max'));\n  if (isFinite(lo) && v < lo) v = lo;\n  if (isFinite(hi) && v > hi) v = hi;\n  v = parseFloat(v.toFixed(Math.min(10, d)));\n  if (v === v0) return false;\n  if (el.hasAttribute('data-num')) showNum(el, v);\n  else el.value = String(v);\n  fire(el, 'input'); fire(el, 'change');\n  return true;\n}\nfunction onWheel(e){\n  var t = e.target;\n  var box = t && t.closest ? t.closest('input') : null;\n  var now = Date.now();\n  if (!isNumBox(box) || box.disabled || box.readOnly || !e.deltaY || e.ctrlKey){\n    if (e.deltaY) pageWheelAt = now;\n    return;\n  }\n  // Latched to the page: a scroll that began elsewhere carries on over the box.\n  if (now - pageWheelAt < WHEEL_LATCH_MS){ pageWheelAt = now; return; }\n  e.preventDefault();\n  if (wheelBox !== box){ wheelBox = box; wheelAcc = 0; }\n  // A mouse notch is one step (a line, or about 100px); a trackpad's small\n  // deltas add up to one, so a flick does not race through fifty steps.\n  var px = e.deltaMode === 1 ? e.deltaY * 40 : (e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY);\n  if (Math.abs(px) >= 40){ wheelAcc = 0; stepBox(box, px < 0 ? 1 : -1); return; }\n  wheelAcc += px;\n  if (Math.abs(wheelAcc) >= 40){ var dir = wheelAcc < 0 ? 1 : -1; wheelAcc = 0; stepBox(box, dir); }\n}\ntry { document.addEventListener('wheel', onWheel, { passive:false }); }\ncatch(e){ /* a browser without options objects has no wheel-to-step either */ }\n\n// Sidebar pinning (see tool-settings.css). A page marks its sidebar with\n// data-awoo-sidebar, the viewport width from which it sits BESIDE the content\n// (data-side-min) and the pinned offset (data-side-top, e.g. below a sticky\n// top bar). Below that width the layout is one column and nothing is pinned.\nfunction sidebar(){ return document.querySelector('[data-awoo-sidebar]'); }\nfunction layoutSidebar(){\n  var el = sidebar();\n  if (!el) return;\n  var min = parseInt(el.getAttribute('data-side-min'), 10) || 0;\n  var top = parseInt(el.getAttribute('data-side-top'), 10) || 20;\n  el.style.setProperty('--side-top', top + 'px');\n  var mode;\n  if (window.innerWidth < min) mode = 'static';\n  else if (local.sideScroll) mode = 'scroll';\n  // scrollHeight is the content's own height whatever max-height says, so\n  // the measurement does not depend on the mode it is choosing between.\n  else mode = el.scrollHeight <= window.innerHeight - top - 16 ? 'sticky' : 'static';\n  if (el.getAttribute('data-side-mode') !== mode) el.setAttribute('data-side-mode', mode);\n}\nfunction watchSidebar(){\n  var el = sidebar();\n  if (!el) return;\n  layoutSidebar();\n  window.addEventListener('resize', layoutSidebar);\n  // Content grows and shrinks (a details panel opens, live data arrives), so\n  // the fit is re-measured on the element's own size changes too.\n  if (window.ResizeObserver) new ResizeObserver(layoutSidebar).observe(el);\n}\n\nvar listeners = [];\nfunction changed(){ for (var i = 0; i < listeners.length; i++){ try { listeners[i](); } catch(e){ /* one page bug must not stop the others */ } } }\n\n// Painted immediately, at parse time, so the page never flashes the base\n// theme before the stored or inherited one.\napplyTheme(); applyDev(); applyFonts();\n\nfunction el(tag, attrs, text){\n  var n = document.createElement(tag);\n  for (var k in attrs) n.setAttribute(k, attrs[k]);\n  if (text != null) n.textContent = text;\n  return n;\n}\n\n/* The gear menu. `host` is an empty element in the page's top bar; `opts.extra`\n   is an optional node of page-specific rows (Cost Tables' number format),\n   placed between Theme and Show developer info. `opts.up` opens it upward. */\nfunction mount(host, opts){\n  opts = opts || {};\n  if (!host) return;\n  host.classList.add('awoo-gear');\n  host.textContent = '';\n\n  var btn = el('button', { type:'button', 'class':'awoo-gear-btn', 'aria-expanded':'false',\n    'aria-controls':'awooGearMenu', 'aria-label':'Settings', title:'Settings' }, '⚙');\n  var menu = el('div', { id:'awooGearMenu', 'class':'awoo-gear-menu' + (opts.up ? ' up' : '') });\n  menu.hidden = true;\n\n  var themeRow = el('div', { 'class':'awoo-gear-row' });\n  themeRow.appendChild(el('label', { 'for':'awooThemeSel' }, 'Theme'));\n  var sel = el('select', { id:'awooThemeSel' });\n  var matchOpt = el('option', { value:'' }, 'Match game');\n  sel.appendChild(matchOpt);\n  THEMES.forEach(function(t){ sel.appendChild(el('option', { value:t[0] }, t[1])); });\n  themeRow.appendChild(sel);\n  menu.appendChild(themeRow);\n  var themeNote = el('div', { 'class':'awoo-gear-note' });\n  menu.appendChild(themeNote);\n\n  // Numbers and separators: in every tool's gear, not one tool's extra rows.\n  var numRow = el('div', { 'class':'awoo-gear-row' });\n  numRow.appendChild(el('label', { 'for':'awooNumMode' }, 'Numbers'));\n  var numSel = el('select', { id:'awooNumMode' });\n  [['', 'Match game'], ['letters', '105.44b'], ['standard', '105,440,000,000'], ['exponential', '1.05e+11']]\n    .forEach(function(o){ numSel.appendChild(el('option', { value:o[0] }, o[1])); });\n  numRow.appendChild(numSel);\n  menu.appendChild(numRow);\n  var locRow = el('div', { 'class':'awoo-gear-row' });\n  locRow.appendChild(el('label', { 'for':'awooNumLocale' }, 'Decimal separator'));\n  var locSel = el('select', { id:'awooNumLocale' });\n  [['', 'Match game'], ['1,000.00', '1,000.00 \\u00b7 point'], ['1.000,00', '1.000,00 \\u00b7 comma'], ['Local', 'Browser default']]\n    .forEach(function(o){ locSel.appendChild(el('option', { value:o[0] }, o[1])); });\n  locRow.appendChild(locSel);\n  menu.appendChild(locRow);\n  var numNote = el('div', { 'class':'awoo-gear-note' });\n  menu.appendChild(numNote);\n\n  function fontRow(id, label, list){\n    var row = el('div', { 'class':'awoo-gear-row' });\n    row.appendChild(el('label', { 'for':id }, label));\n    var sel2 = el('select', { id:id });\n    sel2.appendChild(el('option', { value:'' }, 'Match AWOO+'));\n    Object.keys(list).forEach(function(k){ sel2.appendChild(el('option', { value:k }, FONT_LABEL[k] || k)); });\n    row.appendChild(sel2);\n    menu.appendChild(row);\n    return sel2;\n  }\n  var fontNumSel = fontRow('awooFontNum', 'Number font', FONT_NUM);\n  var fontTextSel = fontRow('awooFontText', 'Text font', FONT_TEXT);\n\n  if (opts.extra) menu.appendChild(opts.extra);\n\n  var devRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });\n  devRow.appendChild(el('label', { 'for':'awooDevToggle' }, 'Show developer info'));\n  var dev = el('input', { type:'checkbox', id:'awooDevToggle' });\n  devRow.appendChild(dev);\n  menu.appendChild(devRow);\n  menu.appendChild(el('div', { 'class':'awoo-gear-note' },\n    opts.devHint || 'Adds the evidence tier, source files and last-checked date.'));\n\n  var side = null;\n  if (sidebar()){\n    var sideRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });\n    sideRow.appendChild(el('label', { 'for':'awooSideScroll' }, 'Sidebar scrolls on its own'));\n    side = el('input', { type:'checkbox', id:'awooSideScroll' });\n    sideRow.appendChild(side);\n    menu.appendChild(sideRow);\n    side.addEventListener('change', function(){\n      local.sideScroll = side.checked;\n      persist(); layoutSidebar(); changed();\n    });\n  }\n\n  host.appendChild(btn);\n  host.appendChild(menu);\n  watchSidebar();\n\n  function render(){\n    var r = resolveTheme();\n    sel.value = local.theme || '';\n    // \"Match game\" says what it resolved to, so the reader never has to open\n    // the list to find out which theme they are looking at.\n    matchOpt.textContent = 'Match game' + (r.source === 'picked' ? '' :\n      ' · ' + (r.id ? labelOf(r.id) : 'system'));\n    themeNote.textContent = (r.source === 'picked') ? '' : r.note;\n    themeNote.classList.toggle('fallback', r.source === 'fallback');\n    dev.checked = devOn();\n    if (side) side.checked = !!local.sideScroll;\n    numSel.value = local.numMode || '';\n    locSel.value = local.numLocale || '';\n    numNote.textContent = numberNote();\n    var fi = fontIds();\n    fontNumSel.value = local.fontNum || '';\n    fontTextSel.value = local.fontText || '';\n    fontNumSel.options[0].textContent = 'Match AWOO+' + (!local.fontNum ? ' \\u00b7 ' + (FONT_LABEL[fi.num] || 'Public Sans') : '');\n    fontTextSel.options[0].textContent = 'Match AWOO+' + (!local.fontText ? ' \\u00b7 ' + (FONT_LABEL[fi.text] || 'Public Sans') : '');\n  }\n  render();\n\n  fontNumSel.addEventListener('change', function(){\n    local.fontNum = fontNumSel.value || null;\n    persist(); applyFonts(); render(); changed();\n  });\n  fontTextSel.addEventListener('change', function(){\n    local.fontText = fontTextSel.value || null;\n    persist(); applyFonts(); render(); changed();\n  });\n\n  numSel.addEventListener('change', function(){\n    local.numMode = numSel.value || null;\n    persist(); render(); reformatAll(); changed();\n  });\n  locSel.addEventListener('change', function(){\n    local.numLocale = locSel.value || null;\n    persist(); render(); reformatAll(); changed();\n  });\n  enhanceAll();\n\n  sel.addEventListener('change', function(){\n    local.theme = sel.value || null;\n    persist(); applyTheme(); render(); changed();\n  });\n  dev.addEventListener('change', function(){\n    local.dev = dev.checked;\n    persist(); applyDev(); changed();\n  });\n\n  // Closes on outside click and on Escape, because a panel that only closes\n  // by clicking the same button again is a panel people leave open.\n  function setOpen(open){\n    menu.hidden = !open;\n    btn.setAttribute('aria-expanded', String(open));\n  }\n  btn.addEventListener('click', function(e){ e.stopPropagation(); setOpen(menu.hidden); });\n  menu.addEventListener('click', function(e){ e.stopPropagation(); });\n  document.addEventListener('click', function(){ setOpen(false); });\n  document.addEventListener('keydown', function(e){\n    if (e.key === 'Escape' && !menu.hidden){ setOpen(false); btn.focus(); }\n  });\n  // The OS flipping light/dark only matters while nothing more specific is set.\n  if (window.matchMedia){\n    var mq = window.matchMedia('(prefers-color-scheme: dark)');\n    var onOs = function(){ render(); changed(); };\n    if (mq.addEventListener) mq.addEventListener('change', onOs);\n    else if (mq.addListener) mq.addListener(onOs);\n  }\n}\n\n/* The developer tier of a Formula panel: one line per generated fact, with its\n   evidence tier, source file and last-checked date. Read from\n   window.AWOO_FACTS_META, which build.mjs writes from the same data/ entries\n   it generates the functions from — so this list cannot disagree with the\n   code the page actually runs. Returns <li> markup; the caller wraps it in a\n   list marked data-dev-only. */\nfunction esc(v){ return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\nfunction sources(names){\n  var meta = window.AWOO_FACTS_META || {};\n  var keys = names || Object.keys(meta);\n  if (!keys.length) return '<li>This copy was opened without the generated facts block.</li>';\n  return keys.filter(function(k){ return meta[k]; }).map(function(k){\n    var m = meta[k];\n    return '<li><span class=\"devpill\">' + esc(m.confidence) + '</span> <code>' + esc(m.file) +\n      '</code> &middot; <code>' + esc(m.fact) + '</code>' +\n      (m.checked ? ' &middot; checked ' + esc(m.checked) : '') + '</li>';\n  }).join('');\n}\n\nwindow.AWOO_TOOL_SETTINGS = {\n  mount: mount,\n  // Number presentation, the same for every tool (see NUMBER PRESENTATION).\n  num: { mode:numMode, localeKey:numLocaleKey, localeTag:numLocaleTag,\n         fmt:fmtNum, int:fmtInt, dec:fmtDec, pct:fmtPct, parse:parseNum,\n         read:readNum, show:showNum, enhance:enhanceAll,\n         // How a box reads at rest, by its data-num-kind (NUMBER INPUTS):\n         // the sync kit's hover shows a synced value the way its box does.\n         display:numDisplay, isBox:isNumBox,\n         // Test seam: one wheel notch on a box (+1 up, -1 down).\n         _step:stepBox, _wheel:onWheel,\n         // A tool that stored its own override before this layer carried one\n         // hands it over once; an override already set here wins.\n         adopt:function(mode, locale){\n           var any = false;\n           if (!local.numMode && NUM_MODES.indexOf(mode) >= 0){ local.numMode = mode; any = true; }\n           if (!local.numLocale && Object.prototype.hasOwnProperty.call(LOCALE_MAP, locale)){ local.numLocale = locale; any = true; }\n           if (any) persist();\n         },\n         // Test seam.\n         _set:function(mode, locale){ local.numMode = mode || null; local.numLocale = locale || null; } },\n  sources: sources,\n  onChange: function(fn){ if (typeof fn === 'function') listeners.push(fn); },\n  theme: resolveTheme,\n  devOn: devOn,\n  themes: THEMES.slice(),\n  // Test seam: the resolution rules, callable without a DOM round-trip.\n  _resolve: function(localTheme, inheritedTheme){\n    var pl = local.theme, pa = window.AWOO_APPEARANCE;\n    local.theme = localTheme || null;\n    window.AWOO_APPEARANCE = inheritedTheme ? { theme:inheritedTheme } : undefined;\n    try { return resolveTheme(); } finally { local.theme = pl; window.AWOO_APPEARANCE = pa; }\n  },\n  _fonts: { text:FONT_TEXT, num:FONT_NUM }\n};\n})();\n\n</script>\n<script>\n/* ===========================================================================\n   AWOO+ TOOL SYNC — the profile, the four field states, the Live/Standard\n   switch and the one tooltip every tool shares (2026-09-23).\n\n   Hand-written. Injected by userscripts/build.mjs at <!-- @AWOO_TOOL_SETTINGS@ -->\n   right after tool-settings.js, so a tool that takes the gear menu takes this\n   too. NO-PROVENANCE: it moves the player's observations around and reads no\n   game fact; every formula stays in the tool that uses it.\n\n   WHERE THE PROFILE COMES FROM. A tool opens in its own tab, but that tab has\n   the game's origin (a blob URL), so the BroadcastChannel Core already speaks\n   ('awoo-profile') reaches it:\n     - window.AWOO_INITIAL_PROFILE: what Core handed over at open time, when\n       the tool's .release.json asks for it (prefill: [\"profile\"]);\n     - PROFILE_DELTA (Core v16, REGISTER.md R92): what each capture changed,\n       or saw again, section by section, merged here by observedAt exactly as\n       Core merges it between tabs (mergeDelta below);\n     - PROFILE_UPDATED: a whole profile. Every capture posted one up to Core\n       v15; v16 posts one only in answer to REQUEST_PROFILE_SYNC;\n     - REQUEST_PROFILE_SYNC: \"Sync now\" asks the game tabs to capture now and\n       the leading one to read the sections this tool uses\n       (window.AWOO_TOOL_USES, handed over at open time like the profile;\n       absent, every section).\n   Opening a tool from AWOO+ also asks, once (Core's openTool). Opened\n   anywhere else (a file, a preview), nothing arrives, and the card says so\n   rather than pretending.\n\n   THE FOUR FIELD STATES (REGISTER.md R48; ARTIFACT_STYLE_GUIDE.md Part III).\n   Every bound input carries a light, visible without hovering:\n     synced       read from the profile, fresh               filled, success\n     stale        read from the profile, older than the window filled, accent\n     edited       you typed it; a sync never overwrites it    filled, info\n     unavailable  never observed; the box holds your figure   hollow\n   Hover explains; a click hands that one field back to the profile. \"Reset\n   inputs\" on the card hands every field back at once.\n\n   HOW A PAGE OPTS IN (the input standard, 2026-09-27; how each state LOOKS\n   is at \"THE ONE STANDARD FOR A SYNCED INPUT\" below and in\n   tool-settings.css). All of it is declarative:\n     1. the box:   <label for=\"x\">Combat slot</label>\n                   <input type=\"text\" id=\"x\" data-num data-num-kind=\"int\">\n                   data-num-kind (int | pct | dec | game) and data-num-digits\n                   say how it reads at rest; tool-settings.js \"NUMBER INPUTS\".\n                   A wheel over an unlocked number box steps it and never\n                   scrolls the page (tool-settings.js, \"THE WHEEL\").\n     2. the bind:  AWOO_SYNC.bind({ key:'combat', el:x, read:'pets.combat.slotLevel' })\n                   From then on the box is locked and dimmed while synced,\n                   manual when clicked or typed in, and carries its light,\n                   its ↺ and its hover. The page reads it with\n                   AWOO_TOOL_SETTINGS.num.read(el), never el.value.\n     3. the page:  AWOO_SYNC.onApply(recompute) — called only when a sync\n                   actually CHANGED a box, so it is safe to do real work in.\n   A page that renders its boxes afresh binds the same key to the new element\n   and the field moves onto it. A page with per-subject state of its own and\n   no lasting element (Cost Tables) reports through AWOO_SYNC.extend.\n\n   AFTER OPENING, NOTHING UPDATES BY ITSELF (R125, 2026-09-28): a box fills\n   once, then holds; a newer reading waits behind its light until Sync (all)\n   or the light's click (one). What follows describes the fill itself.\n\n   A SYNC APPLIES ITSELF to every field you have not edited. That replaced the\n   old \"detect, then press Apply\" flow on purpose: R48 (the maintainer's own\n   note) asks that syncs update the fields and never the ones you changed, and\n   the light is the visibility the Apply step used to provide. It writes only\n   a box whose value it changes, and never the box you are in\n   (\"NOTHING MOVES UNLESS A VALUE DID\" below).\n\n   AGE IS PER SECTION. A reading's age is profile.meta.observedAt[section],\n   stamped by Profile Sync only for sections that capture actually saw. A\n   profile from an older AWOO+ has no stamps; its readings show as stale with\n   the age \"unknown\", never as fresh (R49 found a tool falling back to \"now\").\n\n   LIVE / STANDARD. A tool may offer the switch. Live: the account as it is.\n   Standard: a documented reference setup for the parts of the answer that\n   depend on one account's luck (a pet's rolls, a party's make-up), so two\n   runs, or two players, compare like with like. What Standard swaps is the\n   TOOL's decision, stated in the tool; this file only holds the state and\n   hides whatever a page marks data-mode-only=\"live\" or \"standard\".\n   =========================================================================== */\n(function(){\n'use strict';\n\nvar root = document.documentElement;\nvar meta = document.querySelector('meta[name=\"awoo-tool\"]');\nvar TOOL = (meta && meta.getAttribute('content')) || 'tool';\nvar LS = 'awoo:tool:' + TOOL + ':sync';\nvar DEFAULT_STALE_MS = 6 * 60 * 60 * 1000;\nvar NO_ANSWER_MS = 4000;\n// After Sync is pressed (or the page asks on load), what arrives within this\n// long lands in the boxes; outside it, an arriving reading only waits (R125).\nvar SYNC_WINDOW_MS = 20000;\nvar syncUntil = 0;\nfunction syncing(){ return Date.now() < syncUntil; }\n\nfunction settings(){ return window.AWOO_TOOL_SETTINGS || null; }\n\nvar saved = { edited:{}, values:{}, mode:null };\ntry {\n  var raw = localStorage.getItem(LS);\n  if (raw){ var o = JSON.parse(raw); if (o && typeof o === 'object'){\n    if (o.edited && typeof o.edited === 'object') saved.edited = o.edited;\n    if (o.values && typeof o.values === 'object') saved.values = o.values;\n    if (o.mode === 'live' || o.mode === 'standard') saved.mode = o.mode;\n  } }\n} catch(e){ /* storage blocked: nothing remembered, everything still works */ }\nfunction persist(){ try { localStorage.setItem(LS, JSON.stringify(saved)); } catch(e){ /* not durable */ } }\n\n/* ---------------------------------------------------------------- profile */\nvar profile = (window.AWOO_INITIAL_PROFILE && typeof window.AWOO_INITIAL_PROFILE === 'object') ? window.AWOO_INITIAL_PROFILE : null;\nvar connected = !!profile;           // has anything ever arrived?\nvar requestedAt = null;              // last \"Sync now\", for the no-answer state\nvar profileListeners = [];\n\nfunction setProfile(p, fresh){\n  if (!p || typeof p !== 'object') return;\n  profile = p; connected = true; requestedAt = null;\n  // Another character (you switched): a new account, so the boxes fill afresh.\n  if (fresh) for (var i0 = 0; i0 < fields.length; i0++) fields[i0].filled = false;\n  applyAll();\n  for (var i = 0; i < profileListeners.length; i++){ try { profileListeners[i](profile); } catch(e){ /* one page bug must not stop the others */ } }\n  renderCards();\n}\n\n// The sections this tool reads (its release.json `uses`), when whoever opened\n// it said (tool-shelf.js, or the module carrying it). Only names, never\n// guessed: absent, \"Sync now\" asks for everything, as it always did.\nvar USES = (function(){\n  var u = window.AWOO_TOOL_USES;\n  if (!u || typeof u.length !== 'number') return null;\n  var out = [];\n  for (var i = 0; i < u.length; i++) if (typeof u[i] === 'string' && u[i] && out.indexOf(u[i]) < 0) out.push(u[i]);\n  return out.length ? out : null;\n})();\n\n/* MERGING WHAT ARRIVES (REGISTER.md R92). The same rule as Core's own\n   mergeBySection between tabs (core.js), so a tool never believes anything\n   the game tab would not:\n     - another character's message is ignored (ids when both carry one, else\n       names): a tab on your other character is not news about this one;\n     - per section, the newer observedAt wins; a reading whose age is known\n       beats one whose age is not; a section arriving with no stamp only\n       fills a hole; a section absent, or null with no stamp, is \"not\n       observed\" and never erases what is here;\n     - meta: queryAt and the timestamp take the latest; the rest (name,\n       level, ids) comes from the newer message, and a null never erases a\n       name or an id.\n   A whole PROFILE_UPDATED goes through the same merge, since the tab that\n   answers a \"Sync now\" may hold an older copy of a section than a delta\n   already brought; one for ANOTHER character replaces the profile, because\n   Core only answers with its own, current, character (you switched). */\nvar META_KEEP = { characterId:1, characterName:1, characterLevel:1 };\nfunction num(v){ return (typeof v === 'number' && isFinite(v)) ? v : null; }\nfunction who(meta, k){ var v = meta ? meta[k] : null; return (typeof v === 'string' && v) ? v : null; }\nfunction sameCharacter(a, b){\n  var ia = who(a, 'characterId'), ib = who(b, 'characterId');\n  if (ia && ib) return ia === ib;\n  var na = who(a, 'characterName'), nb = who(b, 'characterName');\n  if (na && nb) return na === nb;\n  return true;\n}\nfunction copy(o){ var out = {}; if (o && typeof o === 'object') for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) out[k] = o[k]; return out; }\n// base: the profile held; sections/meta: what arrived (meta carries the\n// observedAt/observedOn/queryAt maps). Returns a new profile.\nfunction mergeInto(base, sections, meta, schemaVersion){\n  var bm = (base && base.meta) || {};\n  var bSeen = bm.observedAt || {}, iSeen = meta.observedAt || {};\n  var bOn = bm.observedOn || {}, iOn = meta.observedOn || {};\n  var out = copy(base);\n  if (out.schemaVersion === undefined && schemaVersion !== undefined) out.schemaVersion = schemaVersion;\n  var seen = copy(bSeen), on = copy(bOn);\n  for (var k in sections){\n    if (!Object.prototype.hasOwnProperty.call(sections, k) || k === 'meta' || k === 'schemaVersion') continue;\n    var v = sections[k], is = num(iSeen[k]), bs = num(bSeen[k]), b = out[k];\n    var take;\n    if (v === undefined || (v === null && is === null)) take = false;\n    else if (is !== null && bs !== null) take = is > bs;\n    else if (is !== null || bs !== null) take = is !== null;\n    else take = b === undefined || b === null;\n    if (!take) continue;\n    out[k] = v;\n    if (is !== null) seen[k] = is;\n    if (iOn[k] != null) on[k] = iOn[k];\n  }\n  var m = copy(bm);\n  var newer = (num(meta.timestamp) || 0) > (num(bm.timestamp) || 0);\n  for (var f in meta){\n    if (!Object.prototype.hasOwnProperty.call(meta, f)) continue;\n    if (f === 'observedAt' || f === 'observedOn' || f === 'queryAt' || f === 'timestamp') continue;\n    var mv = meta[f];\n    if (mv === undefined) continue;\n    if (mv === null && META_KEEP[f] && m[f] != null) continue;\n    if (newer || m[f] === undefined || (m[f] === null && META_KEEP[f])) m[f] = mv;\n  }\n  var ts = Math.max(num(bm.timestamp) || 0, num(meta.timestamp) || 0);\n  if (ts) m.timestamp = ts;\n  m.observedAt = seen;\n  m.observedOn = on;\n  var qa = copy(bm.queryAt), iq = meta.queryAt || {};\n  for (var q in iq) if (num(iq[q]) !== null && !(num(qa[q]) >= iq[q])) qa[q] = iq[q];\n  m.queryAt = qa;\n  out.meta = m;\n  return out;\n}\n// PROFILE_DELTA v1 (core.js postProfileNow): { characterId, characterName,\n// sections, observedAt, observedOn, meta, queryAt?, schemaVersion? }.\nfunction mergeDelta(d){\n  var meta = copy(d.meta);\n  if (typeof d.characterId === 'string' && d.characterId) meta.characterId = d.characterId;\n  if (typeof d.characterName === 'string' && d.characterName) meta.characterName = d.characterName;\n  meta.observedAt = (d.observedAt && typeof d.observedAt === 'object') ? d.observedAt : {};\n  meta.observedOn = (d.observedOn && typeof d.observedOn === 'object') ? d.observedOn : {};\n  if (d.queryAt && typeof d.queryAt === 'object') meta.queryAt = d.queryAt;\n  if (profile && !sameCharacter(profile.meta, meta)) return;\n  setProfile(mergeInto(profile, (d.sections && typeof d.sections === 'object') ? d.sections : {}, meta, d.schemaVersion));\n}\nfunction mergeWhole(p){\n  if (!profile || !sameCharacter(profile.meta, p.meta)) { setProfile(p, true); return; }\n  var meta = copy(p.meta);\n  setProfile(mergeInto(profile, p, meta, p.schemaVersion));\n}\n\nvar bc = null;\ntry {\n  if (typeof BroadcastChannel !== 'undefined'){\n    bc = new BroadcastChannel('awoo-profile');\n    bc.onmessage = function(ev){\n      var d = ev && ev.data;\n      if (!d || typeof d !== 'object') return;\n      if (d.type === 'PROFILE_DELTA' && d.v === 1) mergeDelta(d);\n      else if (d.type === 'PROFILE_UPDATED' && d.profile && typeof d.profile === 'object') mergeWhole(d.profile);\n    };\n  }\n} catch(e){ bc = null; }\n\nfunction request(){\n  requestedAt = Date.now();\n  syncUntil = requestedAt + SYNC_WINDOW_MS;\n  var msg = { type:'REQUEST_PROFILE_SYNC', timestamp:requestedAt };\n  if (USES) msg.sections = USES.slice();\n  if (bc){ try { bc.postMessage(msg); } catch(e){ /* closed */ } }\n  renderCards();\n  setTimeout(renderCards, NO_ANSWER_MS + 50);\n}\n\n// A dotted path into the profile; null for anything absent. Never 0.\nfunction get(path, p){\n  var cur = p || profile;\n  if (!cur || !path) return null;\n  var parts = String(path).split('.');\n  for (var i = 0; i < parts.length; i++){\n    if (cur == null || typeof cur !== 'object') return null;\n    cur = cur[parts[i]];\n  }\n  return cur === undefined ? null : cur;\n}\nfunction sectionAge(section){\n  var at = get('meta.observedAt.' + section);\n  return (typeof at === 'number' && isFinite(at)) ? at : null;\n}\n\n/* ----------------------------------------------------------------- fields */\nvar fields = [];\nvar byKey = {};\nvar applyListeners = [];\nvar refreshListeners = [];\nvar applying = false;\n\n// f.local: the field reads a source of the page's own (another module's\n// handover) and is read even before any profile arrives; f.observedAt()\n// then dates it.\nfunction readField(f){\n  if (!profile && !f.local) return null;\n  var v;\n  try { v = typeof f.read === 'function' ? f.read(profile, get) : get(f.read); } catch(e){ v = null; }\n  if (v === undefined || v === null) return null;\n  if (typeof v === 'number' && !isFinite(v)) return null;\n  return v;\n}\nfunction modeAllows(f){ return !f.modes || f.modes.indexOf(mode()) >= 0; }\n\n// f.unlocked: a synced box you clicked into, manual for as long as you are in\n// it; typing makes that lasting (saved.edited), leaving it untouched hands it\n// back (see bind). Both read as \"edited\" everywhere, so a sync never lands\n// under the caret.\nfunction state(f){\n  if (saved.edited[f.key] || f.unlocked) return 'edited';\n  var v = readField(f);\n  if (v === null) return 'unavailable';\n  var at = fieldAge(f);\n  if (at === null) return 'stale';\n  return (Date.now() - at) > (f.staleMs || DEFAULT_STALE_MS) ? 'stale' : 'synced';\n}\nfunction fieldAge(f){\n  if (typeof f.observedAt === 'function'){ var t = f.observedAt(profile); if (typeof t === 'number' && isFinite(t)) return t; }\n  return sectionAge(f.section || String(f.read).split('.')[0]);\n}\nfunction ago(at){\n  if (at === null) return 'unknown';\n  var s = Math.max(0, Math.round((Date.now() - at) / 1000));\n  if (s < 60) return s + 's';\n  var m = Math.round(s / 60); if (m < 60) return m + 'm';\n  var h = Math.round(m / 60); if (h < 48) return h + 'h';\n  return Math.round(h / 24) + 'd';\n}\n// The clock time beside the age, so \"3h\" can be matched to what you did in\n// the game: 14:02 today, \"26 Sep, 14:02\" before today.\nfunction clock(at){\n  if (at === null) return '';\n  var d = new Date(at), S = settings();\n  var tag = (S && S.num && S.num.localeTag) ? S.num.localeTag() : undefined;\n  var today = new Date().toDateString() === d.toDateString();\n  try {\n    return today ? d.toLocaleTimeString(tag, { hour:'2-digit', minute:'2-digit' })\n      : d.toLocaleString(tag, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });\n  } catch(e){ return d.toISOString().slice(0, 16).replace('T', ' '); }\n}\n\n/* THE ONE STANDARD FOR A SYNCED INPUT (2026-09-27, the maintainer: \"for\n   each value I want to see the sync status, when it was synced, and what the\n   value reads ... manually edit all the numbers, and reset each individual\n   input value back to synced ... visually display if it's in manual mode or\n   sync mode\"). What bind() makes of a text or number box:\n     synced / stale  dimmed and read-only (NOT disabled: it stays focusable,\n                     hoverable and selectable, and the page still reads it).\n                     A click or a Tab into it makes it manual, starting from\n                     the synced value; leave it unchanged and it is synced\n                     again, so a stray click never detaches a field.\n     edited          a normal bright box with the manual mark, and a small\n                     reset (↺) beside it whenever there is a synced value to\n                     go back to.\n     unavailable     a normal box, hollow light: the figure is yours.\n   Hover on the box or its light: the state, the synced value as its box\n   would show it, when it was read (age and clock time), where from, and in\n   manual mode the synced value it differs from. A checkbox or a select is\n   never locked (a click on one IS the edit); it gets the light and the hover.\n   The input carries data-sync=\"<state>\" and data-sync-lock, which\n   tool-settings.css draws; nothing else is needed from the page. */\nfunction textBox(el){\n  if (!el || el.tagName !== 'INPUT') return false;\n  var t = (el.type || 'text').toLowerCase();\n  return t === 'text' || t === 'number' || t === 'search' || t === 'tel';\n}\nfunction isLocked(f, st){\n  st = st || state(f);\n  return textBox(f.el) && modeAllows(f) && (st === 'synced' || st === 'stale');\n}\n// The value a reading writes into the box: a number where it is one (fmt\n// output is a plain JS number string such as \"163.54\", never the player's\n// separators, so it is read with Number, never with parseNum), else text.\nfunction target(f, v){\n  if (!f.fmt) return v;\n  var s = f.fmt(v);\n  var n = typeof s === 'number' ? s : (/^\\s*[-+]?(\\d+\\.?\\d*|\\.\\d+)(e[-+]?\\d+)?\\s*$/i.test(String(s)) ? Number(s) : NaN);\n  return isFinite(n) ? n : String(s);\n}\n// Does the box already show this reading? Compared as numbers wherever it\n// can be, so \"1,234\" and 1234, or a box at rest (\"163.54%\") and the same\n// value, count as the same and are left alone.\nfunction shows(f, v){\n  var el = f.el, S = settings();\n  if (el.type === 'checkbox') return el.checked === !!v;\n  var want = target(f, v);\n  if (typeof want === 'number'){\n    var cur = (el.hasAttribute('data-num') && S && S.num) ? S.num.read(el) : (el.value === '' ? null : Number(el.value));\n    return cur !== null && cur === want;\n  }\n  return el.value === String(want);\n}\nfunction setInput(f, v){\n  var el = f.el;\n  applying = true;\n  try {\n    var S = settings();\n    var want = target(f, v);\n    if (el.type === 'checkbox') el.checked = !!v;\n    else if (typeof want === 'number' && el.hasAttribute('data-num') && S && S.num) S.num.show(el, want);\n    else if (f.fmt) el.value = String(f.fmt(v));\n    else el.value = String(v);\n  } finally { applying = false; }\n}\n// What a typed box holds, as a value to keep: a number where the box is a\n// number box, a boolean for a tick, else its text (R126).\nfunction readBox(f){\n  var el = f.el, S = settings();\n  if (el.type === 'checkbox') return !!el.checked;\n  if (el.hasAttribute('data-num') && S && S.num){ var n = S.num.read(el); return n === null ? el.value : n; }\n  return el.value;\n}\nfunction writeBox(f, v){\n  var el = f.el, S = settings();\n  applying = true;\n  try {\n    if (el.type === 'checkbox') el.checked = !!v;\n    else if (typeof v === 'number' && el.hasAttribute('data-num') && S && S.num) S.num.show(el, v);\n    else el.value = String(v);\n  } finally { applying = false; }\n}\n// A reading as a person reads it: its box's own display where it has one.\nfunction valueText(f, v){\n  if (v === null || v === undefined) return '—';\n  if (typeof v === 'boolean') return v ? 'On' : 'Off';\n  var S = settings(), want = target(f, v);\n  if (typeof want !== 'number' || !S || !S.num) return String(want);\n  if (f.el && f.el.hasAttribute('data-num')) return S.num.display(f.el, want);\n  return S.num.fmt(want, 2);\n}\nvar STATE_WORD = { synced:'Synced', stale:'Old', edited:'Manual', unavailable:'Not synced' };\nfunction fieldTip(f, st){\n  if (!modeAllows(f)) return 'Not used in ' + (mode() === 'standard' ? 'Standard' : 'Live') + ' mode.';\n  var v = readField(f), at = v === null ? null : fieldAge(f);\n  var src = f.source ? f.source(profile) : null;\n  var from = 'From ' + (src || f.path || f.section || 'the game') + '.';\n  var when = at === null ? 'Age unknown.' : ago(at) + ' ago, ' + clock(at) + '.';\n  if (st === 'unavailable') return f.unavailableTip || 'Not synced yet. This is your own figure.';\n  if (st === 'edited'){\n    if (v === null) return 'Manual. Nothing synced to go back to.';\n    return 'Manual. Synced: ' + valueText(f, v) + '\\n' + when + ' ' + from + '\\n↺ goes back to it.';\n  }\n  if (pending(f)) return 'Newer: ' + valueText(f, v) + ' (waiting)\\n' + when + ' ' + from + '\\nClick the dot to use it, or press Sync.';\n  return STATE_WORD[st] + ': ' + valueText(f, v) + '\\n' + when + ' ' + from + '\\nClick to edit.';\n}\nfunction devTip(f){\n  return 'Profile: ' + (f.path || (typeof f.read === 'string' ? f.read : f.key));\n}\nfunction setAttr(n, k, v){ if (n && n.getAttribute(k) !== v) n.setAttribute(k, v); }\n\n/* NOTHING MOVES UNLESS A VALUE DID (2026-09-27, the maintainer: \"Tool sync\n   keeps enabling/disabling upon sync update in-game? Either way it keeps\n   updating\"). Found: every capture Core posts is a PROFILE_DELTA, and each\n   one rewrote every synced box and told the page \"applied\" whether or not\n   anything had changed. Pet Slot ROI answers \"applied\" by re-ticking \"Use\n   measured Gold Boost\" (which the player may have just unticked, and which\n   greys four boxes in and out) and scrolling its tables back to the current\n   level; every page recomputed. So a reading that the box already shows is\n   not written, \"applied\" is sent only when a box actually changed, a box\n   with the caret in it is never written (its blur applies what arrived),\n   and every attribute below is set only when it differs.\n   userscripts/tests/tool-kit.mjs pins each of those. */\nfunction renderField(f){\n  var st = state(f), tip = fieldTip(f, st), on = modeAllows(f);\n  if (f.light){\n    setAttr(f.light, 'data-state', st);\n    setAttr(f.light, 'data-off', on ? 'false' : 'true');\n    setAttr(f.light, 'data-pending', pending(f) ? 'true' : 'false');\n    setAttr(f.light, 'data-tip', tip);\n    setAttr(f.light, 'data-tip-dev', devTip(f));\n    setAttr(f.light, 'aria-label', 'Sync: ' + STATE_WORD[st]);\n  }\n  var el = f.el;\n  setAttr(el, 'data-sync', on ? st : 'off');\n  setAttr(el, 'data-pending', pending(f) ? 'true' : 'false');\n  setAttr(el, 'data-tip', tip);\n  setAttr(el, 'data-tip-dev', devTip(f));\n  if (textBox(el)){\n    var lock = isLocked(f, st);\n    setAttr(el, 'data-sync-lock', lock ? 'true' : 'false');\n    if (el.readOnly !== lock) el.readOnly = lock;\n  }\n  if (f.reset){\n    var canReset = on && st === 'edited' && readField(f) !== null;\n    if (f.reset.hidden === canReset) f.reset.hidden = !canReset;\n  }\n  if (tipFor && (tipFor === f.light || tipFor === el)) showTip(tipFor);\n}\n// force: the player asked (a reset, the light), so the box is written even\n// with the caret in it.\nfunction applyOne(f, force){\n  if (saved.edited[f.key] || f.unlocked || !modeAllows(f)) return false;\n  var v = readField(f);\n  if (v === null) return false;\n  if (!force && document.activeElement === f.el) return false;\n  f.filled = true;\n  if (shows(f, v)) return false;\n  setInput(f, v);\n  return true;\n}\n/* HOLD WHAT IS SHOWN (2026-09-28, the maintainer: \"Don't keep updating live\n   numbers after opening a tool. Only refresh when clicking sync. You can\n   visualise that a live input has a pending update with the dots at best.\",\n   REGISTER.md R125). A box is filled once, by the first reading it can show\n   (f.filled). After that an arriving delta changes no box: the box keeps its\n   value and its light shows the newer one waiting (pending below). Sync\n   applies every waiting value, a light's click applies that one; what\n   arrives within a Sync's window (syncing) is applied as it comes, since it\n   IS the answer to the press. */\nfunction pending(f){\n  if (!f.filled || saved.edited[f.key] || f.unlocked || !modeAllows(f)) return false;\n  var v = readField(f);\n  return v !== null && !shows(f, v);\n}\nfunction pendingCount(){\n  var n = 0;\n  for (var i = 0; i < fields.length; i++) if (pending(fields[i])) n++;\n  return n;\n}\nfunction notifyApplied(){\n  for (var i = 0; i < applyListeners.length; i++){ try { applyListeners[i](); } catch(e){ /* keep going */ } }\n}\n// explicit: the player asked (Sync, a mode switch, a reset); else only what\n// has never been filled, or what arrives inside a Sync's window.\nfunction applyAll(explicit){\n  var any = false, all = explicit === true || syncing();\n  for (var i = 0; i < fields.length; i++){\n    if (!all && fields[i].filled) continue;\n    any = applyOne(fields[i]) || any;\n  }\n  for (var j = 0; j < fields.length; j++) renderField(fields[j]);\n  if (any) notifyApplied();\n  return any;\n}\n// The Sync button: everything waiting lands now, and the game is asked again.\nfunction syncNow(){\n  var any = applyAll(true);\n  for (var i = 0; i < refreshListeners.length; i++){ try { refreshListeners[i](); } catch(e){ /* keep going */ } }\n  request();\n  return any;\n}\n// One field back to the game: the light's click and the ↺ beside the box.\nfunction handBack(f){\n  delete saved.values[f.key];\n  delete saved.edited[f.key]; f.unlocked = false; persist();\n  if (!connected) request();\n  if (applyOne(f, true)) notifyApplied();\n  renderField(f); renderCards();\n}\n\nfunction labelFor(el){\n  if (el.id){ var l = document.querySelector('label[for=\"' + el.id + '\"]'); if (l) return l; }\n  return el.closest ? el.closest('label') : null;\n}\n\n/* bind(def) — def: { key, el, read: 'dotted.path' | function(profile, get),\n   section?, fmt?, staleMs?, modes?: ['live'], label?, local?, observedAt?,\n   source?, unavailableTip? }. Returns the field. Binding a key again with a\n   NEW element moves the field onto it (a page that re-renders its boxes, as\n   Cost Tables does per subject); with the same element it is a no-op. */\nfunction bind(def){\n  if (!def || !def.el || !def.key) return null;\n  var old = byKey[def.key];\n  if (old){\n    if (old.el === def.el) return old;\n    fields.splice(fields.indexOf(old), 1); delete byKey[def.key];\n  }\n  var f = def;\n  if (!f.path && typeof f.read === 'string') f.path = f.read;\n  var host = f.label || labelFor(f.el);\n  var light = document.createElement('button');\n  light.type = 'button';\n  light.className = 'awoo-light';\n  if (host) host.insertBefore(light, host.firstChild);\n  f.light = light;\n  light.addEventListener('click', function(e){\n    e.preventDefault(); e.stopPropagation();\n    handBack(f);\n  });\n  // The ↺: at the end of the field's label (beside the box in every tool's\n  // label-then-box layout), else straight after the box. Never a wrapper\n  // around the box: pages find their boxes by parentNode and by selectors a\n  // wrapper would break.\n  var reset = document.createElement('button');\n  reset.type = 'button';\n  reset.className = 'awoo-field-reset';\n  reset.textContent = '↺';\n  reset.setAttribute('data-tip', 'Back to synced');\n  reset.setAttribute('aria-label', 'Back to synced');\n  reset.hidden = true;\n  if (host) host.appendChild(reset);\n  else if (f.el.parentNode) f.el.parentNode.insertBefore(reset, f.el.nextSibling || null);\n  f.reset = reset;\n  reset.addEventListener('click', function(e){\n    e.preventDefault(); e.stopPropagation();\n    handBack(f);\n  });\n  if (f.el.classList) f.el.classList.add('awoo-field');\n  var onEdit = function(){\n    if (applying) return;\n    saved.edited[f.key] = true; f.unlocked = false;\n    saved.values[f.key] = readBox(f); persist();\n    renderField(f); renderCards();\n  };\n  f.el.addEventListener('input', onEdit);\n  f.el.addEventListener('change', onEdit);\n  f.el.addEventListener('focus', function(){\n    if (!isLocked(f)) return;\n    f.unlocked = true;\n    renderField(f); renderCards();\n  });\n  f.el.addEventListener('blur', function(){\n    var was = f.unlocked;\n    f.unlocked = false;\n    // A box never filled yet takes what arrived while the caret was in it;\n    // a filled one keeps its value and shows the newer one waiting.\n    if (!f.filled && applyOne(f)) notifyApplied();\n    if (was || !saved.edited[f.key]){ renderField(f); renderCards(); }\n  });\n  fields.push(f); byKey[f.key] = f;\n  // A typed value kept until Reset (R126): back into the box before anything\n  // else; one flagged manual by an older build has none stored, so the value\n  // the page restored is adopted.\n  if (saved.edited[f.key]){\n    if (Object.prototype.hasOwnProperty.call(saved.values, f.key)) writeBox(f, saved.values[f.key]);\n    else { saved.values[f.key] = readBox(f); persist(); }\n  }\n  applyOne(f);\n  renderField(f);\n  return f;\n}\nfunction resetAll(){\n  for (var x = 0; x < extensions.length; x++){ try { if (extensions[x].reset) extensions[x].reset(); } catch(e){ /* keep going */ } }\n  saved.edited = {}; saved.values = {}; persist();\n  for (var i = 0; i < fields.length; i++) fields[i].unlocked = false;\n  if (!connected) request();\n  for (var k = 0; k < fields.length; k++) applyOne(fields[k], true);\n  for (var r = 0; r < refreshListeners.length; r++){ try { refreshListeners[r](); } catch(e){ /* keep going */ } }\n  for (var j = 0; j < fields.length; j++) renderField(fields[j]);\n  notifyApplied();\n  renderCards();\n}\n\n/* ------------------------------------------------------------------- mode */\nvar modeListeners = [];\nvar modeOffered = false;\nfunction mode(){ return modeOffered ? (saved.mode || 'live') : 'live'; }\nfunction setMode(m){\n  if (m !== 'live' && m !== 'standard') return;\n  saved.mode = m; persist();\n  root.setAttribute('data-sync-mode', mode());\n  applyAll(true);\n  for (var i = 0; i < modeListeners.length; i++){ try { modeListeners[i](mode()); } catch(e){ /* keep going */ } }\n  for (var j = 0; j < fields.length; j++) renderField(fields[j]);\n  renderCards();\n}\n\n/* ------------------------------------------------------------------- card */\nvar cards = [];\nfunction el(tag, attrs, text){\n  var n = document.createElement(tag);\n  for (var k in attrs) n.setAttribute(k, attrs[k]);\n  if (text != null) n.textContent = text;\n  return n;\n}\n// A tool that keeps its own per-field state (Cost Tables re-renders its inputs\n// per subject, so it cannot bind a lasting element) reports through this: its\n// counts join the card, and the card's Reset reaches it.\nvar extensions = [];\nfunction summary(){\n  var total = 0, synced = 0, stale = 0, edited = 0;\n  for (var x = 0; x < extensions.length; x++){\n    var e = extensions[x].summary ? extensions[x].summary() : null;\n    if (e){ total += e.total || 0; synced += e.synced || 0; stale += e.stale || 0; edited += e.edited || 0; }\n  }\n  for (var i = 0; i < fields.length; i++){\n    if (!modeAllows(fields[i])) continue;\n    total++;\n    var st = state(fields[i]);\n    if (st === 'synced') synced++; else if (st === 'stale') stale++; else if (st === 'edited') edited++;\n  }\n  return { total:total, synced:synced, stale:stale, edited:edited };\n}\nfunction renderCards(){\n  for (var i = 0; i < cards.length; i++) renderCard(cards[i]);\n}\nfunction renderCard(c){\n  var s = summary();\n  var st, label, tip;\n  if (connected || s.synced || s.stale){\n    st = s.synced ? 'synced' : (s.stale ? 'stale' : 'unavailable');\n    label = s.synced || s.stale ? 'Synced' : 'Connected';\n    var w = pendingCount();\n    tip = 'Fields keep the values they opened with; Sync brings newer ones. ' + (w ? w + ' newer waiting. ' : '') + (s.synced + s.stale) + ' of ' + s.total + ' read' +\n      (s.edited ? ', ' + s.edited + ' typed by you' : '') + '.';\n  } else if (requestedAt && Date.now() - requestedAt < NO_ANSWER_MS){\n    st = 'stale'; label = 'Asking the game…'; tip = 'Waiting for an open Queslar tab to answer.';\n  } else if (requestedAt){\n    st = 'unavailable'; label = 'No game tab'; tip = 'No Queslar tab with AWOO+ answered. Open the game in this browser, then Sync.';\n  } else {\n    st = 'unavailable'; label = 'Not synced'; tip = 'Open this tool from AWOO+ in the game, or keep the game open and press Sync.';\n  }\n  c.box.setAttribute('data-state', st);\n  c.light.setAttribute('data-state', st);\n  c.state.textContent = label;\n  c.state.setAttribute('data-tip', tip);\n  var at = get('meta.timestamp');\n  c.age.textContent = (connected || s.synced || s.stale) ? (s.total ? (s.synced + s.stale) + '/' + s.total : '') + (at ? ' · ' + ago(at) : '') + (pendingCount() ? ' · ' + pendingCount() + ' newer' : '') : '';\n  c.reset.disabled = !s.edited;\n  if (c.seg){\n    var m = mode();\n    c.seg.live.setAttribute('aria-pressed', String(m === 'live'));\n    c.seg.standard.setAttribute('aria-pressed', String(m === 'standard'));\n  }\n}\n/* card(host, { modes?: { live:tip, standard:tip } }) */\nfunction card(host, opts){\n  if (!host) return;\n  opts = opts || {};\n  host.textContent = '';\n  var box = el('div', { 'class':'awoo-sync', 'data-state':'unavailable' });\n  var head = el('div', { 'class':'awoo-sync-head' });\n  var light = el('span', { 'class':'awoo-light', 'data-state':'unavailable', 'aria-hidden':'true' });\n  var stEl = el('span', { 'class':'awoo-sync-state' });\n  var age = el('span', { 'class':'awoo-sync-age' });\n  head.appendChild(light); head.appendChild(stEl); head.appendChild(age);\n  box.appendChild(head);\n  var c = { box:box, light:light, state:stEl, age:age };\n  if (opts.modes){\n    modeOffered = true;\n    root.setAttribute('data-sync-mode', mode());\n    var seg = el('div', { 'class':'awoo-seg', role:'group', 'aria-label':'Mode' });\n    var live = el('button', { type:'button', 'data-tip':opts.modes.live || 'Your account, as synced.' }, 'Live');\n    var std = el('button', { type:'button', 'data-tip':opts.modes.standard || 'A fixed reference setup, for fair comparisons.' }, 'Standard');\n    live.addEventListener('click', function(){ setMode('live'); });\n    std.addEventListener('click', function(){ setMode('standard'); });\n    seg.appendChild(live); seg.appendChild(std);\n    box.appendChild(seg);\n    c.seg = { live:live, standard:std };\n  }\n  var actions = el('div', { 'class':'awoo-sync-actions' });\n  var syncBtn = el('button', { type:'button', 'class':'awoo-btn awoo-btn-primary', 'data-tip':'Use every newer value waiting, and ask the game tab for a fresh reading.' }, 'Sync');\n  var reset = el('button', { type:'button', 'class':'awoo-btn', 'data-tip':'Hand every field you typed back to the game.' }, 'Reset inputs');\n  syncBtn.addEventListener('click', syncNow);\n  reset.addEventListener('click', resetAll);\n  actions.appendChild(syncBtn); actions.appendChild(reset);\n  box.appendChild(actions);\n  c.reset = reset;\n  host.appendChild(box);\n  cards.push(c);\n  renderCard(c);\n  return c;\n}\n// Ages and staleness move with the clock, not only with events.\nsetInterval(function(){ renderCards(); for (var j = 0; j < fields.length; j++) renderField(fields[j]); }, 30000);\n\n// One quiet request on load when Core handed nothing over: an already-open\n// game tab answers within a moment, and the card says so when none does.\nsetTimeout(function(){ if (!connected && bc) request(); }, 300);\n\n/* ---------------------------------------------------------------- tooltip */\n// ONE fixed-position element on <body> (the Core lesson, DESIGN.md: a\n// pseudo-element or an absolutely-positioned child is clipped by scroll\n// containers and inherits an ancestor's opacity). data-tip is for the\n// player; data-tip-dev is appended only with \"Show developer info\" on, in\n// the --dev tint (R67).\nvar tipEl = null, tipFor = null;\nfunction ensureTip(){\n  if (tipEl || !document.body) return tipEl;\n  tipEl = document.createElement('div');\n  tipEl.id = 'awooTip';\n  tipEl.setAttribute('role', 'tooltip');\n  document.body.appendChild(tipEl);\n  return tipEl;\n}\nfunction showTip(t){\n  var text = t.getAttribute('data-tip');\n  var s = settings();\n  var dev = s && s.devOn && s.devOn() ? t.getAttribute('data-tip-dev') : null;\n  if (!text && !dev) return;\n  var tip = ensureTip(); if (!tip) return;\n  tipFor = t;\n  tip.textContent = text || '';\n  if (dev){ var d = document.createElement('span'); d.className = 'awoo-tip-dev'; d.textContent = dev; tip.appendChild(d); }\n  // Measured at the origin, not where the last tip was left (R34). A fixed\n  // box with no set width is only as wide as the room to the right of its\n  // `left`, so a tip measured where a short one sat by the right edge came\n  // out a thin column: placed from that width it opened to the right of its\n  // mark, and its height was wrong for the flip.\n  tip.style.left = '0px';\n  tip.style.top = '0px';\n  tip.classList.add('on');\n  var r = t.getBoundingClientRect(), b = tip.getBoundingClientRect();\n  var vw = window.innerWidth, vh = window.innerHeight;\n  var left = Math.max(8, Math.min(r.left + r.width / 2 - b.width / 2, vw - b.width - 8));\n  // Above the mark; below it when there is no room above; and when neither\n  // fits, pulled up from the bottom edge rather than left hanging off it.\n  var top = r.top - b.height - 8;\n  if (top < 8) top = r.bottom + 8;\n  if (top + b.height > vh - 8) top = Math.max(8, vh - b.height - 8);\n  tip.style.left = Math.round(left) + 'px';\n  tip.style.top = Math.round(top) + 'px';\n}\nfunction hideTip(){ tipFor = null; if (tipEl) tipEl.classList.remove('on'); }\nfunction tipTarget(e){ return e.target && e.target.closest ? e.target.closest('[data-tip],[data-tip-dev]') : null; }\ndocument.addEventListener('mouseover', function(e){ var t = tipTarget(e); if (t) showTip(t); });\ndocument.addEventListener('mouseout', function(e){ var t = tipTarget(e); if (t && t === tipFor) hideTip(); });\ndocument.addEventListener('focusin', function(e){ var t = tipTarget(e); if (t) showTip(t); });\ndocument.addEventListener('focusout', hideTip);\nwindow.addEventListener('scroll', hideTip, true);\n\nwindow.AWOO_SYNC = {\n  profile: function(){ return profile; },\n  connected: function(){ return connected; },\n  get: get,\n  age: sectionAge,\n  onProfile: function(fn){ if (typeof fn === 'function') profileListeners.push(fn); },\n  onApply: function(fn){ if (typeof fn === 'function') applyListeners.push(fn); },\n  request: request,\n  bind: bind,\n  field: function(key){ return byKey[key] || null; },\n  state: function(key){ var f = byKey[key]; return f ? state(f) : null; },\n  isEdited: function(key){ return !!saved.edited[key]; },\n  // One field back to synced, as its ↺ does.\n  handBack: function(key){ var f = byKey[key]; if (f) handBack(f); },\n  resetAll: resetAll,\n  refresh: function(){ applyAll(true); renderCards(); },\n  // Sync pressed, as the button does it (a page that holds a snapshot re-takes it).\n  onRefresh: function(fn){ if (typeof fn === 'function') refreshListeners.push(fn); },\n  syncing: syncing,\n  pending: function(key){ var f = byKey[key]; return f ? pending(f) : false; },\n  card: card,\n  extend: function(ext){ if (ext && typeof ext === 'object'){ extensions.push(ext); renderCards(); } },\n  renderCards: renderCards,\n  ago: ago,\n  mode: mode,\n  setMode: setMode,\n  onMode: function(fn){ if (typeof fn === 'function') modeListeners.push(fn); },\n  // Test seam: push a profile as if Core had broadcast it.\n  _receive: setProfile\n};\n})();\n\n</script>\n\n<style>\n*{box-sizing:border-box}\n[hidden]{display:none!important}\nbody{\n  margin:0; background:var(--ground); color:var(--ink);\n  font-family:var(--font-body); font-size:14px; line-height:1.5;\n  -webkit-font-smoothing:antialiased;\n}\nbutton,input,select{font-family:inherit;font-size:inherit;color:inherit}\n:focus-visible{outline:2px solid var(--brass-fill);outline-offset:2px;border-radius:3px}\n\n/* The title block and the gear live at the top of the sidebar, like every\n   other tool (2026-09-23; this page had its own top bar until then). */\n.btn{\n  background:var(--surface-2); border:1px solid var(--border-control);\n  border-radius:4px; padding:5px 11px; cursor:pointer;\n  font-size:.78rem; font-weight:600; letter-spacing:.02em;\n  transition:background .12s,border-color .12s;\n}\n.btn:hover{background:var(--surface-3);border-color:var(--brass-fill)}\n.btn.primary{background:var(--brass-fill);border-color:var(--brass-fill);color:var(--on-brass)}\n.btn.primary:hover{filter:brightness(1.07)}\n.btn.ghost{background:transparent}\n.btn.sm{padding:3px 8px;font-size:.72rem}\n\n/* --- shell ---------------------------------------------------------- */\n.shell{\n  max-width:1400px; margin:0 auto; padding:18px 20px 60px;\n  display:grid; grid-template-columns:288px minmax(0,1fr); gap:18px; align-items:start;\n}\n/* One column: the title, sync card and subject list first, as in every tool. */\n@media (max-width:1040px){\n  .shell{grid-template-columns:minmax(0,1fr)}\n}\n\n/* Pinned or not is the shared settings layer's call (tool-settings.js,\n   \"Sidebar scrolls on its own\"): by default the sidebar scrolls with the page\n   and is pinned only while it fits on screen. */\n.side{display:flex; flex-direction:column; gap:10px}\n.panel{\n  background:var(--surface); border:1px solid var(--border);\n  border-radius:6px; box-shadow:var(--shadow);\n}\n.panel > .ph{\n  font-family:var(--font-display); font-size:.7rem; font-weight:700;\n  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-soft);\n  padding:7px var(--pad-panel); border-bottom:1px solid var(--border);\n  display:flex; align-items:center; gap:8px;\n}\n.panel .pb{padding:8px var(--pad-panel)}\n\n/* --- nav ------------------------------------------------------------ */\n.navgroup{padding:5px 0 4px}\n.navgroup + .navgroup{border-top:1px solid var(--border)}\n.navgroup h3{\n  margin:0 0 3px; padding:0 12px;\n  font-family:var(--font-head); font-size:.66rem; font-weight:600;\n  letter-spacing:.13em; text-transform:uppercase; color:var(--ink-mute);\n  display:flex; align-items:baseline; gap:6px;\n}\n/* The character level the group's system unlocks at. It is why the list is in\n   this order, so it may as well say so. */\n.navgroup h3 .gu{\n  margin-left:auto; font-family:var(--font-mono); font-size:.6rem;\n  letter-spacing:.02em; text-transform:none; color:var(--ink-mute); opacity:.8;\n}\n.ctl-inline{display:flex;align-items:center;gap:6px}\n.ctl-inline label{\n  font-size:.64rem;font-weight:600;letter-spacing:.09em;\n  text-transform:uppercase;color:var(--ink-mute);\n}\n.ctl-inline select{\n  background:var(--surface-2); border:1px solid var(--border-control);\n  border-radius:4px; padding:3px 6px; font-size:.74rem;\n}\n.navbtn{\n  display:flex; align-items:center; gap:8px; width:100%;\n  background:none; border:0; border-left:3px solid transparent;\n  padding:var(--nav-y) 12px var(--nav-y) 9px; text-align:left; cursor:pointer;\n  font-size:.79rem; color:var(--ink-soft); line-height:1.35;\n}\n.navbtn:hover{background:var(--surface-2);color:var(--ink)}\n.navbtn[aria-current=\"true\"]{\n  background:var(--bg-brass); border-left-color:var(--brass-fill);\n  color:var(--ink); font-weight:600;\n}\n.navbtn .nlv{\n  margin-left:auto; font-family:var(--font-mono); font-size:.7rem;\n  color:var(--ink-mute); font-variant-numeric:tabular-nums;\n}\n.navbtn[aria-current=\"true\"] .nlv{color:var(--brass)}\n\n/* --- options -------------------------------------------------------- */\n.optrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:3px 0}\n.optrow label{font-size:.78rem;color:var(--ink-soft)}\n.switch{display:flex;border:1px solid var(--border-strong);border-radius:4px;overflow:hidden}\n.switch button{\n  background:var(--surface-2);border:0;padding:3px 9px;cursor:pointer;\n  font-size:.72rem;font-weight:600;color:var(--ink-mute);\n}\n.switch button + button{border-left:1px solid var(--border-strong)}\n.switch button[aria-pressed=\"true\"]{background:var(--brass-fill);color:var(--on-brass)}\n\n/* --- main system panel ---------------------------------------------- */\n.syshead{\n  display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;\n  padding:11px 14px; border-bottom:1px solid var(--border);\n}\n.syshead h2{\n  font-family:var(--font-head); font-size:1.32rem; font-weight:600;\n  letter-spacing:.045em; text-transform:uppercase; margin:0; line-height:1.15;\n}\n.syshead .desc{flex-basis:100%;margin:0;font-size:.83rem;color:var(--ink-soft);max-width:72ch}\n.pill{\n  display:inline-flex;align-items:center;gap:5px;\n  font-family:var(--font-mono); font-size:.66rem; font-weight:600;\n  letter-spacing:.06em; padding:2px 7px; border-radius:3px;\n  background:var(--bg-steel); color:var(--steel); white-space:nowrap;\n}\n.pill.code{background:var(--bg-moss);color:var(--moss)}\n.pill.cross{background:var(--bg-brass);color:var(--brass-text)}\n.pill.live{background:var(--bg-moss);color:var(--moss)}\n.pill.open{background:var(--bg-violet);color:var(--violet)}\n.pill.cur{background:var(--bg-steel);color:var(--steel)}\n\n/* control strip */\n.controls{\n  display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;\n  padding:9px 14px; background:var(--surface-2); border-bottom:1px solid var(--border);\n}\n.field{display:flex;flex-direction:column;gap:3px}\n.field > .lab{\n  font-size:.66rem; font-weight:600; letter-spacing:.09em;\n  text-transform:uppercase; color:var(--ink-mute);\n  display:flex; align-items:center; gap:5px;\n}\n.field input, .field select{width:var(--ctl-w)}\n.field select{width:auto;min-width:112px}\n.field > .lab .awoo-light{margin:0}\n\n/* summary strip */\n.summary{\n  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));\n  gap:1px; background:var(--border); border-bottom:1px solid var(--border);\n}\n.stat{background:var(--surface);padding:8px 14px}\n.stat .k{\n  font-size:.64rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;\n  color:var(--ink-mute);display:block;margin-bottom:2px;\n}\n.stat .v{\n  font-family:var(--font-num); font-size:1.02rem; font-weight:600;\n  font-variant-numeric:tabular-nums; font-feature-settings:\"zero\" 0;\n  color:var(--ink); word-break:break-word;\n}\n.stat .v.accent{color:var(--brass)}\n.stat .u{font-size:.68rem;color:var(--ink-mute);font-weight:400;margin-left:3px}\n\n/* the rest of the bill, for systems that charge in more than one currency */\n.billstrip{\n  display:flex; align-items:center; gap:8px; flex-wrap:wrap;\n  padding:8px 16px; background:var(--surface-2); border-bottom:1px solid var(--border);\n}\n.billstrip .bk{\n  font-size:.64rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase;\n  color:var(--ink-mute);\n}\n.billstrip .bv{\n  font-family:var(--font-mono); font-size:.76rem; font-variant-numeric:tabular-nums;\n  background:var(--surface); border:1px solid var(--border);\n  border-radius:3px; padding:1px 7px; color:var(--ink-soft);\n}\n\n/* table */\n.tablewrap{overflow-x:auto;overflow-y:auto}\ntable{border-collapse:collapse;width:100%;min-width:560px}\nthead th{\n  position:sticky; top:0; z-index:2; background:var(--surface-3);\n  font-family:var(--font-display); font-size:.64rem; font-weight:700;\n  letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft);\n  text-align:right; padding:5px var(--row-x); line-height:1.4;\n  border-bottom:1px solid var(--border-strong);\n  white-space:nowrap;\n}\nthead th:first-child{text-align:left}\nthead th .hsub{\n  display:block;font-family:var(--font-body);font-size:.64rem;\n  letter-spacing:.01em;text-transform:none;color:var(--ink-mute);font-weight:400;\n}\ntbody td{\n  padding:var(--row-y) var(--row-x); text-align:right;\n  border-bottom:1px solid var(--border);\n  font-family:var(--font-num); font-size:.8rem; line-height:1.7;\n  font-variant-numeric:tabular-nums;\n  white-space:nowrap;\n}\n/* Only the level itself is emphasised. Every figure bold made the whole table\n   read as bold, which is the same as none of it being emphasised. */\ntbody td:first-child{text-align:left;font-weight:600}\ntbody tr.past td{color:var(--ink-mute);background:var(--surface-2)}\n/* Fill treatment BC, settled 2026-09-21: the accent tint carries the state,\n   a SOFT edge gives it a shape. --accent-edge, never --accent-fill: a\n   full-strength ring reads as a frame around the row rather than emphasis on\n   it, which is exactly what it looked like at full strength. */\n/* The tint already says \"you are here\"; bolding every figure in the row on top\n   of it is the third signal for one fact. Only the level stays bold. */\ntbody tr.current td{\n  background:var(--bg-accent);\n  border-top:1px solid var(--accent-edge); border-bottom:1px solid var(--accent-edge);\n}\ntbody tr.current td:first-child{font-weight:700}\ntbody tr.current td:first-child::after{\n  content:'YOU'; margin-left:8px; font-family:var(--font-body);\n  font-size:.6rem; letter-spacing:.09em; color:var(--brass-text);\n  background:var(--surface); padding:1px 5px; border-radius:3px; font-weight:600;\n}\ntbody tr.target td{\n  background:var(--bg-success);\n  border-top:1px solid var(--accent-edge); border-bottom:1px solid var(--accent-edge);\n}\ntbody tr.target td:first-child{font-weight:700}\ntbody tr.target td:first-child::after{\n  content:'TARGET'; margin-left:8px; font-family:var(--font-body);\n  font-size:.6rem; letter-spacing:.09em; color:var(--moss);\n  background:var(--surface); padding:1px 5px; border-radius:3px; font-weight:600;\n}\ntbody tr:hover td{background:var(--surface-3)}\ntbody tr.current:hover td{background:var(--bg-brass)}\ntbody tr.target:hover td{background:var(--bg-moss)}\ntbody td.dash{color:var(--ink-mute)}\ntbody tr.bp td{background:var(--bg-info);border-top:1px solid var(--info)}\ntbody tr.bp:hover td{background:var(--bg-violet)}\ntbody td .bpnote{\n  font-family:var(--font-body);font-size:.6rem;letter-spacing:.06em;\n  color:var(--violet);margin-left:8px;text-transform:uppercase;font-weight:600;\n  border-bottom:1px dotted currentColor;cursor:help;\n}\n\n/* BREAKPOINTS (2026-09-23): every place the formula changes shape, listed\n   above the table whatever the step, with what changes there. Click one to\n   make it the target. */\n.bpstrip{\n  display:flex; align-items:center; gap:6px; flex-wrap:wrap;\n  padding:8px 14px; border-bottom:1px solid var(--border); background:var(--surface);\n}\n.bpstrip .bk{font-size:.64rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-mute);margin-right:2px}\n.bpchip{\n  display:inline-flex; align-items:baseline; gap:5px; cursor:pointer;\n  font-size:.72rem; color:var(--ink-soft); background:var(--bg-info);\n  border:1px solid color-mix(in srgb,var(--info) 35%,transparent); border-radius:4px; padding:2px 7px;\n}\n.bpchip b{font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--info);font-weight:700}\n.bpchip:hover{border-color:var(--info);color:var(--ink)}\n.bpchip.passed{background:var(--surface-2);border-color:var(--border);opacity:.7}\n.bpchip.passed b{color:var(--ink-mute)}\n.bpnone{font-size:.72rem;color:var(--ink-mute)}\n\n.rowctl{\n  display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;\n  padding:7px 14px; border-top:1px solid var(--border); background:var(--surface-2);\n}\n.rowctl .hint{margin-right:auto;font-size:.72rem;color:var(--ink-mute)}\n.rowctl input{width:64px}\n.rowctl label{font-size:.72rem;color:var(--ink-soft)}\n\n/* notes */\ndetails.notes{border-top:1px solid var(--border)}\ndetails.notes > summary{\n  cursor:pointer; padding:9px 16px; list-style:none;\n  font-family:var(--font-head); font-size:.72rem; font-weight:600;\n  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft);\n  display:flex; align-items:center; gap:8px;\n}\ndetails.notes > summary::-webkit-details-marker{display:none}\ndetails.notes > summary::before{content:'▸';color:var(--brass);font-size:.8rem}\ndetails.notes[open] > summary::before{content:'▾'}\n.notebody{padding:0 16px 14px;font-size:.82rem;color:var(--ink-soft);max-width:82ch}\n.notebody p{margin:.5em 0}\n.notebody code, .formula{\n  font-family:var(--font-mono);font-size:.78rem;\n  background:var(--surface-3);padding:1px 5px;border-radius:3px;color:var(--ink);\n}\n.formula{display:block;padding:8px 11px;margin:.6em 0;white-space:pre-wrap;line-height:1.55;border-left:2px solid var(--brass-fill)}\n.srcline{\n  display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:9px;\n  border-top:1px dashed var(--border);\n}\n.srcline .pill{background:var(--surface-3);color:var(--ink-mute)}\n\n/* Tooltips are the shared kit's (tool-sync.js): one fixed element, never\n   clipped by the table's scroll box. .tip only marks what has one. */\n.tip{cursor:help;border-bottom:1px dotted var(--ink-mute)}\n.banner{\n  display:flex;gap:9px;align-items:flex-start;\n  padding:9px 12px;border-radius:5px;font-size:.78rem;line-height:1.45;\n  background:var(--bg-violet); color:var(--ink); border:1px solid var(--violet);\n}\n.banner.warn{background:var(--bg-ember);border-color:var(--ember)}\n.banner b{font-weight:700}\n.foot{\n  max-width:1400px;margin:0 auto;padding:0 20px 40px;\n  font-size:.74rem;color:var(--ink-mute);line-height:1.6;\n}\n/* Standing default 5: one control that grows the table to the viewport,\n   not a drag handle and not incremental steps. */\n.expandbtn{margin-left:auto}\n\n/* v4 baseline: back-to-top, shown only once scrolled AND collapsed to one\n   column — on the wide sticky-sidebar layout the inputs never leave the\n   screen, so it would be redundant chrome. */\n#backTop{\n  position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom,0px));\n  z-index:40; width:40px; height:40px; border-radius:50%;\n  background:var(--brass-fill); color:var(--on-brass);\n  border:1px solid var(--brass); box-shadow:var(--shadow);\n  font-size:1.05rem; line-height:1; cursor:pointer;\n}\n#backTop[hidden]{display:none!important}\n\n@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}\n</style>\n\n<script>\n/* Helpers the generated facts below call but do not define. `triangular` is\n   the shared arithmetic-series cost primitive (village strengths, relic\n   boosts, cave tools, sculptures all use it); `geomCost` is the geometric one\n   (village buildings and the village boss). Both are quoted from\n   engine/costs/primitives.js, and both are on window deliberately: the facts\n   are emitted into their own IIFE and resolve these through global scope,\n   exactly as those facts' own comments assume. */\n/* Function DECLARATIONS, not window assignments: an emitted fact resolves\n   `triangular` as a bare identifier, and a declaration in a classic script is\n   a real global binding in every environment, where `window.x = ...` only\n   happens to be one in a browser. Also mirrored onto window for the page's\n   own use. */\nfunction triangular(a, b, mult) { return ((a + b) * (b - a) * mult) / 2; }\nfunction geomCost(currentLevel, newLevel, base, ratio) {\n  ratio = ratio || 1.15;\n  var start = currentLevel + 1, count = newLevel - currentLevel;\n  return Math.round((base * Math.pow(ratio, start) * (Math.pow(ratio, count) - 1)) / (ratio - 1));\n}\nwindow.triangular = triangular;\nwindow.geomCost = geomCost;\n</script>\n\n<script>\n/* GENERATED from data/ by userscripts/build.mjs — do not edit. */\nwindow.AWOO_FACTS = (function () {\n  /* tables/sanctum-nodes.json :: sanctumNodes.formula.status  [CROSS] */\n  function sanctumNodeCost(currentLevel, newLevel) { const RATE = 125000, EXP = 5; let total = 0; for (let n = currentLevel + 1; n <= newLevel; n++) { total += RATE * Math.pow(n, EXP) + n * RATE * 100; } return { currency: 'gold', value: total }; } // costTable's per-node figures = round(sanctumNodeCost(n-1, n).value / 1e9), i.e. the table is in BILLIONS of gold, rounded\n  /* formulas/pets.json :: pets.slotUpgrade.costFormula  [CODE] */\n  function petSlotUpgradeCost(currentLevel, newLevel) { let total = 0; for (let r = currentLevel + 1; r <= newLevel; r++) total += r <= 150 ? Math.floor(500000 * r**3) : Math.floor(500000 * 150**3 * (r/150)**15); return { currency: 'gold', value: total }; } // per-level marginal cost at level L->L+1: floor(500000*(L+1)^3) while L+1<=150, else floor(500000*150^3*((L+1)/150)^15). Exactly continuous at the seam: both branches evaluate to floor(500000*150^3) = 1,687,500,000,000 at r=150.\n  /* formulas/equipment.json :: equipment.slotUpgrade.costFormula  [CODE] */\n  function slotUpgradeCost(currentLevel, newLevel) { let ratio = 1.1; let count = newLevel - currentLevel; if (count <= 0) return 0; let cost = Math.round(250 * ratio**(currentLevel+1) * (ratio**count - 1) / (ratio - 1)); return { meat: cost, iron: cost, wood: cost, stone: cost }; }\n  /* formulas/leveling.json :: leveling.genericExpRequired.formula  [CODE] */\n  function expRequired(level, type) { if (type === 'sanctum') level += 500; if (level < 10) return level * 150; if (level < 20) return level * 250; if (level < 40) return level * 400; if (level < 50) return level * 600; if (level < 100 || type === 'crafting') return level * 1000; let base = 20000 * Math.sqrt(level); if (level <= 500) return Math.round(base); let n = level - 500; let extra = 2500 * n**1.25; if (level > 10000) { n = level - 10000; extra += 100000 * n**1.4; } return Math.round(base + extra); }\n  /* formulas/partners.json :: partner.level.expFormula  [CODE] */\n  function partnerLevelExp(level) { if (level < 10) return level * 150; if (level < 20) return level * 200; if (level < 40) return level * 300; if (level < 50) return level * 400; let base = Math.round(25000 * level**0.5); if (level <= 1500) return Math.round(base); let n = level - 1500; let extra = 250 * n**1.25; if (level > 6000) { n = level - 6000; extra += 2500 * n**1.4; } return Math.round(base + extra); }\n  /* formulas/partners.json :: partner.boostUpgradeCost.formula  [CODE] */\n  function partnerBoostUpgradeCost(currentLevel, targetLevel) { const tri = (a, b, mult) => (a + b) * (b - a) / 2 * mult; if (targetLevel < 10) return { currency: 'gold', value: tri(currentLevel, targetLevel, 150) }; let total = tri(Math.max(currentLevel - 9, 0), Math.max(targetLevel - 9, 1), 15000); const brackets = [[1000, 10000], [2000, 100000], [3500, 500000]]; for (const [threshold, mult] of brackets) { const a = Math.max(currentLevel, threshold), b = Math.max(targetLevel, threshold); if (a <= b) total += tri(a, b, mult); } return { currency: 'gold', value: total }; }\n  /* formulas/relic-boosts.json :: relicBoost.bracketSurcharge  [CODE] */\n  function bracketSurcharge(currentLevel, newLevel) { const series = (x, m) => x * (x + 1) / 2 * m; if (newLevel <= 5000) return 0; let sum = 0; const first = Math.floor((Math.max(currentLevel, 5001) - 5001) / 1000), last = Math.floor((newLevel - 5001) / 1000); for (let o = first; o <= last; o++) { const bracketStart = 5001 + o * 1000, bracketEnd = Math.min(5000 + (o + 1) * 1000, newLevel); const rate = o < 5 ? 20 : 20 + (o - 4) * 10; const lo = Math.max(currentLevel + 1, bracketStart), hi = bracketEnd; if (hi >= lo) sum += series(hi - 5000, rate) - series(lo - 5000 - 1, rate); } return sum; }\n  /* formulas/relic-boosts.json :: relicBoost.veryHighLevelSurcharge  [CODE] */\n  function veryHighLevelSurcharge(currentLevel, newLevel) { let low = Math.max(currentLevel, 50000); let high = Math.max(newLevel, 50000); if (low > high) return 0; return triangular(low - 50000, high - 50000, 50000); }\n  /* formulas/relic-boosts.json :: relicBoost.costFormula  [CODE] */\n  function boostCost(currentLevel, newLevel, boostType) { const series = (x, m) => x * (x + 1) / 2 * m; if (boostType==='defenseFlat' || boostType==='damageFlat') { let cost = series(newLevel, 100) - series(currentLevel, 100) + bracketSurcharge(currentLevel, newLevel); return {currency:'gold', value: Math.round(cost)}; } let cost = series(newLevel, 10) - series(currentLevel, 10) + bracketSurcharge(currentLevel, newLevel) + veryHighLevelSurcharge(currentLevel, newLevel); return {currency:'relics', value: Math.round(cost)}; }\n  /* formulas/sculptures.json :: sculptures.tileUpgradeCost  [CODE] */\n  function tileUpgradeCost(currentLevel, newLevel) { const series = (x, m) => x * (x + 1) / 2 * m; const a = Math.max(currentLevel, 2500), b = Math.max(newLevel, 2500); const past2500 = a <= b ? triangular(a - 2500, b - 2500, 2500000) : 0; return Math.round(series(newLevel, 25000) - series(currentLevel, 25000) + past2500); }  // level L costs 25,000*L, plus (L-2500-0.5)*2,500,000 past 2500\n  /* formulas/village-boss.json :: villageBoss.costFormula  [CODE] */\n  function villageBossCost(currentLevel, newLevel, base, ratio=1.15) { let start = currentLevel+1; let count = newLevel-currentLevel; return Math.round(base * ratio**start * (ratio**count - 1) / (ratio-1)); }\n  /* formulas/village.json :: village.buildings.costFormula.implementation  [CODE] */\n  function villageBuildingCost(currentLevel, newLevel) { const ratio = 1.15, start = currentLevel + 1, count = newLevel - currentLevel, ratioToStart = ratio ** start; const geomCost = (base) => Math.round(base * ratioToStart * (ratio ** count - 1) / (ratio - 1)); const out = [{currency: 'gold', value: geomCost(200000)}, {currency: 'meat', value: geomCost(4000)}, {currency: 'iron', value: geomCost(4000)}, {currency: 'wood', value: geomCost(4000)}, {currency: 'stone', value: geomCost(4000)}]; if (newLevel > 40) { const relicStart = Math.max(start, 41), relicCount = newLevel - relicStart + 1; if (relicCount > 0) out.push({currency: 'relics', value: Math.round(3000 * (ratio ** relicStart) * (ratio ** relicCount - 1) / (ratio - 1))}); } return out; }\n  /* formulas/caves.json :: caves.toolUpgradeCost.formula  [CODE] */\n  function caveToolUpgradeCost(currentLevel, targetLevel, toolName) { const tri = (a, b, mult) => (a + b) * (b - a) / 2 * mult; if (toolName === 'repeater') return { currency: 'diamonds', value: Math.round(1000 * (2 ** (targetLevel + 1) - 2 ** (currentLevel + 1)) / 9) }; const base = tri(currentLevel, targetLevel, 4000); const a = Math.max(currentLevel, 100), o = Math.max(targetLevel, 100), tier100 = a <= o ? tri(a, o, 4000) : 0; const c = Math.max(currentLevel, 200), l = Math.max(targetLevel, 200), tier200 = c <= l ? tri(c - 200, l - 200, 400000) : 0; const d = Math.max(currentLevel, 600), f = Math.max(targetLevel, 600), tier600 = d <= f ? tri(d - 600, f - 600, 2000000) : 0; const resourceCost = Math.round(base + tier100 + tier200 + tier600); const diamondCost = Math.round(tri(currentLevel, targetLevel, 1)); return { meat: resourceCost, iron: resourceCost, wood: resourceCost, stone: resourceCost, diamonds: diamondCost }; }\n  /* formulas/dungeons.json :: dungeon.fighterSlotCost.formula  [CODE] */\n  function fighterSlotCost(currentCount, targetCount) { if (targetCount <= currentCount) return { currency: 'gold', value: 0 }; return { currency: 'gold', value: 10000 * (Math.pow(10, targetCount + 1) - Math.pow(10, currentCount + 1)) / 9 }; }\n  /* formulas/partners.json :: partner.slotUnlock.formula  [CODE] */\n  function partnerHireCost(currentCount, targetCount) { if (targetCount <= currentCount) return { currency: 'gold', value: 0 }; return { currency: 'gold', value: 10000 * (Math.pow(10, targetCount + 1) - Math.pow(10, currentCount + 1)) / 9 }; }\n  /* tables/house-upgrades.json :: house.resourceCost.formula  [CODE] */\n  function houseUpgradeCost(currentLevel, newLevel) { const perLevel = (lvl) => 5000 + Math.round(5000 * Math.pow(lvl, 1.25)); let total = 0; for (let lvl = currentLevel + 1; lvl <= newLevel; lvl++) total += perLevel(lvl); let extra = 0; if (newLevel > 50) extra = (newLevel - Math.max(currentLevel, 50)) * 1e6; return { meat: total + extra, iron: total + extra, wood: total + extra, stone: total + extra }; }\n  /* formulas/village-boss.json :: villageBoss.upgradeTypes  [CODE] */\n  const villageBossUpgradeTypes = {\"health\":{\"goldBase\":200000,\"currency\":\"gold\",\"boostRatePerLevel\":0.02},\"attackSpeed\":{\"base\":3000,\"currency\":\"relics\",\"boostRatePerLevel\":0.02},\"dropQuality\":{\"base\":3000,\"currency\":\"villageBossEssence\",\"boostRatePerLevel\":0.02},\"duration\":{\"base\":4000,\"currency\":\"meat+iron+wood+stone (all four simultaneously, equal cost each)\",\"boostRatePerLevel\":0.02}};\n  /* formulas/village.json :: village.strengths.currency  [CODE] */\n  const villageStrengthCurrency = \"strength\";\n  return { sanctumNodeCost, petSlotUpgradeCost, slotUpgradeCost, expRequired, partnerLevelExp, partnerBoostUpgradeCost, bracketSurcharge, veryHighLevelSurcharge, boostCost, tileUpgradeCost, villageBossCost, villageBuildingCost, caveToolUpgradeCost, fighterSlotCost, partnerHireCost, houseUpgradeCost, villageBossUpgradeTypes, villageStrengthCurrency };\n})();\nwindow.AWOO_FACTS_META = {\"sanctumNodeCost\":{\"file\":\"tables/sanctum-nodes.json\",\"fact\":\"sanctumNodes.formula.status\",\"confidence\":\"CROSS\",\"checked\":\"2026-08-23\"},\"petSlotUpgradeCost\":{\"file\":\"formulas/pets.json\",\"fact\":\"pets.slotUpgrade.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-09-28\"},\"slotUpgradeCost\":{\"file\":\"formulas/equipment.json\",\"fact\":\"equipment.slotUpgrade.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"expRequired\":{\"file\":\"formulas/leveling.json\",\"fact\":\"leveling.genericExpRequired.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"partnerLevelExp\":{\"file\":\"formulas/partners.json\",\"fact\":\"partner.level.expFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"partnerBoostUpgradeCost\":{\"file\":\"formulas/partners.json\",\"fact\":\"partner.boostUpgradeCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"bracketSurcharge\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.bracketSurcharge\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"veryHighLevelSurcharge\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.veryHighLevelSurcharge\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"boostCost\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"tileUpgradeCost\":{\"file\":\"formulas/sculptures.json\",\"fact\":\"sculptures.tileUpgradeCost\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageBossCost\":{\"file\":\"formulas/village-boss.json\",\"fact\":\"villageBoss.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageBuildingCost\":{\"file\":\"formulas/village.json\",\"fact\":\"village.buildings.costFormula.implementation\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"caveToolUpgradeCost\":{\"file\":\"formulas/caves.json\",\"fact\":\"caves.toolUpgradeCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"fighterSlotCost\":{\"file\":\"formulas/dungeons.json\",\"fact\":\"dungeon.fighterSlotCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"partnerHireCost\":{\"file\":\"formulas/partners.json\",\"fact\":\"partner.slotUnlock.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"houseUpgradeCost\":{\"file\":\"tables/house-upgrades.json\",\"fact\":\"house.resourceCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageBossUpgradeTypes\":{\"file\":\"formulas/village-boss.json\",\"fact\":\"villageBoss.upgradeTypes\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageStrengthCurrency\":{\"file\":\"formulas/village.json\",\"fact\":\"village.strengths.currency\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"}};\n</script>\n\n<div class=\"shell\">\n  <aside class=\"side\" data-awoo-sidebar data-side-min=\"1041\" data-side-top=\"20\">\n    <div class=\"awoo-head\">\n      <div id=\"gear\"></div>\n      <div class=\"awoo-eyebrow\">Upgrade pricing &middot; 15 systems</div>\n      <h1 class=\"awoo-title\">Cost Tables</h1>\n      <p class=\"awoo-sub\">What the next levels cost, from where you are to where you want to be.</p>\n    </div>\n    <div id=\"syncCard\"></div>\n    <nav class=\"panel\" id=\"nav\" aria-label=\"Cost systems\"></nav>\n    <button class=\"btn ghost sm\" type=\"button\" id=\"resetAllBtn\" data-tip=\"Current levels, targets, steps and row counts back to their defaults, for every subject.\">Reset every subject</button>\n\n    <div class=\"panel\">\n      <div class=\"ph\">Legend</div>\n      <div class=\"pb\" style=\"display:flex;flex-direction:column;gap:6px;font-size:.76rem;color:var(--ink-soft)\">\n        <div><span class=\"pill live\">LIVE</span> checked against the real game</div>\n        <div><span class=\"pill code\">CODE</span> read from the shipped bundle</div>\n        <div><span class=\"pill cross\">CROSS</span> matches a known table, small drift</div>\n        <div><span class=\"pill open\">OPEN</span> something here is unresolved</div>\n      </div>\n    </div>\n  </aside>\n\n  <main class=\"panel\" id=\"main\"></main>\n</div>\n\n<button id=\"backTop\" type=\"button\" aria-label=\"Back to top\" hidden>↑</button>\n\n<div class=\"foot\">\n  Formulas are generated from the AWOO+ core (<code>core/data/formulas/</code>) and\n  were last checked against the game's own code (1.2.3.13) on 2026-09-23. Confidence tags are that core's own evidence\n  tiers, not a generic severity scale — a <b>CROSS</b> or <b>OPEN</b> table is\n  telling you something real about how far to trust the number.\n</div>\n\n<script>\n(function(){\n'use strict';\n\n/* =====================================================================\n   NUMBER FORMATTING — the shared settings layer's (tool-settings.js,\n   2026-09-23). The game's own two settings, inherited through AWOO+ and\n   overridable in the gear menu, the same in every tool. This page carried\n   its own copy of that until then; its saved override is handed over once\n   (see load()).\n   ===================================================================== */\nvar NUM = window.AWOO_TOOL_SETTINGS.num;\nfunction fmtInt(n){ return NUM.int(n); }\nfunction fmtNum(n){ return NUM.fmt(n); }\n\n/* =====================================================================\n   COST FORMULAS — verbatim ports. Each system exposes range(a,b,variant)\n   returning a currency->amount map, NOT a per-level marginal that the\n   page then sums. That matters: several of these are bracketed\n   triangular sums whose own range function is the authority, and at\n   least one (partner boosts) is provably non-additive across its\n   level-10 seam. Summing marginals would quietly disagree with the game.\n   ===================================================================== */\nvar F = (typeof window !== 'undefined' && window.AWOO_FACTS) || null;\nvar triangular = window.triangular, geomCost = window.geomCost;\n\n// Every generated fact returns one of three shapes: a bare number, a\n// { currency, value } pair, or a map of currency -> amount. One normaliser,\n// so the emitted text is never edited to fit this page.\nfunction asCost(out, fallbackCurrency){\n  if (out == null) return {};\n  if (typeof out === 'number'){ var o = {}; o[fallbackCurrency] = out; return o; }\n  // Some facts return an ARRAY of {currency,value} (village buildings bills in\n  // six currencies that way); others a single such pair; others a plain map.\n  if (Array.isArray(out)){\n    var m = {};\n    for (var i=0;i<out.length;i++){ if (out[i] && out[i].currency) m[out[i].currency] = out[i].value; }\n    return m;\n  }\n  if (typeof out.currency === 'string'){ var p = {}; p[out.currency] = out.value; return p; }\n  return out;\n}\n// A fact that failed to generate must not silently become zero. If the build\n// did not inject it, the page says so rather than pricing everything free.\nfunction fact(name){\n  if (!F || typeof F[name] !== 'function') {\n    throw new Error('Cost Tables: generated fact \"' + name + '\" is missing — the page was opened unbuilt.');\n  }\n  return F[name];\n}\n\n\n/* GENERATED: tables/sanctum-nodes.json :: sanctumNodes.formula.status */\nfunction sanctumNodeCost(a,b){ return asCost(fact('sanctumNodeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/pets.json :: pets.slotUpgrade.costFormula */\nfunction petSlotCost(a,b){ return asCost(fact('petSlotUpgradeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/partners.json :: partner.boostUpgradeCost.formula */\nfunction partnerBoostCost(a,b){ return asCost(fact('partnerBoostUpgradeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/partners.json :: partner.level.expFormula */\nfunction partnerLevelExpAt(level){ return fact('partnerLevelExp')(level); }\n/* GENERATED: formulas/leveling.json :: leveling.genericExpRequired.formula */\nfunction levelExp(level,type){ return fact('expRequired')(level, type || 'battling'); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.bracketSurcharge.\n   Hand-translated here until 2026-09-21, when the fact's pseudocode was\n   rewritten as real JavaScript (pinned against the engine's loop in\n   tests/income-relic-boosts-vs-known-captures.mjs). */\nfunction relicBracketSurcharge(a,b){ return fact('bracketSurcharge')(a,b); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.costFormula — all three\n   layers, priced by the game's own boostCost rather than re-assembled here. */\nfunction relicBoostCost(a,b,boostType){ return fact('boostCost')(a,b,boostType); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.veryHighLevelSurcharge */\nfunction relicVeryHigh(a,b){ return fact('veryHighLevelSurcharge')(a,b); }\n/* GENERATED: formulas/caves.json :: caves.toolUpgradeCost.formula */\nfunction caveToolCost(a,b,tool){ return asCost(fact('caveToolUpgradeCost')(a,b,tool),'meat'); }\n/* GENERATED: tables/house-upgrades.json :: house.resourceCost.formula */\nfunction houseCost(a,b){ return asCost(fact('houseUpgradeCost')(a,b),'meat'); }\n/* GENERATED: formulas/village.json :: village.buildings.costFormula.implementation */\nfunction villageBuildingCost(a,b){ return asCost(fact('villageBuildingCost')(a,b),'gold'); }\n\n/* =====================================================================\n   SYSTEM REGISTRY\n   ===================================================================== */\nvar CUR = {\n  gold:{label:'Gold'}, relics:{label:'Relics'}, diamonds:{label:'Diamonds'},\n  meat:{label:'Meat'}, iron:{label:'Iron'}, wood:{label:'Wood'}, stone:{label:'Stone'},\n  exp:{label:'EXP'}, essence:{label:'Boss essence'},\n  tileres:{label:'Tile resource'}\n};\n/* GENERATED key: formulas/village.json :: village.strengths.currency. Was\n   \"Unrecorded currency\" until 2026-09-27 (formula-audit.md finding #12): the\n   bundle's own cost function (pe(), CharacterDataProvider-Ba19Q8CX.js) always\n   returned this currency name — it just was not in data/ yet. This is the\n   VILLAGE currency, not the character combat stat of the same capitalized\n   name — see GLOSSARY.md's \"Strength\" collision entry. */\nvar VILLAGE_STRENGTH_CUR = (F && F.villageStrengthCurrency) || 'strength';\nCUR[VILLAGE_STRENGTH_CUR] = { label:'Village Strength' };\n\nvar SYSTEMS = [\n{\n  id:'sanctum', group:'Character', name:'Sanctum skill tree', tier:'CROSS',\n  unit:'nodes bought', unitShort:'Nodes', def:25, min:0, max:84, view:84, expandBy:0, step:1, checked:'2026-08-23',\n  maxNote:'84 is the whole tree — counted from the node graph in tables/skill-tree.json, not estimated.',\n  desc:'Priced on the TOTAL number of nodes you have bought tree-wide — not on any one node’s level. Node 26 costs the same whichever node you spend it on.',\n  cur:['gold'],\n  range:function(a,b){ return { gold: sanctumNodeCost(a,b) }; },\n  formula:'cost(n) = 125,000 · n⁵  +  12,500,000 · n      (n = the nth node bought)',\n  userNote:'Every node costs the same wherever you spend it — the price is set by how many you have bought in total, so the cheapest node is always the next one.',\n  devNote:'Matches the shipped bundle function <b>exactly</b> (harness-checked at every level, not just nodes 6–15) — the drift is in the reference TABLE this fact was checked against, not the formula: the table reads 0.3–0.4% high from node 16 onward (999 at node 24 vs the bundle’s 996). Trust the formula; treat the table as the doubtful side. Reading one real per-node price off the Skill Tree page past node 24 would settle whether the table or the bundle is stale. Checked against the 1.2.3.12 bundle 2026-09-23: unchanged.',\n  srcs:['tables/sanctum-nodes.json','engine/income/sanctum.js'],\n  alias:'Called \"sanctum nodes\" in game, but 81 of its 84 nodes have nothing to do with sanctums.',\n  noBreaks:'One smooth curve: no breakpoints.'\n},\n{\n  id:'petslot', group:'Pets', name:'Pet slot', tier:'LIVE',\n  unit:'slot level', unitShort:'Level', def:100, min:0, max:300, view:30, expandBy:30, step:1, checked:'2026-09-28',\n  desc:'Each of the three slots levels and is paid for separately. Gold only — pet slots never cost village resources.',\n  variants:{ label:'Slot', options:[{id:'combat',label:'Combat'},{id:'utility',label:'Utility'},{id:'gathering',label:'Gathering'}] },\n  defByVariant:{ combat:136, utility:51, gathering:71 },\n  cur:['gold'],\n  breaks:[\n    { at:31, short:'boost ×2 rate', tip:'From here each level adds 2% boost instead of 1%. The rate steps up every 30 levels.' },\n    { at:61, short:'boost ×3 rate', tip:'Each level now adds 3% boost.' },\n    { at:91, short:'boost ×4 rate', tip:'Each level now adds 4% boost.' },\n    { at:121, short:'boost ×5 rate', tip:'Each level now adds 5% boost.' },\n    { at:151, short:'cost ×5 curve · boost ×6 rate', tip:'Past 150 the cost exponent jumps from 3 to 15 (the patch notes call it \"x5 scaling\"). The boost rate steps up one last time: from here each level adds 6%, for good.', dev:'pets.slotUpgrade.costFormula: floor(500,000 · 150³ · (L/150)^15) for L > 150.' },\n    { at:181, short:'boost rate stays 6%', tip:'Equipment slots step up to 7% a level here; pet slots keep adding 6% a level. (Before patch 1.2.3.13 the pet boost fell back to +450% at 180.)', dev:'pets.slotUpgrade.boostFormula (1.2.3.13): 0.3·5·6/2 + (level − 150)·0.01·6 for level ≥ 150.' }\n  ],\n  range:function(a,b){ return { gold: petSlotCost(a,b) }; },\n  formula:'level ≤ 150:  floor(500,000 · level³)\\nlevel > 150:  floor(500,000 · 150³ · (level/150)¹⁵)',\n  userNote:'Gold only, and each of the three slots is priced separately. Past level 150 the cost climbs far faster — the exponent jumps from 3 to 15, which is the dev’s “x5 scaling” note, while the boost settles at +6% a level.',\n  devNote:'The cubic branch is <b>live-verified</b> at three points on a real account (combat 135→136, utility 50→51, gathering 70→71 — all exact). The post-150 branch is <b>bundle-only</b>: no tracked account has reached 150 yet.',\n  srcs:['formulas/pets.json','engine/income/profile.js']\n},\n{\n  id:'equipslot', group:'Character', name:'Equipment slot', tier:'CODE',\n  unit:'slot level', unitShort:'Level', def:60, min:1, max:300, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Character equipment slots, each levelled on its own. Costs the same amount of all four village resources at once — no gold.',\n  variants:{ label:'Slot', options:[{id:'head',label:'Head'},{id:'body',label:'Body'},{id:'legs',label:'Legs'},{id:'hands',label:'Hands'},{id:'feet',label:'Feet'},{id:'leftHand',label:'Left hand'},{id:'rightHand',label:'Right hand'}] },\n  cur:['meat','iron','wood','stone'],\n  breaks:[\n    { at:31, short:'boost ×2 rate', tip:'The boost these levels buy accelerates in 30-level blocks: from here each level adds 2%.' },\n    { at:61, short:'boost ×3 rate', tip:'Each level now adds 3%.' },\n    { at:91, short:'boost ×4 rate', tip:'Each level now adds 4%.' },\n    { at:121, short:'boost ×5 rate', tip:'Each level now adds 5%.' },\n    { at:151, short:'boost ×6 rate', tip:'Each level now adds 6%. Unlike pets, equipment keeps climbing past 150.' },\n    { at:181, short:'boost ×7 rate', tip:'Each level now adds 7%.' },\n    { at:211, short:'boost ×8 rate', tip:'Each level now adds 8%.' },\n    { at:241, short:'boost ×9 rate', tip:'Each level now adds 9%.' },\n    { at:271, short:'boost ×10 rate', tip:'Each level now adds 10%.' }\n  ],\n  range:function(a,b){ return asCost(fact('slotUpgradeCost')(a,b),'meat'); },  /* GENERATED: equipment.slotUpgrade.costFormula */\n  formula:'geometric series, base 250, ratio 1.10 per level, charged in each of meat / iron / wood / stone',\n  userNote:'Costs the same amount of all four village resources at once, and no gold. The cost itself has no breakpoints; the boost these levels buy steps up every 30 levels — level 30 gives +30%, 60 gives +90%, 90 gives +180%.',\n  devNote:'A different curve from pet slots, and deliberately so — pets keep adding +6% a level past level 150 (patch 1.2.3.13); that was a pet-only branch and never touched equipment.',\n  srcs:['formulas/equipment.json','engine/income/profile.js']\n},\n{\n  id:'charlevel', group:'Character', name:'Level EXP', tier:'CODE',\n  unit:'level', unitShort:'Level', def:300, min:1, max:20000, view:2000, expandBy:2000, step:10, checked:'2026-09-23',\n  desc:'One curve backs three tracks. Crafting never leaves the flat stair-step; sanctum shifts the level by +500 before applying the same curve, so sanctum level N costs what battling level N+500 costs.',\n  variants:{ label:'Which level', options:[{id:'battling',label:'Character level'},{id:'crafting',label:'Crafting / forging level'},{id:'sanctum',label:'Sanctum level'}] },\n  defByVariant:{ battling:300, crafting:300, sanctum:120 },\n  cur:['exp'],\n  breaks:function(v){\n    var stairs = [\n      { at:10, short:'250 per level', tip:'Levels 10–19 cost 250 EXP × level.' },\n      { at:20, short:'400 per level', tip:'Levels 20–39 cost 400 EXP × level.' },\n      { at:40, short:'600 per level', tip:'Levels 40–49 cost 600 EXP × level.' },\n      { at:50, short:'1,000 per level', tip:'Levels 50–99 cost 1,000 EXP × level.' }\n    ];\n    if (v === 'crafting') return stairs.concat([{ at:100, short:'stays flat', tip:'Crafting never leaves the flat 1,000 × level stair-step.' }]);\n    var tail = [\n      { at:100, short:'√ curve', tip:'From here: 20,000 · √level.' },\n      { at:501, short:'+ power tail', tip:'Adds 2,500 · (level − 500)^1.25.' },\n      { at:10001, short:'+ steep tail', tip:'Adds 100,000 · (level − 10,000)^1.4 — the steepest part of the curve.', dev:'Changed in 1.2.3.11 from 10,000 · (level − 10,000)^1.35; this table used the old tail until 2026-09-23.' }\n    ];\n    if (v === 'sanctum') return [\n      { at:1, short:'starts on the √ curve', tip:'Sanctum level N is priced as character level N + 500, so it starts past the stair-steps, on the √ curve with its first tail.' },\n      { at:9501, short:'+ steep tail', tip:'Sanctum 9,501 is character-curve level 10,001: the steep tail starts here.' }\n    ];\n    return stairs.concat(tail);\n  },\n  range:function(a,b,v){ var t=0; for(var n=a+1;n<=b;n++) t+=levelExp(n,v||'battling'); return {exp:t}; },\n  formula:'<10: L·150   <20: L·250   <40: L·400   <50: L·600   <100: L·1000\\n≥100: 20,000·√L  (+ 2,500·(L−500)^1.25 past 500, + 100,000·(L−10,000)^1.4 past 10,000)',\n  userNote:'This is EXP required, not currency — the “cost” columns count experience. Crafting never leaves the flat stair-step; a sanctum level costs what a character level 500 higher would.',\n  devNote:'<b>Corrected 2026-09-23</b>: the past-10,000 tail changed in 1.2.3.11 (was 10,000·(L−10,000)^1.35). Every figure above level 10,000 in this table was low until then — about a sixth of the real value at 11,500. The sanctum +500 shift was read from the bundle only and has not been checked against a live sanctum level.',\n  srcs:['formulas/leveling.json','engine/income/leveling.js']\n},\n\n{\n  id:'partnerboost', group:'Partners', name:'Speed / intelligence boost', tier:'CODE',\n  unit:'boost level', unitShort:'Level', def:900, min:0, max:5000, view:200, expandBy:200, step:10, checked:'2026-08-25',\n  desc:'Per partner, per boost. The same function priced at current level 0 is what the game shows you as the refund when you reset a partner’s boosts.',\n  variants:{ label:'Boost', options:[{id:'speed',label:'Speed'},{id:'intelligence',label:'Intelligence'}] },\n  cur:['gold'],\n  breaks:[\n    { at:10, short:'rate 15,000', tip:'From level 10 each level costs about 15,000 × (level − 9). One purchase across this seam is slightly cheaper than two.', dev:'Known discontinuity: cost(5→15) = 270,000 but cost(5→9) + cost(9→15) = 274,200.' },\n    { at:1001, short:'+10,000/level', tip:'Past 1,000 each level adds about 10,000 × level on top.' },\n    { at:2001, short:'+100,000/level', tip:'Past 2,000 each level adds about 100,000 × level on top.' },\n    { at:3501, short:'+500,000/level', tip:'Past 3,500 each level adds about 500,000 × level on top: the steepest stretch.' }\n  ],\n  range:function(a,b){ return { gold: partnerBoostCost(a,b) }; },\n  formula:'below 10:  triangular(a, b, 150)\\nfrom 10:   triangular(max(a−9,0), max(b−9,1), 15,000)\\n+ triangular past 1,000 @ 10,000 · past 2,000 @ 100,000 · past 3,500 @ 500,000',\n  userNote:'Per partner, per boost: buying a level for every partner costs this times your partner count. The same figure priced from level 0 is what the game shows you as the refund when you reset a partner’s boosts.',\n  devNote:'<b>Known discontinuity at level 10.</b> One purchase spanning the seam is cheaper than the same range bought as two: cost(5→15) = 270,000, but cost(5→9) + cost(9→15) = 274,200. The ≥10 branch re-indexes by −9 and clamps at zero, so every starting level from 0 to 9 lands on the same point. A real property of the game’s formula, not a transcription slip — and the reason this page always prices a range with the range function rather than adding up single levels. The other three thresholds are properly additive. Synced level = your LOWEST partner’s, the one you would buy next to keep them even.',\n  srcs:['formulas/partners.json','engine/income/partners.js']\n},\n{\n  id:'partnerhire', group:'Partners', name:'Hire a partner', tier:'CODE',\n  unit:'partners owned', unitShort:'Partners', def:5, min:0, max:12, view:12, expandBy:0, step:1, checked:'2026-08-23',\n  desc:'Unlocking the next partner slot. Ten times the previous one, every time — the single steepest curve in the game.',\n  cur:['gold'],\n  range:function(a,b){ return asCost(fact('partnerHireCost')(a,b),'gold'); },  /* GENERATED: partner.slotUnlock.formula */\n  formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',\n  userNote:'Ten times the previous one, every time — the steepest curve in the game. <b>Whether partners cap at all is unknown</b>; this table stops at 12 for a technical reason, not a game one.',\n  devNote:'It stops at 12 because that is where the cost passes what a double-precision number represents exactly. Byte-for-byte the same closed form as the fighter-slot cost, one shared primitive across two unrelated systems; fighter slots are known to cap at 6.',\n  srcs:['formulas/partners.json','engine/income/partners.js'],\n  noBreaks:'No breakpoints: every partner costs exactly ten times the one before.'\n},\n{\n  id:'partnerlevel', group:'Partners', name:'Partner level EXP', tier:'CODE',\n  unit:'partner level', unitShort:'Level', def:400, min:0, max:10000, view:500, expandBy:500, step:10, checked:'2026-09-23',\n  desc:'A sibling of the character curve with its own coefficients — same √ + power-tail family, different numbers.',\n  cur:['exp'],\n  breaks:[\n    { at:10, short:'200 per level', tip:'Levels 10–19 cost 200 EXP × level.' },\n    { at:20, short:'300 per level', tip:'Levels 20–39 cost 300 EXP × level.' },\n    { at:40, short:'400 per level', tip:'Levels 40–49 cost 400 EXP × level.' },\n    { at:50, short:'√ curve', tip:'From here: 25,000 · √level.' },\n    { at:1501, short:'+ power tail', tip:'Adds 250 · (level − 1,500)^1.25.' },\n    { at:6001, short:'+ steep tail', tip:'Adds 2,500 · (level − 6,000)^1.4.', dev:'The game’s own formula label still prints 1.35 here; the code charges 1.4 (since 1.2.3.11).' }\n  ],\n  range:function(a,b){ var t=0; for(var n=a+1;n<=b;n++) t+=partnerLevelExpAt(n); return {exp:t}; },\n  formula:'<10: L·150   <20: L·200   <40: L·300   <50: L·400\\n≥50: 25,000·√L  (+ 250·(L−1500)^1.25 past 1500, + 2,500·(L−6000)^1.4 past 6000)',\n  userNote:'A partner’s four <i>skills</i> level on this curve. They are not the same thing as its four base <i>stats</i>. Every skill level also raises that partner’s own income multiplier.',\n  devNote:'<b>Corrected 2026-09-23</b>: the past-6000 exponent is 1.4 since 1.2.3.11 (the Partners page label still says 1.35). The live checks all sit between 1,500 and 6,000, where the two agree. How partner stats grow is still unknown; the dev’s own wiki page for it reads “coming soon”.',\n  srcs:['formulas/partners.json','engine/income/partners.js']\n},\n\n{\n  id:'villagebuilding', group:'Village', name:'Buildings', tier:'LIVE',\n  unit:'building level', unitShort:'Level', def:38, min:1, max:200, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Every building shares one price curve. Gold and all four resources at once, on the same geometric curve at different bases. Relics join the bill only past level 40.',\n  variants:{ label:'Building', options:[{id:'market',label:'Market'},{id:'stable',label:'Stable'},{id:'tavern',label:'Tavern'},{id:'well',label:'Well'},{id:'mill',label:'Mill'},{id:'granary',label:'Granary'},{id:'shrine',label:'Shrine'},{id:'treasury',label:'Treasury'},{id:'warehouse',label:'Warehouse'}] },\n  cur:['gold','meat','iron','wood','stone','relics'],\n  breaks:[{ at:41, short:'relics join the bill', tip:'From level 41 every level also costs relics (base 3,000, ratio 1.15).' }],\n  range:villageBuildingCost,\n  formula:'gold: geometric base 200,000 · ratio 1.15\\nmeat / iron / wood / stone: geometric base 4,000 · ratio 1.15\\nrelics: geometric base 3,000, pivoted at level 41, nothing below',\n  userNote:'Every building shares one curve: pick yours to see your own level. Gold and all four resources at once; relics join the bill only past level 40.',\n  devNote:'<b>Live-verified end to end</b> across all six currencies against a real Village → Upgrades price, which also settled a long-standing 3,000-vs-8,000 disagreement in the relic coefficient in favour of 3,000.',\n  srcs:['formulas/village.json','engine/costs/village.js']\n},\n{\n  id:'villagestrength', group:'Village', name:'Strengths', tier:'CODE',\n  unit:'strength level', unitShort:'Level', def:20, min:0, max:500, view:50, expandBy:50, step:1, checked:'2026-09-27',\n  desc:'Brave / Wealthy / Bold / Swift / Trailblazer / Potent all cost ×2. Loyal alone costs ×10 — five times any other strength, per level.',\n  variants:{ label:'Strength', options:[{id:'brave',label:'Brave (×2)'},{id:'wealthy',label:'Wealthy (×2)'},{id:'bold',label:'Bold (×2)'},{id:'swift',label:'Swift (×2)'},{id:'trailblazer',label:'Trailblazer (×2)'},{id:'potent',label:'Potent (×2)'},{id:'loyal',label:'Loyal (×10)'}] },\n  cur:[VILLAGE_STRENGTH_CUR],\n  range:function(a,b,v){ var o = {}; o[VILLAGE_STRENGTH_CUR] = Math.round(triangular(a,b, v==='loyal'?10:2)); return o; },\n  formula:'cost(a → b) = triangular(a, b) × 10 for Loyal, × 2 for every other strength',\n  userNote:'Loyal costs five times what any other strength costs per level. The bonus side is simpler: level × 1% for the six, while Loyal returns the bare level.',\n  devNote:'<b>Corrected 2026-09-27</b> (formula-audit.md finding #12): the bundle’s own cost function returns this currency (“Village Strength”, a village-level currency distinct from the character combat stat of the same capitalized name) in every response — it was labelled “Unrecorded currency” only because data/ had not recorded it yet, not because the game withholds it. The exact in-game display label for this currency is still unverified. The bonus formula is cross-confirmed exactly against six live readings on two different characters.',\n  srcs:['formulas/village.json','engine/costs/village.js'],\n  noBreaks:'No breakpoints: one triangular curve.'\n},\n{\n  id:'villageboss', group:'Village', name:'Boss upgrades', tier:'CODE',\n  unit:'upgrade level', unitShort:'Level', def:15, min:0, max:200, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Four upgrade types, four different currencies, one shared curve — and an identical +2% per level whichever you buy.',\n  variants:{ label:'Upgrade', options:[\n    {id:'health',label:'Health (gold)'},{id:'attackSpeed',label:'Attack speed (relics)'},\n    {id:'dropQuality',label:'Drop quality (essence)'},{id:'duration',label:'Duration (4 resources)'}]},\n  cur:['gold','relics','essence','meat','iron','wood','stone'],\n  range:function(a,b,v){\n    var U=F.villageBossUpgradeTypes;  /* GENERATED: villageBoss.upgradeTypes (the base costs) */\n    var cfg={health:[U.health.goldBase,'gold'],attackSpeed:[U.attackSpeed.base,'relics'],dropQuality:[U.dropQuality.base,'essence'],duration:[U.duration.base,'res']}[v||'health'];\n    var c=fact('villageBossCost')(a,b,cfg[0]);  /* GENERATED: villageBoss.costFormula */\n    if (cfg[1]==='res') return {meat:c,iron:c,wood:c,stone:c};\n    var o={}; o[cfg[1]]=c; return o;\n  },\n  formula:'geometric series, ratio 1.15, base 200,000 (gold) / 3,000 (relics) / 3,000 (essence) / 4,000 (each of four resources)',\n  userNote:'Four upgrade types, four different currencies, one shared curve — and every type gives the same +2% per level. The only real decision is which currency you would rather spend.',\n  devNote:'Confirmed to be literally the same helper function as Buildings, not merely a similar shape.',\n  srcs:['formulas/village-boss.json','engine/costs/village.js'],\n  noBreaks:'No breakpoints: one geometric curve (×1.15 per level).'\n},\n\n{\n  id:'sculpture', group:'Sculpture', name:'Sculpture tile', tier:'LIVE',\n  unit:'tile level', unitShort:'Level', def:223, min:0, max:3000, view:300, expandBy:300, step:25, checked:'2026-09-23',\n  desc:'Which resource a tile bills you in is fixed by its position on a 2×2 checkerboard — 16 of the 64 tiles on each resource. The price is the same wherever it sits.',\n  cur:['tileres'],\n  breaks:[{ at:2501, short:'+2.5m per level', tip:'Past level 2,500 every level also pays (level − 2,500) × 2,500,000 on top: the cost climbs a hundred times faster.', dev:'New in 1.2.3.11; this table did not know it until 2026-09-23.' }],\n  range:function(a,b){ return { tileres: fact('tileUpgradeCost')(a,b) }; },  /* GENERATED: sculptures.tileUpgradeCost */\n  formula:'level L costs 25,000 · L\\n+ past 2,500: (L − 2,500 − ½) · 2,500,000, in the same resource',\n  userNote:'Which resource a tile bills you in is fixed by its position on the grid; the price is the same wherever it sits. The slot boost these levels feed has diminishing returns, so the last levels cost the most and give the least.',\n  devNote:'<b>Corrected 2026-09-23.</b> Level L costs 25,000 × L exactly: 223 → 224 is 5,600,000, the live-observed “5.60m”. This table used triangular(a, b, 25,000), which prices it at 5,587,500 (“5.59m”) and was wrongly recorded as a match. The past-2,500 surcharge is from 1.2.3.11.',\n  srcs:['formulas/sculptures.json','engine/income/sculptures.js'],\n  curNote:'meat / iron / wood / stone — set by the tile’s coordinates'\n},\n{\n  id:'cavetool', group:'Caves', name:'Cave tools', tier:'LIVE',\n  unit:'tool level', unitShort:'Level', def:150, min:0, max:500, view:300, expandBy:100, step:5, checked:'2026-08-25',\n  desc:'Every tool but the repeater costs four resources plus a gentle diamond fee. The repeater is diamonds only, and doubles.',\n  variants:{ label:'Tool', options:[{id:'standard',label:'Any tool except repeater'},{id:'repeater',label:'Repeater (diamonds, ×2/level)'}] },\n  cur:['meat','iron','wood','stone','diamonds'],\n  breaks:function(v){\n    if (v === 'repeater') return [];\n    return [\n      { at:101, short:'+4,000 layer', tip:'Past level 100 a second 4,000-per-level layer is added to the resource cost.' },\n      { at:201, short:'+400,000 layer', tip:'Past level 200 a 400,000-per-level layer is added.' },\n      { at:601, short:'+2m layer', tip:'Past level 600 a 2,000,000-per-level layer is added.' }\n    ];\n  },\n  range:function(a,b,v){ return caveToolCost(a,b,v==='repeater'?'repeater':'standard'); },\n  formula:'resources: triangular @ 4,000, + 4,000 from level 100, + 400,000 from 200, + 2,000,000 from 600\\ndiamonds: triangular @ 1  (≈ the target level per single upgrade)\\nrepeater: 1,000 · (2^(b+1) − 2^(a+1)) / 9, diamonds only',\n  userNote:'Every tool but the repeater costs four resources plus a gentle diamond fee; the repeater is diamonds only, and doubles. Worth knowing before you spend: resetting a tool refunds all four resources and none of the diamonds — so the repeater refunds nothing at all.',\n  devNote:'<b>Live-verified exact</b> against four real upgrade prices. Checked against the 1.2.3.12 bundle 2026-09-23: unchanged.',\n  srcs:['formulas/caves.json','engine/income/caves.js']\n},\n{\n  id:'house', group:'Caves', name:'House', tier:'CROSS',\n  unit:'house level', unitShort:'Level', def:40, min:0, max:100, view:100, expandBy:50, step:1, checked:'2026-08-27',\n  desc:'All four resources at the same value each, on a gentle power curve — until level 50, where a flat million per level per resource lands on top.',\n  cur:['meat','iron','wood','stone'],\n  breaks:[{ at:51, short:'+1m per level', tip:'From level 51 every level also costs a flat 1,000,000 of each resource.' }],\n  range:houseCost,\n  formula:'per level: 5,000 + round(5,000 · level^1.25)\\npast level 50: + 1,000,000 per level, to each of the four resources',\n  userNote:'All four resources at the same value each, on a gentle curve — until level 50, where a flat million per level per resource lands on top.',\n  devNote:'26 of 32 known table rows match exactly; the six that miss look like transcription noise in the source table rather than a second branch.',\n  srcs:['tables/house-upgrades.json','engine/income/house.js']\n},\n{\n  id:'relicboost', group:'Relics', name:'Relic boost shop', tier:'CODE',\n  unit:'boost level', unitShort:'Level', def:2000, min:0, max:60000, view:2000, expandBy:2000, step:100, checked:'2026-09-23',\n  desc:'Defense and damage flat are gold and skip the top surcharge layer. Everything else is relic-paid and carries all three layers.',\n  variants:{ label:'Boost', options:[\n    {id:'critChance',label:'Crit chance'},{id:'critDamage',label:'Crit damage'},{id:'multistrike',label:'Multistrike'},\n    {id:'healing',label:'Healing'},{id:'defense',label:'Defense'},\n    {id:'huntingBoost',label:'Hunting'},{id:'miningBoost',label:'Mining'},{id:'woodcuttingBoost',label:'Woodcutting'},{id:'stonecarvingBoost',label:'Stonecarving'},\n    {id:'damageFlat',label:'Damage flat (gold)'},{id:'defenseFlat',label:'Defense flat (gold)'}]},\n  defByVariant:{ damageFlat:1000, defenseFlat:1000 },\n  cur:['relics','gold'],\n  breaks:function(v){\n    var gold = v === 'damageFlat' || v === 'defenseFlat';\n    var out = [\n      { at:5001, short:'+20 × (L−5,000)', tip:'Past 5,000 every level pays an extra (level − 5,000) × 20.' },\n      { at:10001, short:'rate +10 per 1,000', tip:'From 10,001 that extra rate climbs by 10 every 1,000 levels (30, 40, 50, …).' }\n    ];\n    if (!gold) out.push({ at:50001, short:'+50,000 layer', tip:'Past 50,000 relic-paid boosts add a third layer at 50,000 per level.', dev:'50,000 since 1.2.3.11; this table used 1.2.3.7’s 20,000 until 2026-09-23.' });\n    return out;\n  },\n  range:function(a,b,v){\n    var gold = v==='damageFlat' || v==='defenseFlat';\n    var out = relicBoostCost(a, b, gold ? 'damageFlat' : 'critChance');\n    return asCost(out, gold ? 'gold' : 'relics');\n  },\n  formula:'layer 1: level L costs L · 100 (gold types) or L · 10 (relic types)\\nlayer 2, past 5,000: (L − 5,000) · rate — 20 through 10,000, then +10 per 1,000 levels\\nlayer 3, past 50,000, relic types only: triangular @ 50,000/level',\n  userNote:'Defense and damage flat are gold-paid; everything else costs relics, and every relic type is priced the same. What a level buys: +10 flat for the gold types, level/5,000 for attack speed, level/2,000 for everything else.',\n  devNote:'<b>Corrected 2026-09-23</b> against the 1.2.3.12 function: layers 1 and 2 are arithmetic-series differences (level L costs L·rate; the old triangular form charged (L−½)·rate), and layer 3 charges 50,000 since 1.2.3.11 (was 20,000). The shattered-relics discount the game shows is server-side and not modelled.',\n  srcs:['formulas/relic-boosts.json','engine/income/relicBoosts.js']\n},\n{\n  id:'fighterslot', group:'Fighters', name:'Fighter slot', tier:'LIVE', generated:true,\n  unit:'fighter slots', unitShort:'Slots', def:5, min:0, max:6, view:6, expandBy:0, step:1, checked:'2026-08-23',\n  desc:'Expanding the fighter roster for dungeons. Six slots is the cap, and each one costs ten times the last. Gold by default; the game\\u2019s Toggle Fighter Gold switch can bill fighter gold instead.',\n  cur:['gold'],\n  range:function(a,b){ return asCost(fact('fighterSlotCost')(a,b),'gold'); },  /* GENERATED: dungeon.fighterSlotCost.formula */\n  formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',\n  userNote:'Six slots is the cap, and each one costs ten times the last.',\n  devNote:'The cap of 6 is from the maintainer (2026-09-21). The arithmetic is certain, but <b>what it buys is inferred</b> from the function’s shape and where it sits in the bundle, not from watching a slot get bought — if you expand one and the price does not match this row, that is the more interesting finding.',\n  srcs:['formulas/dungeons.json','engine/costs/dungeon.js'],\n  noBreaks:'No breakpoints: each slot costs ten times the last, to the cap of 6.'\n}\n];\n\n// Groups are ordered by when a player unlocks the system, from\n// data/tables/feature-unlock-levels.json — not alphabetically and not by build\n// order. A newer player meets them top to bottom.\n// Ordered by roughly when a player meets each system (unlock levels are in\n// data/tables/feature-unlock-levels.json) - but the level itself is not shown.\n// It explains the order to whoever maintains this list; it is noise to a\n// reader who just wants the cost of their next pet slot.\nvar GROUPS = [\n  { id:'Character', label:'Character' },\n  { id:'Partners',  label:'Partners' },\n  { id:'Village',   label:'Village' },\n  { id:'Fighters',  label:'Fighters' },\n  { id:'Pets',      label:'Pets' },\n  { id:'Caves',     label:'Caves & house' },\n  { id:'Relics',    label:'Relics' },\n  { id:'Sculpture', label:'Sculptures' }\n];\n// Within a group, the order a player meets them: the thing you level first,\n// then what it gates. Explicit, because build order is not a meaning.\nvar ORDER = ['charlevel','equipslot','sanctum',\n             'partnerhire','partnerboost','partnerlevel',\n             'villagebuilding','villagestrength','villageboss',\n             'fighterslot',\n             'petslot',\n             'cavetool','house',\n             'relicboost',\n             'sculpture'];\nSYSTEMS.sort(function(a,b){\n  var ia = GROUPS.findIndex(function(g){ return g.id===a.group; });\n  var ib = GROUPS.findIndex(function(g){ return g.id===b.group; });\n  return ia !== ib ? ia - ib : ORDER.indexOf(a.id) - ORDER.indexOf(b.id);\n});\n\nvar BY_ID = {};\nSYSTEMS.forEach(function(s){ BY_ID[s.id]=s; });\n\n/* =====================================================================\n   PROFILE SYNC — live since 2026-09-23, through the shared kit\n   (tool-sync.js: the profile Core hands over and every capture after it).\n\n   Each subject key (\"<systemId>\" or \"<systemId>:<variantId>\") names what it\n   reads and which profile section dates it. A key with no entry is never\n   synced: its level is always yours to type. The four states are the kit's\n   (synced / stale / edited / unavailable); this page keeps its own record of\n   which keys you typed, because its inputs are rebuilt for every subject.\n   ===================================================================== */\nvar SYNC = window.AWOO_SYNC;\nvar STALE_MS = 6*60*60*1000;\n// HELD (R125, 2026-09-28: \"Don't keep updating live numbers after opening a\n// tool. Only refresh when clicking sync.\"): the prices read the profile as it\n// was when the page opened, and again when Sync is pressed, never as each\n// capture arrives. The kit builds a new profile object per capture, so keeping\n// the object is keeping the moment.\nvar held = null;\nfunction take(){ var p = SYNC.profile(); if (p) held = p; }\nfunction g(path){ return SYNC.get(path, held || undefined); }\n// The lowest of your partners' speed or intelligence: the level you would buy\n// next to keep them even, which is the price this table can honestly quote.\nfunction lowestPartner(boost){\n  return function(){\n    var r = g('partner.roster');\n    if (!Array.isArray(r) || !r.length) return null;\n    var min = null;\n    for (var i = 0; i < r.length; i++){ var v = r[i] && r[i][boost]; if (typeof v === 'number' && (min === null || v < min)) min = v; }\n    return min;\n  };\n}\n// Every partner's four SKILLS (hunting/mining/woodcutting/stonecarving —\n// partner.roster[].skills, NOT the speed/intelligence boosts lowestPartner()\n// reads above): the lowest, average and highest, plus how many were counted.\n// The Partner level EXP page starts from the AVERAGE (maintainer, 2026-10-04:\n// the lowest skill of any partner read as an odd number). A partner or skill\n// with no number is skipped, never counted as 0 (AGENTS.md rule 3).\nfunction partnerSkillStats(){\n  var r = g('partner.roster');\n  if (!Array.isArray(r) || !r.length) return null;\n  var lo = null, hi = null, sum = 0, n = 0;\n  for (var i = 0; i < r.length; i++){\n    var sk = r[i] && r[i].skills;\n    if (!sk) continue;\n    ['hunting','mining','woodcutting','stonecarving'].forEach(function(k){\n      var v = sk[k];\n      if (typeof v !== 'number' || !isFinite(v)) return;\n      if (lo === null || v < lo) lo = v;\n      if (hi === null || v > hi) hi = v;\n      sum += v; n++;\n    });\n  }\n  return n ? { lowest: lo, average: sum / n, highest: hi, count: n } : null;\n}\nfunction averagePartnerSkill(){\n  var st = partnerSkillStats();\n  return st ? Math.round(st.average) : null;\n}\nvar PROFILE_READS = {\n  'charlevel:battling':   ['levels', function(){ var v = g('levels.battling'); return v != null ? v : g('core.level'); }],\n  'charlevel:crafting':   ['levels', 'levels.crafting'],\n  'charlevel:sanctum':    ['levels', 'levels.sanctum'],\n  'petslot:combat':       ['pets', 'pets.combat.slotLevel'],\n  'petslot:utility':      ['pets', 'pets.utility.slotLevel'],\n  'petslot:gathering':    ['pets', 'pets.gathering.slotLevel'],\n  'partnerboost:speed':        ['partner', lowestPartner('speed')],\n  'partnerboost:intelligence': ['partner', lowestPartner('intelligence')],\n  'partnerhire':          ['partner', 'partner.count'],\n  'partnerlevel':         ['partner', averagePartnerSkill],\n  // sanctum.skillTreePoints: skill-tree points bought with gold (BUNDLE,\n  // PROFILE.md) — priced on the total bought tree-wide, matching this\n  // system's own \"priced on the TOTAL number of nodes\" description.\n  'sanctum':              ['sanctum', 'sanctum.skillTreePoints']\n};\n['head','body','legs','hands','feet','leftHand','rightHand'].forEach(function(k){ PROFILE_READS['equipslot:' + k] = ['equipment', 'equipment.slots.' + k + 'Level']; });\n['market','stable','tavern','well','mill','granary','shrine','treasury','warehouse'].forEach(function(k){ PROFILE_READS['villagebuilding:' + k] = ['village', 'village.buildings.' + k]; });\n['brave','wealthy','bold','swift','trailblazer','potent','loyal'].forEach(function(k){ PROFILE_READS['villagestrength:' + k] = ['village', 'village.strengths.' + k]; });\n['critChance','critDamage','multistrike','healing','defense','huntingBoost','miningBoost','woodcuttingBoost','stonecarvingBoost','damageFlat','defenseFlat'].forEach(function(k){ PROFILE_READS['relicboost:' + k] = ['relicBoosts', 'relicBoosts.' + k]; });\n\n// key -> { value, observedAt } | null. Never 0 for \"not observed\".\nfunction profileValue(key){\n  var spec = PROFILE_READS[key];\n  if (!spec || !SYNC) return null;\n  var v = typeof spec[1] === 'function' ? spec[1]() : g(spec[1]);\n  if (typeof v !== 'number' || !isFinite(v)) return null;\n  var at = g('meta.observedAt.' + spec[0]);\n  return { value:v, observedAt:(typeof at === 'number' && isFinite(at)) ? at : null };\n}\n\nvar edited = {};   // key -> true once the user types in that field\n\n/* state of one field: 'edited' | 'synced' | 'stale' | 'unavailable' */\nfunction fieldState(key){\n  if (edited[key]) return 'edited';\n  var p = profileValue(key);\n  if (!p) return 'unavailable';\n  if (p.observedAt === null || (Date.now() - p.observedAt) > STALE_MS) return 'stale';\n  return 'synced';\n}\nvar STATE_TEXT = {\n  edited:'Typed by you; a sync keeps it. Click to sync it again.',\n  synced:'Synced from the game. Click to re-sync.',\n  stale:'Synced, but over six hours old. Click to re-sync.',\n  unavailable:'Not synced: this is your own figure.'\n};\nfunction syncSummary(){\n  var out = { total:0, synced:0, stale:0, edited:0 };\n  for (var key in PROFILE_READS){\n    out.total++;\n    var st = fieldState(key);\n    if (st === 'synced') out.synced++; else if (st === 'stale') out.stale++; else if (st === 'edited') out.edited++;\n  }\n  return out;\n}\n\n/* =====================================================================\n   STATE\n   ===================================================================== */\n// Theme and \"Show developer info\" are the shared tool-settings layer's\n// (tool-settings.js): inherited from AWOO+ Core, overridable in the gear menu,\n// remembered per tool. Nothing here duplicates that.\n\nvar LS = 'awooCostTables.v1';\nvar state = { active:'charlevel', levels:{}, variants:{}, rows:{}, targets:{}, currency:{}, steps:{}, expanded:false };\n\n// Every system that HAS variants gets one selected before the first render.\n// Leaving it undefined would split the field key (\"petslot\") from the variant\n// the table is actually priced with (\"petslot:combat\") — a level typed into\n// one would be read back under the other, and no profile reading would match.\nSYSTEMS.forEach(function(s){\n  if (s.variants && !state.variants[s.id]) state.variants[s.id] = s.variants.options[0].id;\n});\n\nfunction keyFor(sys){\n  var v = state.variants[sys.id];\n  return (sys.variants && v) ? sys.id + ':' + v : sys.id;\n}\nfunction clampLevel(sys, v){\n  if (!isFinite(v)) return sys.min;\n  return Math.max(sys.min, Math.min(sys.max, Math.round(v)));\n}\nfunction stepFor(sys){\n  var v = state.steps[keyFor(sys)];\n  return (v && v > 0) ? Math.round(v) : sys.step;\n}\nfunction targetLevel(sys){\n  var k = keyFor(sys), lv = currentLevel(sys);\n  var t = state.targets[k];\n  if (t == null || t <= lv) return Math.min(lv + 10, sys.max);\n  return Math.min(t, sys.max);\n}\nfunction defaultLevel(sys){\n  var v = state.variants[sys.id];\n  if (sys.defByVariant && v && sys.defByVariant[v] != null) return sys.defByVariant[v];\n  return sys.def;\n}\nfunction currentLevel(sys){\n  var k = keyFor(sys);\n  if (edited[k] && state.levels[k] != null) return clampLevel(sys, state.levels[k]);\n  var p = profileValue(k);\n  if (p) return clampLevel(sys, p.value);\n  if (state.levels[k] != null) return clampLevel(sys, state.levels[k]);\n  return clampLevel(sys, defaultLevel(sys));\n}\n\nfunction load(){\n  try {\n    var raw = localStorage.getItem(LS);\n    if (!raw) return;\n    var o = JSON.parse(raw);\n    if (o.levels) state.levels = o.levels;\n    if (o.variants) state.variants = o.variants;\n    if (o.currency) state.currency = o.currency;\n    if (o.edited) edited = o.edited;\n    if (o.targets) state.targets = o.targets;\n    if (o.steps) state.steps = o.steps;\n    // This page kept its own number override until 2026-09-23; hand it to\n    // the shared layer once, where every tool now keeps it.\n    if (o.numberMode || o.numberLocale) NUM.adopt(o.numberMode, o.numberLocale);\n    if (o.expanded) state.expanded = true;\n    if (o.active && BY_ID[o.active]) state.active = o.active;\n  } catch(e){}\n}\nvar saveTimer = null;\nfunction save(){\n  clearTimeout(saveTimer);\n  saveTimer = setTimeout(function(){\n    try {\n      localStorage.setItem(LS, JSON.stringify({\n        levels:state.levels, variants:state.variants, currency:state.currency,\n        targets:state.targets, expanded:state.expanded,\n        steps:state.steps, edited:edited, active:state.active\n      }));\n    } catch(e){}\n  }, 700);\n}\n\n/* =====================================================================\n   RENDER\n   ===================================================================== */\nfunction esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;'); }\n\nfunction activeCurrency(sys){\n  var c = state.currency[sys.id];\n  if (c && sys.cur.indexOf(c) >= 0) return c;\n  return sys.cur[0];\n}\n\nfunction renderNav(){\n  var html = '', lastGroup = null;\n  SYSTEMS.forEach(function(s){\n    if (s.group !== lastGroup){\n      if (lastGroup !== null) html += '</div>';\n      var g = GROUPS.filter(function(x){ return x.id===s.group; })[0] || { label:s.group };\n      html += '<div class=\"navgroup\"><h3>' + esc(g.label) + '</h3>';\n      lastGroup = s.group;\n    }\n    var lv = currentLevel(s);\n    html += '<button class=\"navbtn\" type=\"button\" data-sys=\"' + s.id + '\"' +\n            (s.id===state.active ? ' aria-current=\"true\"' : '') + '>' +\n            esc(s.name) + '<span class=\"nlv\">' + fmtInt(lv) + '</span></button>';\n  });\n  html += '</div>';\n  document.getElementById('nav').innerHTML = html;\n}\n\nfunction costCell(amounts, cur){\n  var v = amounts[cur];\n  if (v == null) return '<td class=\"dash\">—</td>';\n  return '<td>' + fmtNum(v) + '</td>';\n}\n\nfunction renderSystem(){\n  var sys = BY_ID[state.active];\n  var cur = activeCurrency(sys);\n  var lv  = currentLevel(sys);\n  var key = keyFor(sys);\n  var fstate = fieldState(key);\n  var tgt = targetLevel(sys);\n  var step = stepFor(sys);\n  var rowsTo = state.rows[key];\n  if (rowsTo == null || rowsTo <= lv) rowsTo = Math.min(Math.max(lv + sys.view, tgt), sys.max);\n  rowsTo = Math.min(rowsTo, sys.max);\n  var from = Math.max(sys.min, lv - 3*step);\n  var variant = state.variants[sys.id] || (sys.variants ? sys.variants.options[0].id : null);\n\n  var h = '';\n\n  /* header */\n  h += '<div class=\"syshead\">';\n  h += '<h2>' + esc(sys.name) + '</h2>';\n  h += '<span class=\"pill ' + sys.tier.toLowerCase() + '\">' + sys.tier + '</span>';\n  h += '<span class=\"pill cur\">' + esc(sys.cur.map(function(c){return CUR[c].label;}).join(' · ')) + '</span>';\n  h += '<p class=\"desc\">' + sys.desc + (sys.alias ? ' <span class=\"tip\" data-tip=\"' + esc(sys.alias) + '\">Naming note.</span>' : '') + '</p>';\n  h += '</div>';\n\n  /* controls */\n  h += '<div class=\"controls\">';\n  h += '<div class=\"field\"><span class=\"lab\">' +\n       (PROFILE_READS[key]\n         ? '<button class=\"awoo-light\" type=\"button\" id=\"stateLight\" data-state=\"' + fstate + '\" aria-label=\"Sync: ' + fstate + '\" data-tip=\"' + esc(STATE_TEXT[fstate]) + '\" data-tip-dev=\"' + esc('Profile: ' + (typeof PROFILE_READS[key][1] === 'string' ? PROFILE_READS[key][1] : PROFILE_READS[key][0])) + '\"></button>'\n         : '<span class=\"awoo-light\" data-state=\"unavailable\" data-tip=\"Not something the game sync reads. Type your own level.\"></span>') +\n       '<span>Current ' + esc(sys.unit) + '</span></span>' +\n       '<input type=\"text\" data-num data-num-kind=\"int\" id=\"lvInput\" value=\"' + lv + '\" min=\"' + sys.min + '\" max=\"' + sys.max + '\"></div>';\n  h += '<div class=\"field\"><span class=\"lab\"><span class=\"tip\" data-tip=\"' +\n       esc('Where you want to get to. Sets the headline total, and grows the table to reach it.') +\n       '\">Target</span></span>' +\n       '<input type=\"text\" data-num data-num-kind=\"int\" id=\"tgtInput\" value=\"' + tgt + '\" min=\"' + (lv+1) + '\" max=\"' + sys.max + '\"></div>';\n  if (sys.id === 'partnerlevel'){\n    var pst = partnerSkillStats();\n    if (pst) h += '<div class=\"field\"><span class=\"lab\"><span class=\"tip\" data-tip=\"' +\n      esc('Every partner’s four skills (Hunting, Mining, Woodcutting, Stonecarving). The table starts from the average.') +\n      '\">Partners</span></span><span>Lowest ' + fmtInt(pst.lowest) + ' · Average ' + fmtInt(Math.round(pst.average)) +\n      ' · Highest ' + fmtInt(pst.highest) + '</span></div>';\n  }\n  if (sys.variants){\n    h += '<div class=\"field\"><span class=\"lab\">' + esc(sys.variants.label) + '</span><select id=\"varSel\">';\n    sys.variants.options.forEach(function(o){\n      h += '<option value=\"' + o.id + '\"' + (o.id===variant?' selected':'') + '>' + esc(o.label) + '</option>';\n    });\n    h += '</select></div>';\n  }\n  if (sys.cur.length > 1){\n    h += '<div class=\"field\"><span class=\"lab\">Show cost in</span><select id=\"curSel\">';\n    sys.cur.forEach(function(c){\n      h += '<option value=\"' + c + '\"' + (c===cur?' selected':'') + '>' + esc(CUR[c].label) + '</option>';\n    });\n    h += '</select></div>';\n  }\n  h += '<div class=\"field\"><span class=\"lab\"><span class=\"tip\" data-tip=\"' +\n       esc('Rows advance by this many levels. A subject that runs to thousands is unreadable at 1.') +\n       '\">Step</span></span>' +\n       '<input type=\"text\" data-num data-num-kind=\"int\" id=\"stepInput\" value=\"' + step + '\" min=\"1\" max=\"' + Math.max(1, sys.max) + '\"></div>';\n  h += '<button class=\"btn\" type=\"button\" id=\"resetSysBtn\">Reset this subject</button>';\n  h += '</div>';\n\n  /* summary — the headline is the question this page exists to answer:\n     what does it cost to get from where I am to where I want to be. */\n  var toTarget = sys.range(lv, tgt, variant);\n  var next1 = sys.range(lv, Math.min(lv+1, sys.max), variant);\n  var next5 = sys.range(lv, Math.min(lv+5, sys.max), variant);\n  var spent = sys.range(sys.min, lv, variant);\n  h += '<div class=\"summary\">';\n  h += '<div class=\"stat\"><span class=\"k\">' + fmtInt(lv) + ' → ' + fmtInt(tgt) + '</span><span class=\"v accent\">' +\n       fmtNum(toTarget[cur]||0) + '<span class=\"u\">' + esc(CUR[cur].label.toLowerCase()) + '</span></span></div>';\n  h += '<div class=\"stat\"><span class=\"k\">Next level</span><span class=\"v\">' + fmtNum(next1[cur]||0) + '</span></div>';\n  h += '<div class=\"stat\"><span class=\"k\">Next 5 → ' + fmtInt(Math.min(lv+5, sys.max)) + '</span><span class=\"v\">' + fmtNum(next5[cur]||0) + '</span></div>';\n  h += '<div class=\"stat\"><span class=\"k\">Sunk to ' + fmtInt(lv) + '</span><span class=\"v\">' + fmtNum(spent[cur]||0) + '</span></div>';\n  h += '</div>';\n\n  // The full bill for the target, when a system charges in more than one\n  // currency. The table can only show one column at a time; a village\n  // building upgrade you cannot actually afford in wood is not a detail.\n  var others = [];\n  for (var ck in toTarget){ if (ck !== cur && toTarget[ck]) others.push(CUR[ck].label + ' ' + fmtNum(toTarget[ck])); }\n  if (others.length){\n    h += '<div class=\"billstrip\"><span class=\"bk\">' + fmtInt(lv) + ' → ' + fmtInt(tgt) + ' also charges</span>' +\n         others.map(function(o){ return '<span class=\"bv\">' + esc(o) + '</span>'; }).join('') + '</div>';\n  }\n\n  /* breakpoints: every one, whatever the step, with what changes there */\n  var bps = breaksFor(sys, variant);\n  h += '<div class=\"bpstrip\"><span class=\"bk\">Breakpoints</span>';\n  if (bps.length){\n    bps.forEach(function(b){\n      h += '<button type=\"button\" class=\"bpchip' + (b.at <= lv ? ' passed' : '') + '\" data-bp=\"' + b.at + '\" data-tip=\"' +\n           esc(b.tip + (b.at <= lv ? ' (Behind you.)' : ' Click to make it your target.')) + '\"' +\n           (b.dev ? ' data-tip-dev=\"' + esc(b.dev) + '\"' : '') + '><b>' + fmtInt(b.at) + '</b>' + esc(b.short) + '</button>';\n    });\n  } else {\n    h += '<span class=\"bpnone\">' + esc(sys.noBreaks || 'None.') + '</span>';\n  }\n  h += '</div>';\n\n  if (sys.curNote){\n    h += '<div style=\"padding:10px 16px 0\"><div class=\"banner\"><span>' + sys.curNote + '</span></div></div>';\n  }\n\n  /* table */\n  h += '<div class=\"tablewrap\"><table><thead><tr>' +\n       '<th>' + esc(sys.unitShort) + '</th>' +\n       '<th>Cost<span class=\"hsub\">' +\n       (step === 1 ? 'this level alone' : 'this ' + step + '-level step') + '</span></th>' +\n       '<th>Cumulative<span class=\"hsub\">from ' + sys.min + '</span></th>' +\n       '<th>From level ' + fmtInt(lv) + '<span class=\"hsub\">what you still owe</span></th>' +\n       '</tr></thead><tbody>';\n\n  // Rows advance by `step`, and always include the current and target levels\n  // even when they do not land on a step boundary - a table that hides the two\n  // rows the reader came for is worse than an unaligned one.\n  var marks = {};\n  for (var q = Math.max(from, sys.min + 1); q <= rowsTo; q += step) marks[q] = true;\n  if (lv > sys.min) marks[lv] = true;\n  if (tgt > sys.min && tgt <= rowsTo) marks[tgt] = true;\n  // Breakpoint rows are always shown in range, even off-step: a table that\n  // steps past the level where the formula changes hides the one row that\n  // explains the jump.\n  var bpAt = {};\n  bps.forEach(function(b){ bpAt[b.at] = b; if (b.at > sys.min && b.at >= from && b.at <= rowsTo) marks[b.at] = true; });\n  var rowLevels = Object.keys(marks).map(Number).sort(function(a,b){ return a-b; });\n\n  for (var ri = 0; ri < rowLevels.length; ri++){\n    var n = rowLevels[ri];\n    var prev = ri > 0 ? rowLevels[ri-1] : Math.max(sys.min, n - step);\n    var cls = n === lv ? 'current' : (n < lv ? 'past' : '');\n    if (n === tgt && n !== lv) cls += ' target';\n    var bp = bpAt[n] || null;\n    if (bp) cls += ' bp';\n    var stepCost = sys.range(prev, n, variant);\n    var cum  = sys.range(sys.min, n, variant);\n    h += '<tr class=\"' + cls + '\"' + (n===lv ? ' id=\"curRow\"' : '') + '>';\n    h += '<td>' + fmtInt(n) + (bp ? '<span class=\"bpnote\" data-tip=\"' + esc(bp.tip) + '\">' + esc(bp.short) + '</span>' : '') + '</td>';\n    h += costCell(stepCost, cur);\n    h += costCell(cum, cur);\n    if (n <= lv) h += '<td class=\"dash\">—</td>';\n    else h += costCell(sys.range(lv, n, variant), cur);\n    h += '</tr>';\n  }\n  h += '</tbody></table></div>';\n\n  /* row controls */\n  h += '<div class=\"rowctl\">';\n  h += '<span class=\"hint\">Showing ' + Math.max(from, sys.min+1) + '–' + rowsTo +\n       ' of ' + sys.min + '–' + fmtInt(sys.max) + ', every ' + step + '.' +\n       (sys.maxNote ? ' ' + sys.maxNote : '') +\n       (bps.length ? ' Violet rows mark where the formula changes shape.' : '') + '</span>';\n  h += '<button class=\"btn sm expandbtn\" type=\"button\" id=\"expandBtn\" aria-pressed=\"' +\n       (state.expanded ? 'true' : 'false') + '\">' +\n       (state.expanded ? 'Shrink table' : 'Expand table') + '</button>';\n  if (rowsTo < sys.max && sys.expandBy) h += '<button class=\"btn sm\" type=\"button\" id=\"more30\">+' + sys.expandBy + ' levels</button>';\n  else h += '<span style=\"font-size:.72rem;color:var(--ink-mute)\">Showing the full range.</span>';\n  h += '</div>';\n\n  /* notes */\n  // Two audiences, one panel. A player wants the formula and the sentence that\n  // says what it means; the evidence tier, the source files and the\n  // last-checked date are for whoever maintains the numbers. The developer half\n  // is hidden unless \"Show developer info\" is on, and tinted with --dev when\n  // it is, so the two are never confused. DESIGN.md §7, register R67.\n  h += '<details class=\"notes\"><summary>Formula' +\n       '<span data-dev-only> &amp; source</span></summary><div class=\"notebody\">';\n  h += '<span class=\"formula\">' + esc(sys.formula) + '</span>';\n  h += '<p>' + sys.userNote + '</p>';\n  if (sys.devNote) h += '<p data-dev-only><span class=\"devpill\">dev</span> ' + sys.devNote + '</p>';\n  h += '<div class=\"srcline\" data-dev-only>' +\n       '<span class=\"devpill\">' + sys.tier + '</span>';\n  sys.srcs.forEach(function(x){ h += '<span class=\"devpill\">' + esc(x) + '</span>'; });\n  h += '<span class=\"devpill\">last checked ' + esc(sys.checked) + '</span>';\n  h += '</div></div></details>';\n\n  document.getElementById('main').innerHTML = h;\n  NUM.enhance(document.getElementById('main'));\n  wireSystem(sys);\n}\n\nfunction breaksFor(sys, variant){\n  var b = typeof sys.breaks === 'function' ? sys.breaks(variant) : (sys.breaks || []);\n  return b.filter(function(x){ return x.at >= sys.min && x.at <= sys.max; }).sort(function(x, y){ return x.at - y.at; });\n}\n\nfunction wireSystem(sys){\n  var key = keyFor(sys);\n\n  Array.prototype.forEach.call(document.querySelectorAll('.bpchip'), function(chip){\n    chip.addEventListener('click', function(){\n      var at = parseInt(chip.getAttribute('data-bp'), 10);\n      if (at > currentLevel(sys)){ state.targets[key] = at; delete state.rows[key]; save(); }\n      renderSystem(); sizeTable(); scrollRowIntoView(at);\n    });\n  });\n\n  var lvInput = document.getElementById('lvInput');\n  lvInput.addEventListener('input', function(){\n    var v = NUM.read(lvInput); if (v !== null) v = Math.round(v);\n    if (v === null || v < sys.min || v > sys.max) return;\n    state.levels[key] = v;\n    edited[key] = true;\n    save();\n    renderAll('lvInput');\n  });\n\n  var tgtInput = document.getElementById('tgtInput');\n  tgtInput.addEventListener('input', function(){\n    var v = NUM.read(tgtInput); if (v !== null) v = Math.round(v);\n    if (v === null || v <= currentLevel(sys) || v > sys.max) return;\n    state.targets[key] = v;\n    delete state.rows[key];\n    save();\n    renderAll('tgtInput');\n  });\n\n  var light = document.getElementById('stateLight');\n  if (light) light.addEventListener('click', function(){\n    delete edited[key];\n    delete state.levels[key];\n    save();\n    if (!SYNC.connected()) SYNC.request();\n    take();   // the held moment is refreshed for this page as a whole\n    renderAll();\n  });\n\n  document.getElementById('resetSysBtn').addEventListener('click', function(){\n    delete edited[key];\n    delete state.levels[key];\n    delete state.rows[key];\n    delete state.targets[key];\n    delete state.steps[key];\n    save();\n    renderAll();\n  });\n\n  var varSel = document.getElementById('varSel');\n  if (varSel) varSel.addEventListener('change', function(){\n    state.variants[sys.id] = varSel.value;\n    save(); renderAll();\n  });\n\n  var curSel = document.getElementById('curSel');\n  if (curSel) curSel.addEventListener('change', function(){\n    state.currency[sys.id] = curSel.value;\n    save(); renderSystem();\n  });\n\n  var stepInput = document.getElementById('stepInput');\n  stepInput.addEventListener('input', function(){\n    var v = NUM.read(stepInput); if (v !== null) v = Math.round(v);\n    if (v === null || v < 1 || v > sys.max) return;\n    state.steps[key] = v;\n    save(); renderAll('stepInput');\n  });\n\n  document.getElementById('expandBtn').addEventListener('click', function(){\n    state.expanded = !state.expanded;\n    save(); renderSystem(); sizeTable(); scrollCurrentIntoView();\n  });\n\n  var more = document.getElementById('more30');\n  if (more) more.addEventListener('click', function(){\n    var lv = currentLevel(sys);\n    var now = state.rows[key] || Math.max(lv + sys.view, targetLevel(sys));\n    state.rows[key] = Math.min(now + sys.expandBy, sys.max);\n    save(); renderSystem();\n  });\n}\n\nfunction renderAll(refocusId, forceScrollY){\n  var scrollY = forceScrollY != null ? forceScrollY : window.scrollY;\n  var caret = null;\n  if (refocusId){\n    var was = document.getElementById(refocusId);\n    if (was) { try { caret = was.selectionStart; } catch(e){} }\n  }\n  renderNav();\n  if (SYNC) SYNC.renderCards();\n  renderSystem();\n  if (refocusId){\n    var el = document.getElementById(refocusId);\n    if (el){\n      el.focus();\n      // Put the caret back where the user left it. Jamming it to the end\n      // makes editing the middle of a number impossible.\n      try { if (caret != null) el.setSelectionRange(caret, caret); } catch(e){}\n    }\n  }\n  window.scrollTo(0, scrollY);\n  sizeTable();\n  scrollCurrentIntoView();\n}\n\n// The table gets a real height so \"scroll the current row into view\" means\n// something — sized to the viewport, not a fixed pixel count. Re-applied on\n// every render, because renderSystem() replaces the element.\nfunction sizeTable(){\n  var w = document.querySelector('.tablewrap');\n  if (!w) return;\n  var reserve = state.expanded ? 150 : 380;\n  w.style.maxHeight = Math.max(320, window.innerHeight - reserve) + 'px';\n}\n\nfunction scrollRowIntoView(level){\n  var wrap = document.querySelector('.tablewrap');\n  if (!wrap) return;\n  var rows = wrap.querySelectorAll('tbody tr');\n  for (var i = 0; i < rows.length; i++){\n    var c = rows[i].firstChild;\n    if (c && parseInt(c.textContent.replace(/[^0-9]/g, ''), 10) === level){\n      var delta = rows[i].getBoundingClientRect().top - wrap.getBoundingClientRect().top;\n      wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * rows[i].offsetHeight);\n      return;\n    }\n  }\n}\n\nfunction scrollCurrentIntoView(){\n  var wrap = document.querySelector('.tablewrap');\n  var row = document.getElementById('curRow');\n  if (!wrap || !row) return;\n  // A few rows above the current one, the rest below — the decision is about\n  // what comes next, not what is already paid for. Measured rather than read\n  // off offsetTop, whose offsetParent is the panel here, not the scroller.\n  var delta = row.getBoundingClientRect().top - wrap.getBoundingClientRect().top;\n  wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * row.offsetHeight);\n}\n\n/* =====================================================================\n   BOOT\n   ===================================================================== */\nfunction init(){\n  load();\n\n  document.getElementById('nav').addEventListener('click', function(e){\n    var b = e.target.closest('.navbtn');\n    if (!b) return;\n    state.active = b.getAttribute('data-sys');\n    save();\n    renderAll(null, 0);\n  });\n\n  document.getElementById('resetAllBtn').addEventListener('click', function(){\n    state.levels = {}; state.rows = {}; state.targets = {}; state.steps = {}; edited = {};\n    save(); renderAll();\n  });\n\n  AWOO_TOOL_SETTINGS.mount(document.getElementById('gear'), {\n    devHint: 'Adds the evidence tier, source files and last-checked date to each Formula panel.'\n  });\n  // Numbers and theme re-render the page; the gear menu says when they change.\n  AWOO_TOOL_SETTINGS.onChange(function(){ renderAll(); });\n\n  // The shared sync card, with this page's own per-subject state reported\n  // into it: its counts, and its Reset.\n  SYNC.card(document.getElementById('syncCard'));\n  SYNC.extend({\n    summary: syncSummary,\n    reset: function(){\n      for (var k in edited){ if (PROFILE_READS[k]) { delete edited[k]; delete state.levels[k]; } }\n      save(); renderAll();\n    }\n  });\n  // A live capture re-prices the page, but never under someone's typing: an\n  // input with focus waits for blur.\n  var pendingProfile = false;\n  take();\n  // After the first reading, a capture changes no price (R125); Sync (the\n  // button, or what answers it) re-takes the moment and re-prices.\n  SYNC.onRefresh(function(){ take(); renderAll(); });\n  SYNC.onProfile(function(){\n    if (held && !SYNC.syncing()) return;\n    take();\n    var a = document.activeElement;\n    if (a && a.closest && a.closest('#main') && /INPUT|SELECT/.test(a.tagName)){ pendingProfile = true; return; }\n    renderAll();\n  });\n  document.addEventListener('focusout', function(){\n    if (pendingProfile){ pendingProfile = false; setTimeout(function(){ renderAll(); }, 0); }\n  });\n\n  var backTop = document.getElementById('backTop');\n  backTop.addEventListener('click', function(){ window.scrollTo({ top:0, behavior:'smooth' }); });\n  // Cheap enough not to need rAF gating, and a plain handler is verifiable in\n  // an automated browser where an rAF-gated one is not (style guide, Lessons).\n  var updateBackTop = function(){\n    backTop.hidden = !(window.scrollY > 320 && window.innerWidth <= 1040);\n  };\n  window.addEventListener('scroll', updateBackTop);\n  window.addEventListener('resize', function(){ sizeTable(); scrollCurrentIntoView(); updateBackTop(); });\n  updateBackTop();\n\n  renderAll();\n}\n\n/* The test seam, and the profile reads for inspection. */\nwindow.AWOO_COST_TABLES = {\n  refresh: function(){ renderAll(); return syncSummary(); },\n  reads: PROFILE_READS,\n  systems: SYSTEMS,\n  breaks: breaksFor\n};\nwindow.__AWOO_COST_TABLES_FOR_TEST = {\n  sanctumNodeCost:sanctumNodeCost, petSlotCost:petSlotCost,\n  partnerBoostCost:partnerBoostCost, levelExp:levelExp, houseCost:houseCost,\n  caveToolCost:caveToolCost, villageBuildingCost:villageBuildingCost,\n  relicBracketSurcharge:relicBracketSurcharge, triangular:triangular,\n  geomCost:geomCost,\n  fmtNum:function(n, mode, localeKey){\n    NUM._set(mode || 'letters', localeKey);\n    try { return fmtNum(n); } finally { NUM._set(null, null); }\n  },\n  profileValue:profileValue, fieldState:fieldState, breaksFor:breaksFor\n};\n\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);\nelse init();\n})();\n</script>\n";
+  const AWOO_TOOL_COST_TABLES = "<!doctype html>\n<meta charset=\"utf-8\">\n<title>Cost Tables</title>\n<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&family=Azeret+Mono:wght@400;500;600&display=swap\">\n\n<meta name=\"awoo-tool\" content=\"cost-tables\">\n<style>\n/* ===========================================================================\n   AWOO+ THEME TOKENS — GENERATED, DO NOT EDIT BY HAND.\n\n   Source: the AWOO+ Design System (projects/ARTIFACT_STYLE_GUIDE.md Part II,\n   live at https://claude.ai/artifact/3Xv8kdGSd6Lth8MhQEtBrS). Injected into\n   every tool page by userscripts/build.mjs at the <!-- @AWOO_THEME_TOKENS@ -->\n   marker, so one palette correction reaches every tool on the next build.\n\n   EIGHT THEMES, FIVE FAMILIES. A family name carries no mode; the variant\n   does, and only where more than one exists — which is why Slate and Claude\n   Code have no suffix.\n\n     Default      the default since 2026-10-06; follows the device's light\n                  or dark setting (one choice, two sets, see its block).\n                  Its id is `partners`: it was named Partners until\n                  2026-10-07, and saved settings hold the id\n     Beach        light · dimmed\n     Slate        (was \"war room\" before the merge)\n     Claude       light · medium · dark\n     Claude Code  (RECONSTRUCTED from the brand register, not sampled)\n\n   ONE CONTRACT. Every theme defines the same tokens and no component ever\n   names a colour, which is what makes an eighth theme a block of properties\n   rather than a rewrite. Three of those tokens exist for specific reasons:\n     --accent-edge     the soft edge of a tinted row. A full-strength accent\n                       ring reads as a frame around a table row, not emphasis\n                       on it.\n     --border-control  inputs, selects and buttons only, clearing WCAG\n                       1.4.11's 3:1 against surface. Table hairlines stay soft\n                       on --border.\n     --trusted         the name of a module or tool that not every player has\n                       (the trusted audience; REGISTER.md R97). A light blue,\n                       AA on surface and surface-2 in every theme, apart from\n                       --info (a user-facing note) and --dev (developer text).\n\n   Every text pair in every theme clears WCAG AA; tertiary \"muted\" text is\n   AA-large by design across the whole family.\n   =========================================================================== */\n:root{\n  /* Default (light) is the base layer since 2026-10-06 (it was Beach), so an\n     un-stamped page is always legible and wears the default theme. */\n  --ground:#F0EEE6;\n  --surface:#FFFFFF;\n  --surface-2:#F7F6F1;\n  --surface-3:#EBE9E0;\n  --border:#DEDACE;\n  --border-strong:#C5C0B2;\n  --border-control:#8A8474;\n  --ink:#191917;\n  --ink-soft:#57544C;\n  --ink-mute:#84806F;\n  --accent:#A8461F;\n  --accent-fill:#B4552F;\n  --accent-edge:#DEB49F;\n  --bg-accent:#F7E6DD;\n  --on-accent:#FFF4EE;\n  --success:#276048;\n  --success-fill:#317055;\n  --bg-success:#D3E8DC;\n  --danger:#9E2B22;\n  --danger-fill:#BE4034;\n  --bg-danger:#F8E2DF;\n  --info:#474C93;\n  --bg-info:#E5E6F4;\n  --neutral:#6B6759;\n  --bg-neutral:#EDEBE2;\n  --dev:#256657;\n  --bg-dev:#D8EBE5;\n  --trusted:#23618F;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n\n  /* TYPE, corrected 2026-09-21 after MEASURING the glyphs rather than\n     recalling them.\n\n     NUMBERS ARE PUBLIC SANS, NOT A MONO FACE. The requirement was a clear,\n     unmarked zero. Measured by rendering each zero at 200px and sampling the\n     centre of its counter (capital O as the control, which reads 0% ink in\n     every face, proving the method): Noto Sans Mono 83%, DM Mono 80%, Roboto\n     Mono 69%, IBM Plex Mono 93%, JetBrains Mono 95%, Space Mono 95%, Cousine\n     100%. Every one of them marks the zero. So does the earlier \"fix\":\n     font-feature-settings \"zero\" 0 changes NOTHING in any of them, because\n     the mark is the default glyph, not an optional feature.\n\n     Public Sans's own zero measures 0% — genuinely open — and\n     font-variant-numeric: tabular-nums makes every digit exactly the same\n     width (measured: all ten at 70px against 40.7-64.75 proportional). Fixed\n     width is what a column needs; a monospaced FACE was never the\n     requirement. So the number face is the text face, with tabular figures.\n\n     --font-mono stays a real mono for identifiers and formula text, where\n     letter alignment matters: Azeret Mono, the only mono of the eight tested\n     whose zero measured 0%. */\n  --font-display:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-body:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-num:'Public Sans',system-ui,-apple-system,sans-serif;\n  --font-mono:'Azeret Mono',ui-monospace,'Cascadia Mono',monospace;\n  --display-tracking:-.005em; --display-caps:none;\n  --radius:6px;\n\n  /* DENSITY, 2026-09-21. These are read as data, not prose: a table row and a\n     nav row both want to be tighter than a paragraph. Tokens rather than\n     literals so \"slightly more condensed\" is one edit, everywhere. */\n  --row-y:2px;        /* table cell vertical padding */\n  --row-x:10px;       /* table cell horizontal padding (12px until the house style, DESIGN.md §10b) */\n  --nav-y:3px;        /* sidebar nav row */\n  --ctl-y:2px;        /* input and select vertical padding */\n  --ctl-x:6px;\n  --ctl-w:78px;       /* a number input's default width - subtle, not a field */\n  --pad-panel:11px;\n}\n\n/* No explicit choice and a dark OS: Default's dark set (the same values as\n   Slate), so an un-stamped page is the default theme in both modes. */\n@media (prefers-color-scheme: dark){\n  :root:not([data-theme]){\n    --ground:#14181D;\n    --surface:#1B2027;\n    --surface-2:#20262D;\n    --surface-3:#272F37;\n    --border:#2B323A;\n    --border-strong:#3A434C;\n    --border-control:#6A7684;\n    --ink:#E8EAEB;\n    --ink-soft:#A9B0B6;\n    --ink-mute:#78828B;\n    --accent:#E3B36B;\n    --accent-fill:#C4923F;\n    --accent-edge:#5A4522;\n    --bg-accent:#2E2412;\n    --on-accent:#241300;\n    --success:#84C4AA;\n    --success-fill:#4F8C74;\n    --bg-success:#172E25;\n    --danger:#E28270;\n    --danger-fill:#C1503C;\n    --bg-danger:#351F1A;\n    --info:#B4A4E0;\n    --bg-info:#241F36;\n    --neutral:#9AA6B2;\n    --bg-neutral:#222A32;\n    --dev:#78C8BC;\n    --bg-dev:#14302C;\n    --trusted:#8CC4EE;\n    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n  }\n}\n\n/* Default */\n:root[data-theme=\"partners\"]{\n  --ground:#F0EEE6;\n  --surface:#FFFFFF;\n  --surface-2:#F7F6F1;\n  --surface-3:#EBE9E0;\n  --border:#DEDACE;\n  --border-strong:#C5C0B2;\n  --border-control:#8A8474;\n  --ink:#191917;\n  --ink-soft:#57544C;\n  --ink-mute:#84806F;\n  --accent:#A8461F;\n  --accent-fill:#B4552F;\n  --accent-edge:#DEB49F;\n  --bg-accent:#F7E6DD;\n  --on-accent:#FFF4EE;\n  --success:#276048;\n  --success-fill:#317055;\n  --bg-success:#D3E8DC;\n  --danger:#9E2B22;\n  --danger-fill:#BE4034;\n  --bg-danger:#F8E2DF;\n  --info:#474C93;\n  --bg-info:#E5E6F4;\n  --neutral:#6B6759;\n  --bg-neutral:#EDEBE2;\n  --dev:#256657;\n  --bg-dev:#D8EBE5;\n  --trusted:#23618F;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n}\n\n/* DEFAULT FOLLOWS THE DEVICE (2026-10-06, the maintainer: the R153 Partners\n   mockup's palette, made the default theme everywhere; renamed from Partners\n   on 2026-10-07 so it is not confused with the Partners tool. The id stays\n   `partners`, because that is what saved settings hold). It is the one theme\n   with two sets: the light set above, and the dark set below when the device\n   asks for dark - exactly how the mockup behaved. The sets are the mockup's\n   own tokens, which are Claude (light) and Slate value for value; Default\n   adds the switching, not new colours. build.mjs reads this @media block as\n   the theme's `dark` set for Core, which switches on the same media query.\n   Keep the @media wrapper directly around ONE :root[data-theme] rule. */\n@media (prefers-color-scheme: dark){\n  :root[data-theme=\"partners\"]{\n    --ground:#14181D;\n    --surface:#1B2027;\n    --surface-2:#20262D;\n    --surface-3:#272F37;\n    --border:#2B323A;\n    --border-strong:#3A434C;\n    --border-control:#6A7684;\n    --ink:#E8EAEB;\n    --ink-soft:#A9B0B6;\n    --ink-mute:#78828B;\n    --accent:#E3B36B;\n    --accent-fill:#C4923F;\n    --accent-edge:#5A4522;\n    --bg-accent:#2E2412;\n    --on-accent:#241300;\n    --success:#84C4AA;\n    --success-fill:#4F8C74;\n    --bg-success:#172E25;\n    --danger:#E28270;\n    --danger-fill:#C1503C;\n    --bg-danger:#351F1A;\n    --info:#B4A4E0;\n    --bg-info:#241F36;\n    --neutral:#9AA6B2;\n    --bg-neutral:#222A32;\n    --dev:#78C8BC;\n    --bg-dev:#14302C;\n    --trusted:#8CC4EE;\n    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n  }\n}\n\n/* Beach (light) */\n:root[data-theme=\"beach\"]{\n  --ground:#EFE7D7;\n  --surface:#FAF5EC;\n  --surface-2:#F1E8D8;\n  --surface-3:#E7DCC7;\n  --border:#D8CBB2;\n  --border-strong:#C3B193;\n  --border-control:#8C7D64;\n  --ink:#33291D;\n  --ink-soft:#6B5C48;\n  --ink-mute:#94836C;\n  --accent:#8A4322;\n  --accent-fill:#A8552C;\n  --accent-edge:#D4AB93;\n  --bg-accent:#F3E2D8;\n  --on-accent:#FBF0E6;\n  --success:#3F5C33;\n  --success-fill:#4A6741;\n  --bg-success:#E4EBDC;\n  --danger:#8C2F2A;\n  --danger-fill:#A83A33;\n  --bg-danger:#F5E0DD;\n  --info:#41528A;\n  --bg-info:#E2E5F2;\n  --neutral:#6E5F49;\n  --bg-neutral:#EDE4D3;\n  --dev:#2E6B5C;\n  --bg-dev:#DCEBE6;\n  --trusted:#23618F;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n}\n\n/* Beach (dimmed) */\n:root[data-theme=\"beach-dim\"]{\n  --ground:#17181A;\n  --surface:#1E2022;\n  --surface-2:#25282A;\n  --surface-3:#2E3134;\n  --border:#33373A;\n  --border-strong:#4A4F53;\n  --border-control:#6D7378;\n  --ink:#E6E4E0;\n  --ink-soft:#A8A49D;\n  --ink-mute:#7C7872;\n  --accent:#F2B189;\n  --accent-fill:#CC7A50;\n  --accent-edge:#5C412C;\n  --bg-accent:#31241A;\n  --on-accent:#1B0D05;\n  --success:#7CC49A;\n  --success-fill:#3F8A61;\n  --bg-success:#17301F;\n  --danger:#EB8272;\n  --danger-fill:#C0453A;\n  --bg-danger:#341D1B;\n  --info:#A3AEDD;\n  --bg-info:#1F2130;\n  --neutral:#A09B92;\n  --bg-neutral:#26282A;\n  --dev:#7FC9B8;\n  --bg-dev:#16302A;\n  --trusted:#8CC4EE;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Slate */\n:root[data-theme=\"slate\"]{\n  --ground:#14181D;\n  --surface:#1B2027;\n  --surface-2:#20262D;\n  --surface-3:#272F37;\n  --border:#2B323A;\n  --border-strong:#3A434C;\n  --border-control:#6A7684;\n  --ink:#E8EAEB;\n  --ink-soft:#A9B0B6;\n  --ink-mute:#78828B;\n  --accent:#E3B36B;\n  --accent-fill:#C4923F;\n  --accent-edge:#5A4522;\n  --bg-accent:#2E2412;\n  --on-accent:#241300;\n  --success:#84C4AA;\n  --success-fill:#4F8C74;\n  --bg-success:#172E25;\n  --danger:#E28270;\n  --danger-fill:#C1503C;\n  --bg-danger:#351F1A;\n  --info:#B4A4E0;\n  --bg-info:#241F36;\n  --neutral:#9AA6B2;\n  --bg-neutral:#222A32;\n  --dev:#78C8BC;\n  --bg-dev:#14302C;\n  --trusted:#8CC4EE;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude (light) */\n:root[data-theme=\"claude\"]{\n  --ground:#F0EEE6;\n  --surface:#FFFFFF;\n  --surface-2:#F7F6F1;\n  --surface-3:#EBE9E0;\n  --border:#DEDACE;\n  --border-strong:#C5C0B2;\n  --border-control:#8A8474;\n  --ink:#191917;\n  --ink-soft:#57544C;\n  --ink-mute:#84806F;\n  --accent:#A8461F;\n  --accent-fill:#B4552F;\n  --accent-edge:#DEB49F;\n  --bg-accent:#F7E6DD;\n  --on-accent:#FFF4EE;\n  --success:#276048;\n  --success-fill:#317055;\n  --bg-success:#D3E8DC;\n  --danger:#9E2B22;\n  --danger-fill:#BE4034;\n  --bg-danger:#F8E2DF;\n  --info:#474C93;\n  --bg-info:#E5E6F4;\n  --neutral:#6B6759;\n  --bg-neutral:#EDEBE2;\n  --dev:#256657;\n  --bg-dev:#D8EBE5;\n  --trusted:#23618F;\n  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);\n}\n\n/* Claude (medium) */\n:root[data-theme=\"claude-med\"]{\n  --ground:#26241F;\n  --surface:#2F2D27;\n  --surface-2:#37352E;\n  --surface-3:#403D35;\n  --border:#454239;\n  --border-strong:#5C5849;\n  --border-control:#807A68;\n  --ink:#EDEAE0;\n  --ink-soft:#B3AE9E;\n  --ink-mute:#8A8676;\n  --accent:#EFA189;\n  --accent-fill:#C26A4F;\n  --accent-edge:#66452F;\n  --bg-accent:#3B2A1E;\n  --on-accent:#1C0C03;\n  --success:#84C6A2;\n  --success-fill:#3C8A63;\n  --bg-success:#22342A;\n  --danger:#EE8B79;\n  --danger-fill:#BC4739;\n  --bg-danger:#3B2622;\n  --info:#AFA8E2;\n  --bg-info:#2B2839;\n  --neutral:#A8A292;\n  --bg-neutral:#343128;\n  --dev:#82C9B9;\n  --bg-dev:#1F3330;\n  --trusted:#8CC4EE;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude (dark) */\n:root[data-theme=\"claude-dark\"]{\n  --ground:#141312;\n  --surface:#1C1B19;\n  --surface-2:#232220;\n  --surface-3:#2C2A27;\n  --border:#31302C;\n  --border-strong:#47443E;\n  --border-control:#6E6A61;\n  --ink:#EFECE3;\n  --ink-soft:#ACA79A;\n  --ink-mute:#7E7A6E;\n  --accent:#F0A791;\n  --accent-fill:#C36E52;\n  --accent-edge:#523A26;\n  --bg-accent:#2B1D14;\n  --on-accent:#1A0A02;\n  --success:#82C9A3;\n  --success-fill:#3E8F66;\n  --bg-success:#14291D;\n  --danger:#F0907E;\n  --danger-fill:#C24A3B;\n  --bg-danger:#2E1B18;\n  --info:#B3ABE6;\n  --bg-info:#211E2E;\n  --neutral:#A5A092;\n  --bg-neutral:#26241F;\n  --dev:#7FCBBA;\n  --bg-dev:#132A26;\n  --trusted:#8CC4EE;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* Claude Code */\n:root[data-theme=\"claude-code\"]{\n  --ground:#1F1E1D;\n  --surface:#262625;\n  --surface-2:#2E2E2C;\n  --surface-3:#383836;\n  --border:#3A3A38;\n  --border-strong:#54544F;\n  --border-control:#787870;\n  --ink:#F5F4EF;\n  --ink-soft:#B4B2A7;\n  --ink-mute:#88867C;\n  --accent:#E39070;\n  --accent-fill:#C2613F;\n  --accent-edge:#4A3227;\n  --bg-accent:#33221B;\n  --on-accent:#1A0A04;\n  --success:#7FC49E;\n  --success-fill:#3C8961;\n  --bg-success:#1C2E23;\n  --danger:#EE8B78;\n  --danger-fill:#BF4A39;\n  --bg-danger:#33211D;\n  --info:#ADA6E0;\n  --bg-info:#28253A;\n  --neutral:#A3A198;\n  --bg-neutral:#2C2C2A;\n  --dev:#7DC6B6;\n  --bg-dev:#1B2E2A;\n  --trusted:#8CC4EE;\n  --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);\n}\n\n/* LEGACY ALIASES. The tool CSS written against the war-room names keeps\n   working; a new theme only has to fill the role names above. Do not use\n   these in new code. */\n:root,:root[data-theme]{\n  --brass:var(--accent); --brass-fill:var(--accent-fill);\n  --brass-text:var(--accent); --on-brass:var(--on-accent); --bg-brass:var(--bg-accent);\n  --ember:var(--danger); --ember-fill:var(--danger-fill); --bg-ember:var(--bg-danger);\n  --moss:var(--success); --moss-fill:var(--success-fill); --bg-moss:var(--bg-success);\n  --violet:var(--info); --bg-violet:var(--bg-info);\n  --steel:var(--neutral); --bg-steel:var(--bg-neutral);\n  --font-head:var(--font-display);\n}\n\n/* NUMBERS. Tabular figures give fixed-width digits, which is what makes a\n   column line up; the face itself is proportional and its zero is open.\n   `font-feature-settings: \"zero\" 0` is deliberately NOT used - it was tried,\n   and it does nothing, because in every mono face tested the slash or dot is\n   the default glyph rather than an optional feature. The fix is face choice,\n   not a feature flag. */\n.num,[data-num],table td,.stat .v,.mini .mr{\n  font-variant-numeric:tabular-nums;\n}\n\n/* DEVELOPER INFO (DESIGN.md §7, register R67). Hidden unless the reader has\n   turned it on, and tinted with its own hue so it is never mistaken for\n   something written for a player. */\n:root:not([data-dev=\"on\"]) [data-dev-only]{display:none!important}\n[data-dev-only]{color:var(--dev)}\n.devpill{\n  font-family:var(--font-mono);font-size:.6rem;font-weight:700;\n  padding:1px 6px;border-radius:3px;background:var(--bg-dev);color:var(--dev);\n}\n\n</style>\n<style>\n/* ===========================================================================\n   AWOO+ TOOL SETTINGS — the gear menu every tool shares.\n\n   Hand-written, unlike theme-tokens.css beside it. Injected by\n   userscripts/build.mjs at the <!-- @AWOO_TOOL_SETTINGS@ --> marker together\n   with tool-settings.js, for the same reason the tokens are injected rather\n   than copied: the menu, the theme inheritance and the \"Match game\" fallback\n   were about to exist four times, and the fallback is the part that has to\n   change in one place when Core's theme snapshot reaches tool payloads.\n\n   Every selector is prefixed `awoo-gear` because it lands inside pages whose\n   own `.btn` / `.panel` / `.note` rules differ from tool to tool.\n   ARTIFACT_STYLE_GUIDE.md Part II, \"Settings menu\".\n   =========================================================================== */\n\n/* THE INPUT TOKENS (2026-09-27). Sizes only, no colour, so they live with\n   the kit rather than in the generated theme contract: every theme shares\n   them. --in-fs is the box's text (it was .74rem, \"a size smaller than body\n   text\", until the maintainer found the boxes hard to read: \"adjust the\n   input boxes' font size ... more readable, and matching the game more\");\n   the widths are the at-rest text of each data-num-kind plus padding\n   (1,500,000 / 1,234.56% / 16.01), and apply only where a page sets none. */\n:root{\n  --in-fs:.8rem; --in-h:1.6rem; --in-radius:3px;\n  --in-w:6rem; --in-w-int:6.5rem; --in-w-pct:6rem; --in-w-dec:4.5rem; --in-w-game:5.5rem;\n}\n.awoo-gear{position:relative;flex:none}\n.awoo-gear-btn{\n  background:transparent; border:1px solid var(--border-control); color:var(--ink-soft);\n  border-radius:var(--in-radius); padding:3px 8px; cursor:pointer;\n  font:inherit; font-size:.95rem; line-height:1;\n}\n.awoo-gear-btn:hover,.awoo-gear-btn[aria-expanded=\"true\"]{\n  color:var(--ink); border-color:var(--accent-fill); background:var(--surface-2);\n}\n.awoo-gear-menu{\n  position:absolute; right:0; top:calc(100% + 6px); z-index:60; width:250px;\n  background:var(--surface); color:var(--ink); border:1px solid var(--border-strong);\n  border-radius:6px; box-shadow:var(--shadow); padding:8px;\n  display:flex; flex-direction:column; gap:7px;\n  font-family:var(--font-body); font-size:14px; line-height:1.4; text-align:left;\n}\n/* Opening upward, for a gear that sits at the foot of the viewport. */\n.awoo-gear-menu.up{top:auto; bottom:calc(100% + 6px)}\n.awoo-gear-row{display:flex;flex-direction:column;gap:3px}\n.awoo-gear-row label{\n  font-size:.62rem;font-weight:700;letter-spacing:.08em;\n  text-transform:uppercase;color:var(--ink-mute);\n}\n.awoo-gear-row select{\n  background:var(--surface-2); color:var(--ink); border:1px solid var(--border-control);\n  border-radius:var(--in-radius); padding:var(--ctl-y) var(--ctl-x); font:inherit; font-size:.76rem; width:100%;\n}\n.awoo-gear-check{flex-direction:row;align-items:center;gap:7px}\n.awoo-gear-check label{flex:1}\n.awoo-gear-check input{accent-color:var(--accent-fill);margin:0}\n.awoo-gear-note{font-size:.66rem;color:var(--ink-mute);line-height:1.4}\n.awoo-gear-note:empty{display:none}\n/* A fallback is information the reader needs, not a footnote: the page is\n   deliberately not in the theme they asked for, and it says so. */\n.awoo-gear-note.fallback{color:var(--info);background:var(--bg-info);border-radius:4px;padding:4px 6px}\n\n/* SIDEBAR PINNING (2026-09-21). The default is that a tool's sidebar scrolls\n   WITH the page, and is pinned only while the whole of it fits on screen — a\n   pinned sidebar taller than the window hides its own bottom until the page\n   ends, and an independently scrolling one is a second scrollbar to manage.\n   \"Sidebar scrolls on its own\" in the gear menu restores the older behaviour.\n   tool-settings.js measures and sets data-side-mode; nothing else should. */\n[data-awoo-sidebar][data-side-mode=\"sticky\"]{position:sticky;top:var(--side-top,20px)}\n[data-awoo-sidebar][data-side-mode=\"scroll\"]{\n  position:sticky; top:var(--side-top,20px);\n  max-height:calc(100vh - var(--side-top,20px) - 16px);\n  overflow-y:auto; overflow-x:hidden; scrollbar-width:thin;\n}\n\n/* ===========================================================================\n   THE SHARED TOOL KIT (2026-09-23): the title block, the sync card, the field\n   lights, the Live/Standard switch and the one tooltip. tool-sync.js renders\n   the dynamic parts; these rules are the whole of their look, so every tool\n   shows the same card and the same lights.\n   =========================================================================== */\n\n/* Title block: eyebrow, title, one line, and the gear top-right. The layout\n   Party Gold ROI and Stat Rate Optimizer settled, now the standard. */\n.awoo-head{position:relative;padding-right:2.4rem}\n.awoo-head .awoo-gear{position:absolute;top:0;right:0}\n.awoo-eyebrow{font-family:var(--font-mono);font-size:.63rem;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin:0 0 .3rem}\n.awoo-title{font-family:var(--font-display);font-weight:700;font-size:1.7rem;line-height:1.05;margin:0 0 .3rem;text-wrap:balance;letter-spacing:normal;text-transform:none;color:var(--ink)}\n.awoo-sub{color:var(--ink-soft);font-size:.78rem;line-height:1.45;margin:0}\n\n/* Buttons the kit renders. Tools keep their own .btn; these do not collide.\n   DESIGN.md §9 (checked 2026-09-27): square-ish corners (about 3px, never\n   pills), and a button in a row is OUTLINED on hover, not filled: the old\n   --surface-3 hover was a grey-to-beige step in every light theme. */\n.awoo-btn{\n  font-family:var(--font-body); font-size:.72rem; font-weight:500; color:var(--ink);\n  background:var(--surface-2); border:1px solid var(--border-control); border-radius:var(--in-radius);\n  padding:.28rem .6rem; cursor:pointer; white-space:nowrap; flex:1;\n}\n.awoo-btn:hover{border-color:var(--accent-fill);color:var(--accent)}\n.awoo-btn:disabled{opacity:.4;cursor:default}\n.awoo-btn:disabled:hover{border-color:var(--border-control);color:var(--ink-soft);background:var(--surface-2)}\n.awoo-btn-primary{color:var(--on-accent);background:var(--accent-fill);border-color:var(--accent-fill)}\n.awoo-btn-primary:hover{filter:brightness(1.07);color:var(--on-accent);background:var(--accent-fill)}\n\n/* The sync card: state and age on one line, the mode switch, two actions. */\n.awoo-sync{\n  background:var(--surface); border:1px solid var(--border); border-left:3px solid var(--border-strong);\n  border-radius:var(--radius); padding:var(--pad-panel); box-shadow:var(--shadow);\n  display:flex; flex-direction:column; gap:.45rem; font-family:var(--font-body); font-size:.75rem;\n}\n.awoo-sync[data-state=\"synced\"]{border-left-color:var(--success-fill)}\n.awoo-sync[data-state=\"stale\"]{border-left-color:var(--accent-fill)}\n.awoo-sync-head{display:flex;align-items:center;gap:.45rem}\n.awoo-sync-head .awoo-light{cursor:default;margin:0}\n.awoo-sync-state{font-weight:600;color:var(--ink);cursor:help}\n.awoo-sync-state:hover{color:var(--accent)}\n.awoo-sync-age{margin-left:auto;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--ink-mute);font-size:.68rem}\n.awoo-sync-actions{display:flex;gap:.35rem}\n\n/* Live / Standard. */\n.awoo-seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:2px;background:var(--surface-2);border:1px solid var(--border-control);border-radius:var(--in-radius)}\n.awoo-seg button{border:0;background:transparent;color:var(--ink-soft);font:inherit;font-size:.7rem;font-weight:600;padding:.14rem .5rem;border-radius:2px;cursor:pointer;white-space:nowrap}\n.awoo-seg button:hover{color:var(--ink)}\n.awoo-seg button[aria-pressed=\"true\"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}\n[data-sync-mode=\"live\"] [data-mode-only=\"standard\"],\n[data-sync-mode=\"standard\"] [data-mode-only=\"live\"],\n:root:not([data-sync-mode]) [data-mode-only=\"standard\"]{display:none!important}\n\n/* A field's light. Filled means the game supplied it; hollow means it never\n   did (Core's convention: a state you cannot act on renders hollow). */\n.awoo-light{\n  display:inline-block; flex:none; width:8px; height:8px; border-radius:50%;\n  border:0; padding:0; margin:0 .3rem 0 0; vertical-align:middle; cursor:pointer;\n  background:transparent; box-shadow:inset 0 0 0 1.5px var(--ink-mute);\n}\n/* Synced carries the exhibit's faint halo (R172), so the one state that\n   needs nothing from you reads at a glance. */\n.awoo-light[data-state=\"synced\"]{background:var(--success-fill);box-shadow:0 0 0 2px color-mix(in srgb,var(--success-fill) 25%,transparent)}\n.awoo-light[data-state=\"stale\"]{background:var(--accent-fill);box-shadow:none}\n.awoo-light[data-state=\"edited\"]{background:var(--info);box-shadow:none}\n/* A newer reading is waiting (R125): the box keeps its value, the dot gets a ring. */\n.awoo-light[data-pending=\"true\"]{box-shadow:0 0 0 2px var(--surface),0 0 0 3.5px var(--accent-fill)}\n.awoo-light[data-off=\"true\"]{opacity:.35}\n.awoo-light:focus-visible{outline:2px solid var(--accent-fill);outline-offset:2px}\n\n/* The one tooltip. */\n/* The one tooltip, as the exhibit draws it (DESIGN.md §10g, R172): the\n   surface with a --border-strong edge and the shadow, ink text, at most\n   300px. It was an inverted --ink box until round 2 of the house style. */\n#awooTip{\n  position:fixed; z-index:200; left:0; top:0; max-width:min(300px,calc(100vw - 24px)); pointer-events:none;\n  background:var(--surface); color:var(--ink); border:1px solid var(--border-strong); white-space:pre-line;\n  font-family:var(--font-body); font-size:.72rem; font-weight:400; line-height:1.4; letter-spacing:normal; text-transform:none;\n  padding:.45rem .6rem; border-radius:var(--radius); box-shadow:var(--shadow);\n  opacity:0; visibility:hidden; transition:opacity .1s;\n}\n#awooTip.on{opacity:1;visibility:visible}\n#awooTip .awoo-tip-dev{display:block;margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);color:var(--dev)}\n/* A label with a hover: no dotted underline (the exhibit has none, R172); it\n   says so by the help cursor and an accent tint under the pointer. */\n.awoo-tip{cursor:help}\n.awoo-tip:hover{color:var(--accent)}\n@media (prefers-reduced-motion:reduce){#awooTip{transition:none}}\n\n/* Number boxes (data-num): tabular figures in the number font, right-aligned\n   so a column of them lines up on the last digit. The size is --in-fs (it was\n   a step smaller than body text, 2026-09-23, until 2026-09-27's \"more\n   readable\"). Every number box has a default width, its kind's where it says\n   one: without one a text box is as wide as twenty characters of its font,\n   which the larger font pushed out of Exploration Ceiling's stat grid. A page\n   rule with a class still wins, so a page sets a width only where its layout\n   needs one. */\ninput[data-num]{font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:var(--in-fs);text-align:right;width:var(--in-w)}\ninput[data-num-kind=\"int\"]{width:var(--in-w-int)}\ninput[data-num-kind=\"pct\"]{width:var(--in-w-pct)}\ninput[data-num-kind=\"dec\"]{width:var(--in-w-dec)}\ninput[data-num-kind=\"game\"]{width:var(--in-w-game)}\n\n/* THE DEFAULT INPUT BOX is Pet Slot ROI's (the maintainer, 2026-09-25: \"I like\n   the input boxes from the pet ROI, make those default. They are nicely\n   compact in height\"). It lives here, in the kit every tool gets, because a\n   box each page styled for itself is how two of them went unstyled: Cost\n   Tables' level boxes became type=\"text\" for locale-aware numbers while its\n   rule still said input[type=number], and the optimizer's ratio boxes sat in\n   a table no rule reached. Both drew the browser's white box under the\n   theme's light ink, which is unreadable in every dark theme. A page rule with\n   a class still wins (this is element + attribute specificity; the select's\n   :not([multiple]) is there only to outrank a page's bare `select` reset), so a page sets\n   only what is its own: a width, an alignment. The gear menu keeps its own. */\ninput[type=number],input[type=text],input:not([type]),select:not([multiple]){\n  font-family:var(--font-num);font-size:var(--in-fs);font-weight:600;color:var(--ink);\n  background:var(--surface-2);border:1px solid var(--border-control);border-radius:var(--in-radius);\n  padding:var(--ctl-y) var(--ctl-x);min-width:0;font-variant-numeric:tabular-nums;\n  line-height:1.4;height:var(--in-h);box-sizing:border-box}\nselect:not([multiple]){font-family:var(--font-body);font-weight:400}\n/* NO SPINNERS, ANYWHERE (2026-09-27, the maintainer: \"input box arrows keep\n   showing when typing in the box, let's remove them entirely\"). !important\n   because a page's own number-box rule outranks this one on specificity, and\n   a spinner is never a page's call: the wheel steps a box instead\n   (tool-settings.js, \"THE WHEEL\"), and a spinner's gutter is what put\n   right-aligned numbers at two x positions in one column. */\ninput[type=number]{-moz-appearance:textfield!important;appearance:textfield!important;text-align:right}\ninput[type=number]::-webkit-outer-spin-button,\ninput[type=number]::-webkit-inner-spin-button{-webkit-appearance:none!important;appearance:none!important;margin:0;display:none}\ninput[type=number]:focus,input[type=text]:focus,input:not([type]):focus,select:focus{outline:2px solid var(--accent-fill);outline-offset:1px}\ninput[type=number]:disabled,input[type=text]:disabled,select:disabled{opacity:.45;cursor:not-allowed;background:var(--surface-3)}\n\n/* A SYNCED FIELD, BY STATE (2026-09-27; tool-sync.js \"THE ONE STANDARD FOR A\n   SYNCED INPUT\" sets the attributes). Synced or old: dimmed and read-only, a\n   quiet box that still reads clearly (the value is in use, so it is --ink-soft,\n   never faded out); hovering outlines it, because a click is what makes it\n   yours. Manual: the normal bright box with a bar in the edited light's colour\n   down its left edge. The class is doubled on purpose: it has to outrank a\n   page's `.fields input[type=text]`, which comes later in the page. */\ninput.awoo-field.awoo-field[data-sync-lock=\"true\"]{\n  color:var(--ink-soft); background:transparent; border-color:var(--border);\n  cursor:pointer; font-weight:500}\ninput.awoo-field.awoo-field[data-sync-lock=\"true\"]:hover{border-color:var(--accent-fill)}\ninput.awoo-field.awoo-field[data-sync=\"edited\"]{box-shadow:inset 3px 0 0 var(--info)}\n/* The ↺ beside a manual field: in the label, pushed to its end, so it sits\n   next to the box in a label-then-box row. */\n.awoo-field-reset{\n  flex:none; margin:0 0 0 auto; padding:0 .2rem; border:0; background:transparent;\n  color:var(--info); font:inherit; font-size:var(--in-fs); line-height:1; cursor:pointer}\n.awoo-field-reset:hover{color:var(--accent)}\n.awoo-field-reset[hidden]{display:none}\n.awoo-field-reset:focus-visible{outline:2px solid var(--accent-fill);outline-offset:1px}\n\n/* CHECKBOXES ARE OUTLINED IN THE THEME (DESIGN.md §9; Core's own rule since\n   R69 rounds 6-7, core.js, drawn the same here): an accent tick in an accent\n   frame, no fill, square-ish corners, never the browser's own blue box. The\n   tick is a drawn path masked to the accent, because a rotated border's\n   corner sat off-centre (R69 round 7). Unticked, the frame is\n   --border-control, the 3:1 control edge of the theme contract. */\ninput[type=checkbox]{\n  appearance:none; -webkit-appearance:none; width:.85rem; height:.85rem; margin:0; flex:none;\n  box-sizing:border-box; padding:0; border:1px solid var(--border-control); border-radius:var(--in-radius);\n  background:transparent; display:inline-grid; place-items:center; cursor:pointer; vertical-align:middle}\ninput[type=checkbox]:checked{border-color:var(--accent-fill)}\ninput[type=checkbox]:checked::after{\n  content:\"\"; width:80%; height:80%; background:var(--accent);\n  -webkit-mask:url(\"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 10%27%3E%3Cpath d=%27M1.5 5.2 4 7.6 8.6 2.4%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%271.8%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E\") center / contain no-repeat;\n  mask:url(\"data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 10 10%27%3E%3Cpath d=%27M1.5 5.2 4 7.6 8.6 2.4%27 fill=%27none%27 stroke=%27%23000%27 stroke-width=%271.8%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E\") center / contain no-repeat}\ninput[type=checkbox]:hover{border-color:var(--accent-fill)}\ninput[type=checkbox]:focus-visible{outline:2px solid var(--accent-fill);outline-offset:1px}\ninput[type=checkbox]:disabled{opacity:.45;cursor:not-allowed}\ninput[type=checkbox]:disabled:hover{border-color:var(--border-control)}\n\n/* ===========================================================================\n   THE HOUSE STYLE (2026-10-06, DESIGN.md §10; the §12 \"every tool page\"\n   items). The maintainer made the R153 Partners mockup the standard for every\n   tool page (\"neater, clearer, things are more aligned which creates\n   calmness\"), and the exhibit is userscripts/design/partners-mockup.html. The\n   pieces every page repeats live here, once, so a page drops its own copy and\n   the next correction is one edit: the panel and its heading, the sidebar\n   section label, the field grid with the light inside the value cell, the\n   (i) square, marks, the notice, tabs as cards, tiles, and the table rules.\n   Opt-in by class, like the rest of the kit: a page that has not moved yet is\n   untouched. The values are the exhibit's own; where this and §10 disagree,\n   the exhibit wins and both of these are the ones to fix.\n   =========================================================================== */\n\n/* Panels and cards (§10e, §10b). A panel is main's unit; a card is the\n   sidebar's, a little tighter (--pad-panel). */\n.awoo-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem .85rem;box-shadow:var(--shadow);min-width:0}\n.awoo-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--pad-panel);box-shadow:var(--shadow);min-width:0}\n\n/* THE ONE PANEL HEADING (§10e): micro uppercase in --ink-mute, an (i) beside\n   it, the panel's own controls pushed right in normal case. No big headings\n   inside a page: the title is the only large text apart from tile values. */\n.awoo-panel-h{\n  margin:0 0 .5rem; font-family:var(--font-body); font-size:.62rem; font-weight:600; line-height:1.45;\n  text-transform:uppercase; letter-spacing:.08em; color:var(--ink-mute);\n  display:flex; align-items:center; gap:.45rem; flex-wrap:wrap}\n.awoo-panel-ctl{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}\n\n/* A sidebar card's section label (§10e): the same idea in mono, with a\n   hairline running from the label to its controls. A .awoo-sec-rule span\n   places the rule before controls; without one, the rule is drawn after the\n   label. */\n.awoo-sec{\n  font-family:var(--font-mono); font-size:.6rem; font-weight:400; line-height:1.45;\n  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-mute);\n  display:flex; align-items:center; gap:.35rem; margin:0 0 .45rem}\n.awoo-sec-rule,.awoo-sec:not(:has(.awoo-sec-rule))::after{content:\"\";flex:1;height:1px;background:var(--border)}\n.awoo-sec .awoo-panel-ctl{font-family:var(--font-body);font-size:.68rem}\n\n/* THE FIELD GRID (§10d, §10b): label left, one value column of 7.2rem in\n   every card, so values in different cards sit in one vertical line. A\n   sub-heading spans the grid with a rule to the edge. */\n.awoo-fields{display:grid;grid-template-columns:minmax(0,1fr) 7.2rem;align-items:center;gap:.14rem .45rem}\n.awoo-fields > label,.awoo-fields > .awoo-lbl,.awoo-rows > label,.awoo-rows > .awoo-lbl{font-size:.75rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}\n/* A block of rows a script renders into one element joins the grid as if\n   its rows were the grid's own (R172). */\n.awoo-rows{display:contents}\n.awoo-fields-sub{\n  grid-column:1 / -1; margin:.4rem 0 .1rem; font-family:var(--font-mono); font-size:.55rem;\n  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-mute);\n  display:flex; align-items:center; gap:.3rem}\n.awoo-fields-sub::after{content:\"\";flex:1;height:1px;background:var(--border)}\n\n/* THE VALUE CELL: the box with its light INSIDE, on the left, in one column\n   on every row (§9 2026-10-03, §10d). tool-sync.js puts the light first in\n   whatever bind() is given as `label`, so a page passes the cell. The cell\n   tells the value's kind without a hover: synced and typed come from the\n   attributes tool-sync.js already sets on the box; calculated and the game's\n   own figure are the page's to say (.awoo-k-calc, .awoo-k-game). The box\n   inside drops its own frame; the class is repeated so it outranks the\n   kit's synced-box rules above (0,3,1), which frame a box standing alone. */\n/* THE LIGHT SLOT (R172, the maintainer 2026-10-07: a status mark inside a box\n   sits on one centre in every row, even when it is smaller, such as the grey\n   dot). The cell is a grid whose first column is a fixed slot, the mark\n   centred in it whatever its size; the value takes the second column, so its\n   right edge is the cell's in every row. Placement is explicit, so a cell\n   without a mark keeps the slot empty and its number still ends on the same\n   line. Caves proved the shape first (2026-10-07); it lives here now. */\n.awoo-cell{\n  display:grid; grid-template-columns:.7rem minmax(0,1fr); align-items:center; column-gap:.25rem;\n  height:1.45rem; padding:0 .35rem; min-width:0;\n  border:1px solid var(--border-control); border-radius:var(--in-radius); background:var(--surface-2)}\n.awoo-cell:focus-within{border-color:var(--accent-fill)}\n.awoo-cell > *{grid-row:1;grid-column:2;min-width:0}\n.awoo-cell > .awoo-light,.awoo-cell > .awoo-dot,.awoo-cell::before{grid-column:1;justify-self:center;align-self:center;margin:0}\n.awoo-cell > .awoo-field-reset{grid-column:3;margin:0;padding:0}\n.awoo-cell > select{text-align-last:right}\n/* Read-only text in a cell (a calculated figure): right-aligned in the number\n   face, like a box's value. */\n.awoo-ro{text-align:right;font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:.74rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}\n/* THE MARKS IN THE SLOT (§10d, the exhibit's lights):\n     .awoo-light (the sync kit's, bound fields)  synced / old / typed / not synced\n     a cell the sync never reads                 the small grey dot (5px)\n     a calculated cell (.awoo-k-calc)            a hollow --border-strong ring\n   The last two are drawn by the kit itself, so a page writes only the cell.\n   A page that keeps its own state puts an .awoo-dot in the slot instead\n   (.awoo-dot-typed for a value you typed). Inside a cell, a bound field the\n   sync cannot read yet is the same small grey dot: it is your own figure,\n   exactly like a cell the sync never reads. */\n.awoo-dot{display:inline-block;flex:none;width:5px;height:5px;border-radius:50%;background:var(--ink-mute)}\n.awoo-dot.awoo-dot-typed{width:8px;height:8px;background:var(--info)}\n.awoo-dot.awoo-dot-calc{width:8px;height:8px;background:transparent;box-shadow:inset 0 0 0 1px var(--border-strong)}\n.awoo-cell:not(:has(> .awoo-light)):not(:has(> .awoo-dot))::before{content:\"\";width:5px;height:5px;border-radius:50%;background:var(--ink-mute)}\n.awoo-cell.awoo-k-calc:not(:has(> .awoo-light)):not(:has(> .awoo-dot))::before{width:8px;height:8px;background:transparent;box-shadow:inset 0 0 0 1px var(--border-strong)}\n.awoo-cell.awoo-nomark::before{content:none}\n.awoo-cell > .awoo-light[data-state=\"unavailable\"]:not([data-pending=\"true\"]){width:5px;height:5px;background:var(--ink-mute);box-shadow:none}\n/* A label beside a cell holds the field's ↺ (tool-sync.js puts it there), at\n   its end, so the ↺ never pushes the cell's number off its line. */\n.awoo-fields > label,.awoo-rows > label{display:flex;align-items:center;gap:.25rem}\n.awoo-cell.awoo-cell.awoo-cell.awoo-cell > input,.awoo-cell.awoo-cell.awoo-cell.awoo-cell > select{\n  flex:1; min-width:0; width:100%; height:100%; border:0; border-radius:0; background:transparent;\n  box-shadow:none; padding:0; outline:none; color:inherit; font-size:.74rem}\n.awoo-cell:has(> [data-sync-lock=\"true\"]),.awoo-cell.awoo-k-sync{background:color-mix(in srgb,var(--success-fill) 9%,var(--surface));border-color:var(--border);color:var(--ink-soft)}\n.awoo-cell:has(> [data-sync-lock=\"true\"]):hover,.awoo-cell.awoo-k-sync:hover{border-color:var(--accent-fill)}\n.awoo-cell:has(> [data-sync=\"edited\"]),.awoo-cell.awoo-k-typed{border-color:var(--info);background:var(--surface)}\n/* A page that keeps its own field state (Cost Tables) says the kind itself:\n   .awoo-k-sync and .awoo-k-typed draw the same as the attributes above. */\n.awoo-cell.awoo-k-calc{background:transparent;border-color:var(--border)}\n/* A box switched off by the page fades as a whole cell, mark and all, once. */\n.awoo-cell:has(> :disabled){opacity:.45;cursor:not-allowed}\n.awoo-cell.awoo-cell.awoo-cell.awoo-cell > :disabled{opacity:1}\n.awoo-cell.awoo-k-game{border-color:var(--border-strong);font-weight:600}\n\n/* The (i) (§10e): a 13px square that carries the explanation, so the label\n   it sits beside stays short. */\n.awoo-i{\n  display:inline-flex; align-items:center; justify-content:center; flex:none; width:13px; height:13px;\n  border-radius:var(--in-radius); background:var(--surface-3); color:var(--ink-soft);\n  font-family:var(--font-body); font-size:.55rem; font-weight:700; font-style:normal; line-height:1;\n  letter-spacing:0; text-transform:none; cursor:help}\n.awoo-i:hover,.awoo-i:focus{color:var(--accent);outline:none}\n\n/* Marks (§10g): tiny, outlined in their role's colour, explained on hover or\n   in a legend rather than beside every row. */\n.awoo-mark{\n  display:inline-block; font-family:var(--font-body); font-size:.55rem; font-weight:600; line-height:1.35;\n  letter-spacing:.05em; text-transform:uppercase; border:1px solid currentColor;\n  border-radius:var(--in-radius); padding:0 .22rem; color:var(--trusted); white-space:nowrap; vertical-align:middle}\n.awoo-mark-acc{color:var(--accent)} .awoo-mark-ok{color:var(--success)}\n.awoo-mark-mute{color:var(--ink-mute)} .awoo-mark-warn{color:var(--danger)} .awoo-mark-info{color:var(--info)}\n\n/* The notice (§10g): one per tab at most, above the panel it is about. The\n   first phrase is bold in the notice's colour. */\n.awoo-notice{\n  display:flex; gap:.6rem; align-items:flex-start; margin:0 0 .8rem; padding:.5rem .7rem;\n  border:1px solid var(--info); background:var(--bg-info); border-radius:var(--radius);\n  font-size:.76rem; line-height:1.45; color:var(--ink)}\n.awoo-notice b{color:var(--info)}\n.awoo-notice-g{font-weight:700;color:var(--info);flex:none}\n.awoo-notice-danger{border-color:var(--danger);background:var(--bg-danger)}\n.awoo-notice-danger b,.awoo-notice-danger .awoo-notice-g{color:var(--danger)}\n.awoo-notice-success{border-color:var(--success);background:var(--bg-success)}\n.awoo-notice-success b,.awoo-notice-success .awoo-notice-g{color:var(--success)}\n\n/* TABS ARE CARDS (§10c): a name and a two- or three-word sub-line; the\n   page's one global switch sits right in the same row (.awoo-tabbar-end).\n   Below 560px the sub-line goes and the tabs share the row. */\n.awoo-tabbar{display:flex;align-items:flex-end;gap:.8rem;flex-wrap:wrap;margin-top:.7rem}\n.awoo-tabbar > .awoo-tabbar-end{margin-left:auto}\n.awoo-tabs{display:flex;gap:.45rem;flex-wrap:wrap}\n.awoo-tab{\n  display:flex; flex-direction:column; align-items:flex-start; gap:.05rem; min-width:10.5rem;\n  padding:.5rem .85rem; background:var(--surface); border:1px solid var(--border);\n  border-radius:var(--in-radius); color:var(--ink); text-align:left; cursor:pointer;\n  box-shadow:var(--shadow); font:inherit}\n.awoo-tab:hover{border-color:var(--accent-fill)}\n.awoo-tab[aria-selected=\"true\"]{background:var(--bg-accent);border-color:var(--accent-edge)}\n.awoo-tab-name{font-weight:700;font-size:1rem;line-height:1.2}\n.awoo-tab-sub{font-size:.7rem;color:var(--ink-soft);line-height:1.35}\n@media (max-width:560px){\n  .awoo-tab{min-width:0;flex:1 1 30%;padding:.4rem .5rem}\n  .awoo-tab-name{font-size:.86rem}\n  .awoo-tab-sub{display:none}\n}\n\n/* Tiles (§10e): a tab's headline figures. One hero per tab has its value in\n   the accent; the rest are ink. */\n.awoo-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem;margin:0 0 .9rem}\n.awoo-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.55rem .75rem;box-shadow:var(--shadow);min-width:0}\n.awoo-tile-k{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-mute);display:flex;gap:.3rem;align-items:center;line-height:1.45}\n.awoo-tile-v{font-family:var(--font-display);font-weight:700;font-size:1.35rem;line-height:1.15;font-variant-numeric:tabular-nums;color:var(--ink);overflow-wrap:anywhere}\n.awoo-tile-u{font-size:.7rem;font-weight:400;color:var(--ink-mute);margin-left:.2rem}\n.awoo-tile-w{font-size:.7rem;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.45}\n.awoo-tile.awoo-hero .awoo-tile-v{color:var(--accent)}\n\n/* TABLES (§10f): as wide as the content, never a sideways scrollbar.\n   Optional columns carry a priority and go as the page narrows (.awoo-o1 at\n   1300px, .awoo-o2 at 760px, .awoo-o3 at 480px); .awoo-p-only stands in on a\n   phone for what went. Numbers right, the first column and .awoo-l left;\n   state is a colour, not a word; empty is \"—\" in --ink-mute (.awoo-dash). */\ntable.awoo-t{border-collapse:collapse;font-size:.75rem}\ntable.awoo-t.awoo-wide{width:100%}\ntable.awoo-t th{\n  text-align:right; font-family:var(--font-mono); font-weight:500; font-size:.6rem; line-height:1.35;\n  letter-spacing:.04em; text-transform:uppercase; color:var(--ink-mute);\n  padding:.3rem var(--row-x); background:var(--surface-2); border-bottom:1px solid var(--border);\n  vertical-align:bottom; white-space:normal}\ntable.awoo-t td{\n  text-align:right; padding:var(--row-y) var(--row-x); line-height:1.45;\n  font-family:var(--font-num); font-variant-numeric:tabular-nums;\n  border-top:1px solid var(--border); white-space:nowrap}\ntable.awoo-t th:first-child,table.awoo-t td:first-child,\ntable.awoo-t th.awoo-l,table.awoo-t td.awoo-l{text-align:left}\ntable.awoo-t tr.awoo-sel td{background:var(--bg-accent);box-shadow:inset 0 1px 0 var(--accent-edge),inset 0 -1px 0 var(--accent-edge)}\ntable.awoo-t tfoot td{font-weight:700;border-top:1px solid var(--border-strong)}\ntable.awoo-t td.awoo-dash{color:var(--ink-mute)}\ntable.awoo-t tr.awoo-stay td{opacity:.42}\ntable.awoo-t tr.awoo-done td{opacity:.6}\n.awoo-pos{color:var(--success)} .awoo-neg{color:var(--danger)} .awoo-zero{color:var(--ink-mute)}\n/* Identity colour (a resource, a stat): a 7px square before the name, never\n   coloured text and never a fill. The page sets the square's colour. */\n.awoo-id{display:inline-flex;align-items:center;gap:.3rem}\n.awoo-id > i{width:7px;height:7px;border-radius:2px;display:inline-block;flex:none}\n@media (max-width:1300px){.awoo-o1{display:none}}\n@media (max-width:760px){.awoo-o2{display:none}}\n@media (min-width:761px){.awoo-p-only{display:none}}\n@media (max-width:480px){.awoo-o3{display:none} :root{--row-x:6px}}\n\n/* A legend under a table or chart (§10g). */\n.awoo-legend{display:flex;gap:.9rem;flex-wrap:wrap;font-size:.68rem;color:var(--ink-soft);margin-top:.45rem}\n.awoo-legend > span{display:inline-flex;align-items:center;gap:.3rem}\n\n</style>\n<script>\n/* ===========================================================================\n   AWOO+ TOOL SETTINGS — theme, developer info and fonts, shared by every tool.\n\n   Hand-written. Injected by userscripts/build.mjs at <!-- @AWOO_TOOL_SETTINGS@ -->\n   (with tool-settings.css), so the inheritance rules below exist once rather\n   than once per tool. A page opts in by carrying the marker, naming itself in\n   <meta name=\"awoo-tool\" content=\"...\"> BEFORE the marker, and calling\n   AWOO_TOOL_SETTINGS.mount(el) from its own init.\n\n   INHERIT, THEN OVERRIDE (ARTIFACT_STYLE_GUIDE.md Part II and Part IV).\n   The theme, \"Show developer info\" and the tool fonts are the PLAYER's\n   settings, held by AWOO+ Core. Core hands them over when it opens a tool, as\n   window.AWOO_APPEARANCE, prepended to the payload the same way AWOO_LIVE is.\n   A choice made in this page's gear menu overrides the inherited one and is\n   remembered per tool; \"Match game\" hands the decision back to Core.\n\n   THE FALLBACKS, stated because each one is a deliberate answer rather than\n   whatever happened to render:\n     - Opened outside the game (nothing inherited): Partners, the default\n       theme, light or dark as the OS asks — theme-tokens.css does that with\n       no stamp (its base layer is Partners since 2026-10-06; it was Beach).\n     - Core's theme is game-shaped (\"Match game\", or the AWOO Turquoise preset):\n       a tool opened in its own tab cannot read the game page's variables, and\n       Core's snapshot of them does not reach tool payloads yet. So the page\n       shows SLATE AND SAYS SO in the menu — never an unstyled page, never a\n       silent substitute. When the snapshot does reach the payload, this\n       branch is the one place that changes.\n   =========================================================================== */\n(function(){\n'use strict';\n\nvar THEMES = [\n  ['partners','Default'], // named Partners until 2026-10-07; the id is what saved settings hold\n  ['beach','Beach (light)'], ['beach-dim','Beach (dimmed)'], ['slate','Slate'],\n  ['claude','Claude (light)'], ['claude-med','Claude (medium)'], ['claude-dark','Claude (dark)'],\n  ['claude-code','Claude Code']\n];\nvar THEME_IDS = THEMES.map(function(t){ return t[0]; });\n// Core's two themes that are defined by the GAME's variables rather than by\n// our contract. Neither can be rendered in a separate tab yet.\nvar GAME_SHAPED = { matchGame:'Match game', awooTurquoise:'AWOO Turquoise' };\nvar FALLBACK_THEME = 'slate';\n\n// The two font lists of Settings > Fonts. Core carries the same two lists for\n// the overlay; userscripts/tests/tool-theme-contract.mjs fails if they drift apart.\n//   text: Public Sans (default) · Open Sans · Figtree\n//   num:  Public Sans with tabular figures (default) · Roboto Mono\n// Roboto Mono marks its zero (69% ink in the counter, measured); it is offered\n// because it was asked for, and labelled for what it is in Core's picker.\nvar FONT_TEXT = {\n  public:  { stack:\"'Public Sans',system-ui,-apple-system,sans-serif\", family:'Public+Sans:wght@400;500;600;700' },\n  open:    { stack:\"'Open Sans',system-ui,-apple-system,sans-serif\",   family:'Open+Sans:wght@400;500;600;700' },\n  figtree: { stack:\"'Figtree',system-ui,-apple-system,sans-serif\",     family:'Figtree:wght@400;500;600;700' }\n};\nvar FONT_NUM = {\n  public: { stack:\"'Public Sans',system-ui,-apple-system,sans-serif\", family:'Public+Sans:wght@400;500;600;700' },\n  roboto: { stack:\"'Roboto Mono',ui-monospace,monospace\",             family:'Roboto+Mono:wght@400;500;600' }\n};\n\n// NUMBER PRESENTATION (2026-09-23: moved here from Cost Tables, so every tool\n// carries it). The game keeps two per-character settings, both CODE facts in\n// data/tables/number-display.json: numberFormatting (standard | exponential |\n// letters) and numberLocale ('Local' -> the browser, '1.000,00', '1,000.00').\n// Core hands the player's own over in AWOO_APPEARANCE.number; the gear menu\n// can override either, per tool. The suffix ladder starts at 1e3, and below\n// 1e6 every mode falls through to standard, which is the game's own rule.\nvar NUM_MODES = ['letters', 'standard', 'exponential'];\nvar LADDER = ['k','m','b','t','qa','qi','sx','sp','oc','no','dc','ud'];\nvar LOCALE_MAP = { 'Local':null, '1.000,00':'de-DE', '1,000.00':'en-US' };\n\nvar root = document.documentElement;\nvar meta = document.querySelector('meta[name=\"awoo-tool\"]');\nvar TOOL = (meta && meta.getAttribute('content')) || 'tool';\nvar LS = 'awoo:tool:' + TOOL + ':appearance';\n\nvar local = { theme:null, dev:null, sideScroll:false, numMode:null, numLocale:null, fontText:null, fontNum:null };\ntry {\n  var raw = localStorage.getItem(LS);\n  if (raw){ var p = JSON.parse(raw); if (p && typeof p === 'object'){\n    local.theme = p.theme || null; local.dev = (typeof p.dev === 'boolean') ? p.dev : null; local.sideScroll = p.sideScroll === true;\n    local.numMode = NUM_MODES.indexOf(p.numMode) >= 0 ? p.numMode : null;\n    local.numLocale = Object.prototype.hasOwnProperty.call(LOCALE_MAP, p.numLocale) ? p.numLocale : null;\n    local.fontText = FONT_TEXT[p.fontText] ? p.fontText : null;\n    local.fontNum = FONT_NUM[p.fontNum] ? p.fontNum : null;\n  } }\n} catch(e){ /* private window or blocked storage: inherit everything */ }\nfunction persist(){\n  try { localStorage.setItem(LS, JSON.stringify(local)); } catch(e){ /* not durable, still applied */ }\n}\n\n// What Core handed over. AWOO_APPEARANCE is the channel; the profile section\n// is the older one Cost Tables was written against, kept so a page embedded\n// beside Core (not in its own tab) still inherits.\nfunction inherited(){\n  var out = { theme:null, dev:null, fonts:null };\n  var a = window.AWOO_APPEARANCE;\n  if (a && typeof a === 'object'){\n    if (typeof a.theme === 'string') out.theme = a.theme;\n    if (typeof a.dev === 'boolean') out.dev = a.dev;\n    if (a.fonts && typeof a.fonts === 'object') out.fonts = a.fonts;\n  }\n  try {\n    var core = window.AWOO_CORE || window.Core;\n    if (core && core.profile && typeof core.profile.section === 'function'){\n      var t = core.profile.section('settings.theme');\n      if (out.theme == null && t && typeof t.value === 'string') out.theme = t.value;\n      var d = core.profile.section('settings.showDeveloperInfo');\n      if (out.dev == null && d && typeof d.value === 'boolean') out.dev = d.value;\n    }\n  } catch(e){ /* absent is absent */ }\n  return out;\n}\n\n// The theme actually painted, and why. `note` is shown in the menu whenever\n// the page is not showing exactly what was asked for.\nfunction resolveTheme(){\n  if (local.theme && THEME_IDS.indexOf(local.theme) >= 0){\n    return { id:local.theme, source:'picked', note:'' };\n  }\n  var inh = inherited().theme;\n  if (inh && THEME_IDS.indexOf(inh) >= 0){\n    return { id:inh, source:'game', note:'' };\n  }\n  if (inh && GAME_SHAPED[inh]){\n    return { id:FALLBACK_THEME, source:'fallback',\n      note:'Your AWOO+ theme is ' + GAME_SHAPED[inh] + ', which a tool cannot read yet. Showing Slate.' };\n  }\n  return { id:null, source:'os', note:'No AWOO+ theme to match, so this shows the Default theme, light or dark as your system is.' };\n}\n\nfunction labelOf(id){\n  for (var i = 0; i < THEMES.length; i++) if (THEMES[i][0] === id) return THEMES[i][1];\n  return null;\n}\n\nfunction applyTheme(){\n  var r = resolveTheme();\n  if (r.id) root.setAttribute('data-theme', r.id);\n  else root.removeAttribute('data-theme');\n  return r;\n}\nfunction devOn(){\n  if (local.dev != null) return local.dev;\n  return !!inherited().dev;\n}\nfunction applyDev(){ root.setAttribute('data-dev', devOn() ? 'on' : 'off'); }\n\nfunction inheritedNumber(){\n  var a = window.AWOO_APPEARANCE && window.AWOO_APPEARANCE.number;\n  return {\n    mode: a && NUM_MODES.indexOf(a.formatting) >= 0 ? a.formatting : null,\n    locale: a && Object.prototype.hasOwnProperty.call(LOCALE_MAP, a.locale) ? a.locale : null\n  };\n}\nfunction numMode(){ return local.numMode || inheritedNumber().mode || 'letters'; }\nfunction numLocaleKey(){ return local.numLocale || inheritedNumber().locale || 'Local'; }\nfunction numLocaleTag(){\n  var tag = LOCALE_MAP[numLocaleKey()];\n  if (tag) return tag;\n  try { return navigator.language || 'en-US'; } catch(e){ return 'en-US'; }\n}\nfunction finite(n){ return typeof n === 'number' && isFinite(n); }\n// Grouped digits, rounded. A dash for anything that is not a number, so a\n// missing input never renders as a confident 0.\nfunction fmtInt(n){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  try { return Math.round(n).toLocaleString(numLocaleTag()); } catch(e){ return String(Math.round(n)); }\n}\n// Exactly d decimals, in the player's separators.\nfunction fmtDec(n, d){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  d = d == null ? 2 : d;\n  try { return n.toLocaleString(numLocaleTag(), { minimumFractionDigits:d, maximumFractionDigits:d }); }\n  catch(e){ return n.toFixed(d); }\n}\n// A fraction as a percentage: 0.1234 -> \"12.34%\".\nfunction fmtPct(frac, d){ return finite(frac) ? fmtDec(frac * 100, d == null ? 2 : d) + '%' : '\\u2014'; }\n// The game's own rule: below 1e6 standard (with up to `small` decimals for\n// small non-integers), from 1e6 letters / exponential / standard.\nfunction fmtNum(n, small){\n  if (!finite(n)) return n === Infinity ? '\\u221e' : '\\u2014';\n  if (n === 0) return '0';\n  var mode = numMode(), abs = Math.abs(n);\n  if (abs < 1e6 || mode === 'standard'){\n    if (abs < 1000 && small && Math.round(n) !== n){\n      var dd = abs < 10 ? small : Math.max(0, small - 1);\n      try { return n.toLocaleString(numLocaleTag(), { maximumFractionDigits:dd }); } catch(e){ return n.toFixed(dd); }\n    }\n    return fmtInt(n);\n  }\n  if (mode === 'exponential') return n.toExponential(2);\n  var i = Math.min(LADDER.length - 1, Math.floor(Math.log10(abs) / 3) - 1);\n  var v = n / Math.pow(1000, i + 1);\n  // Always two decimals: the game's own letter form (NumberDisplay, CODE;\n  // data/tables/number-display.json display.letterFormat.threshold). Cost\n  // Tables showed one decimal from 100 up until 2026-09-23, which the game never does.\n  return fmtDec(v, 2) + LADDER[i];\n}\n// Reads what a person typed, in the player's separators, with the game's\n// letter suffixes (\"4.18t\"). null when it is not a number, never 0.\nfunction parseNum(str){\n  if (typeof str === 'number') return finite(str) ? str : null;\n  if (typeof str !== 'string') return null;\n  var t = str.trim().toLowerCase().replace(/[\\s%]/g, '');\n  if (!t) return null;\n  var mult = 1, m = t.match(/(qa|qi|sx|sp|oc|no|dc|ud|k|m|b|t)$/);\n  if (m){ mult = Math.pow(1000, LADDER.indexOf(m[1]) + 1); t = t.slice(0, -m[1].length); }\n  var dec = fmtDec(1.5, 1).replace(/[0-9]/g, '') || '.';\n  var group = dec === ',' ? '.' : ',';\n  t = t.split(group).join('');\n  if (dec !== '.') t = t.replace(dec, '.');\n  if (!/^[-+]?\\d*\\.?\\d+(e[-+]?\\d+)?$/.test(t)) return null;\n  var v = parseFloat(t) * mult;\n  return finite(v) ? v : null;\n}\nfunction numberNote(){\n  var inh = inheritedNumber(), parts = [];\n  if (!local.numMode) parts.push(inh.mode ? 'format from game' : 'format: letters (not opened from the game)');\n  if (!local.numLocale) parts.push(inh.locale ? 'separators from game' : 'separators: browser');\n  return parts.join(' \\u00b7 ');\n}\n\n// Fonts: Settings > Fonts in Core sets the tools' faces for every tool, and\n// since 2026-09-23 each tool's gear can override them for that tool alone\n// (the maintainer asked for the number font in every settings menu). \"Match\n// AWOO+\" hands the choice back to Core. A face outside the page's own\n// stylesheet link is fetched only when chosen.\nfunction loadFamily(family){\n  if (!family || document.querySelector('link[data-awoo-font=\"' + family + '\"]')) return;\n  var l = document.createElement('link');\n  l.rel = 'stylesheet';\n  l.href = 'https://fonts.googleapis.com/css2?family=' + family + '&display=swap';\n  l.setAttribute('data-awoo-font', family);\n  (document.head || root).appendChild(l);\n}\nfunction fontIds(){\n  var f = inherited().fonts;\n  var tools = f && (f.tools || f);\n  return {\n    text: local.fontText || (tools && FONT_TEXT[tools.text] ? tools.text : null),\n    num: local.fontNum || (tools && FONT_NUM[tools.num] ? tools.num : null)\n  };\n}\nfunction applyFonts(){\n  var ids = fontIds();\n  var text = ids.text && FONT_TEXT[ids.text];\n  var num = ids.num && FONT_NUM[ids.num];\n  if (text){\n    loadFamily(text.family);\n    root.style.setProperty('--font-body', text.stack);\n    root.style.setProperty('--font-display', text.stack);\n  }\n  if (num){\n    loadFamily(num.family);\n    root.style.setProperty('--font-num', num.stack);\n  }\n  // Switching back to \"Match AWOO+\" with nothing inherited must undo an\n  // override, not leave the last one painted.\n  var rm = root.style && typeof root.style.removeProperty === 'function' ? function(k){ root.style.removeProperty(k); } : function(){};\n  if (!text){ rm('--font-body'); rm('--font-display'); }\n  if (!num) rm('--font-num');\n}\nvar FONT_LABEL = { public:'Public Sans', open:'Open Sans', figtree:'Figtree', roboto:'Roboto Mono (marked 0)' };\n\n/* NUMBER INPUTS (2026-09-23). A box marked data-num shows thousands\n   separators while you are not in it, and plain digits while you edit (so the\n   caret never fights a separator). What you paste may carry separators, as\n   long as they are your format's; letter suffixes (\"4.18t\") work too.\n   num.read(el) is how a page reads one: the value, or null, never 0 for a\n   box that is empty or not a number.\n\n   KINDS (2026-09-27, the maintainer: \"visually showing the percentage and\n   rounded numbers ... accepting decimals when editing\"). data-num-kind picks\n   how the box READS while you are not in it; in it, every kind is the same\n   plain, full-precision number in your decimal separator, so what you edit\n   is never the rounded text:\n     (none)  grouped, up to data-num-digits decimals (default 6), as before\n     int     grouped, whole                          1,500,000\n     pct     percentage POINTS, fixed decimals        163.54%\n     dec     fixed decimals (a multiplier, a rate)    16.01\n     game    the game's own rule: letters from 1e6    105.44b\n   data-num-digits sets the decimals of pct / dec / game (default 2).\n   A pct box holds percentage points (163.54 means 163.54%), not a fraction:\n   every tool page already keeps its percent inputs in points (Pet Slot ROI's\n   \"Market %\" is 320, the optimizer's \"Enchants %\" 525.7), the label says %,\n   and parseNum already reads \"12%\" as 12. A page whose source is a fraction\n   scales it in its own read (Pet Slot ROI's goldBoost: gold * 100). The\n   precedent for the display is the game's own and the modules' (two\n   decimals, the player's separator: dungeon-win-rate fmtPct,\n   sculpture-grid-labels formatRoll); no module yet edits a formatted box.\n\n   THE ROUNDED TEXT NEVER LOSES THE VALUE. A box shown as \"163.54%\" may hold\n   163.5432; the full value rides on the element beside the text it was\n   shown as, and num.read returns it for as long as the text is unchanged.\n   Anything typed is read as typed. */\nvar KIND_DIGITS = { pct:2, dec:2, game:2 };\nfunction kindOf(el){ var k = el.getAttribute('data-num-kind'); return (k === 'int' || KIND_DIGITS[k] !== undefined) ? k : null; }\nfunction digitsOf(el, fallback){\n  var dig = el.getAttribute('data-num-digits');\n  var n = dig !== null ? parseInt(dig, 10) : NaN;\n  return isFinite(n) && n >= 0 ? n : fallback;\n}\n// What a box reads as while you are not in it.\nfunction numDisplay(el, v){\n  var kind = kindOf(el);\n  if (kind === 'int') return fmtInt(v);\n  if (kind === 'pct') return fmtDec(v, digitsOf(el, 2)) + '%';\n  if (kind === 'dec') return fmtDec(v, digitsOf(el, 2));\n  if (kind === 'game') return fmtNum(v, digitsOf(el, 2));\n  try { return v.toLocaleString(numLocaleTag(), { maximumFractionDigits:digitsOf(el, 6) }); } catch(e){ return String(v); }\n}\n// What it reads as while you edit: plain, and as precise as the value is\n// (8 decimals is past anything the game stores, and short of float noise).\nfunction numEditable(el, v){\n  var kind = kindOf(el);\n  var max = kind ? 8 : digitsOf(el, 6);\n  try { return v.toLocaleString(numLocaleTag(), { useGrouping:false, maximumFractionDigits:max }); } catch(e){ return String(v); }\n}\nfunction showNum(el, v){\n  if (v === null || v === undefined || !finite(v)){ return; }\n  var focused = document.activeElement === el;\n  el.value = focused ? numEditable(el, v) : numDisplay(el, v);\n  el.__awooNumV = v; el.__awooNumShown = el.value;\n}\nfunction readNum(el){\n  if (!el) return null;\n  if (el.__awooNumShown !== undefined && el.value === el.__awooNumShown) return el.__awooNumV;\n  return parseNum(el.value);\n}\nfunction enhanceNum(el){\n  if (!el || el.__awooNum) return;\n  el.__awooNum = true;\n  if (el.type === 'number') el.type = 'text';\n  el.setAttribute('inputmode', 'decimal');\n  el.setAttribute('autocomplete', 'off');\n  el.addEventListener('focus', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });\n  el.addEventListener('blur', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });\n  var v0 = initialNum(el);\n  if (v0 !== null) showNum(el, v0);\n}\n// THE VALUE A BOX STARTS WITH IS THE PAGE'S, NOT THE PLAYER'S (2026-10-07).\n// A page writes it into the markup from a JS number (value=\"3.5\"), so it is\n// in JavaScript's own form whatever the player's separators are. It used to\n// go through parseNum, which under the comma convention (\"1.000,00\") reads\n// the dot as a thousands mark: the Caves tool's Boss / treasure default 3.5\n// opened as 35,00. A plain JS number literal is read as one; anything else\n// (text the page formatted, or a letter suffix) still goes through parseNum.\nvar JS_NUMBER = /^[-+]?(\\d+\\.?\\d*|\\.\\d+)(e[-+]?\\d+)?$/i;\nfunction initialNum(el){\n  if (el.__awooNumShown !== undefined && el.value === el.__awooNumShown) return el.__awooNumV;\n  var t = String(el.value == null ? '' : el.value).trim();\n  if (!t) return null;\n  if (JS_NUMBER.test(t)){ var v = parseFloat(t); return finite(v) ? v : null; }\n  return parseNum(t);\n}\nfunction enhanceAll(scope){\n  var list = (scope || document).querySelectorAll('input[data-num]');\n  for (var i = 0; i < list.length; i++) enhanceNum(list[i]);\n}\nfunction reformatAll(){\n  var list = document.querySelectorAll('input[data-num]');\n  for (var i = 0; i < list.length; i++){ if (document.activeElement !== list[i]){ var v = readNum(list[i]); if (v !== null) showNum(list[i], v); } }\n}\n\n/* THE WHEEL STEPS A NUMBER BOX, AND THE PAGE DOES NOT MOVE (2026-09-27).\n   The maintainer liked the browser's own wheel-to-step on a number box and\n   its per-box step sizes, and asked that the window never scroll while the\n   wheel is stepping a box. The browser only steps a FOCUSED type=number box,\n   and scrolls the page for everything else, data-num boxes included (they\n   are type=text). So one listener, not passive (a passive one cannot\n   preventDefault), steps any enabled number box under the pointer and keeps\n   the page still:\n     - a box that is disabled or read-only (a synced field, which tool-sync.js\n       locks until you click it) is not captured: the page scrolls, because\n       the wheel cannot change it anyway;\n     - a scroll already under way keeps scrolling the PAGE when the pointer\n       crosses a box, the way a browser latches a nested scroller: without\n       that, scrolling down a sidebar of boxes would change whichever box\n       happened to pass under the pointer, a silent wrong input;\n     - the step is the box's own (data-num-step, else its step attribute),\n       else it follows the number's size (230,000 steps by 1,000; 48.93% by\n       0.1), snapped to the step, and clamped to min/max.\n   Each step fires input and change, as typing does, so the page recomputes\n   and the sync kit marks the field manual. */\nvar WHEEL_LATCH_MS = 400;\nvar pageWheelAt = 0, wheelAcc = 0, wheelBox = null;\nfunction isNumBox(el){\n  if (!el || el.tagName !== 'INPUT') return false;\n  return el.type === 'number' || el.hasAttribute('data-num');\n}\nfunction stepDecimals(s){ var t = String(s); var i = t.indexOf('.'); return i < 0 ? 0 : t.length - i - 1; }\nfunction autoStep(el, v){\n  var kind = kindOf(el);\n  var whole = kind === 'int' || kind === 'game' || (!kind && digitsOf(el, 6) === 0) || el.type === 'number';\n  var floor = whole ? 1 : Math.pow(10, -Math.min(2, digitsOf(el, 2)));\n  if (!v) return whole ? 1 : Math.max(floor, kind === 'pct' ? 1 : 0.1);\n  var s = Math.pow(10, Math.floor(Math.log10(Math.abs(v))) - 2);\n  return Math.max(floor, s);\n}\nfunction boxStep(el, v){\n  var attr = el.getAttribute('data-num-step') || el.getAttribute('step');\n  var s = attr && attr !== 'any' ? parseFloat(attr) : NaN;\n  if (isFinite(s) && s > 0) return s;\n  return el.type === 'number' && attr !== 'any' ? 1 : autoStep(el, v);\n}\nfunction boxValue(el){\n  if (el.hasAttribute('data-num')) return readNum(el);\n  var v = parseFloat(el.value);\n  return isFinite(v) ? v : null;\n}\nfunction fire(el, type){\n  var ev;\n  try { ev = new Event(type, { bubbles:true }); } catch(e){ ev = document.createEvent('Event'); ev.initEvent(type, true, false); }\n  el.dispatchEvent(ev);\n}\nfunction stepBox(el, dir){\n  var v0 = boxValue(el);\n  var cur = v0 === null ? 0 : v0;\n  var s = boxStep(el, cur);\n  var d = stepDecimals(s);\n  var v = Math.round((cur + dir * s) / s) * s;\n  var lo = parseFloat(el.getAttribute('min')), hi = parseFloat(el.getAttribute('max'));\n  if (isFinite(lo) && v < lo) v = lo;\n  if (isFinite(hi) && v > hi) v = hi;\n  v = parseFloat(v.toFixed(Math.min(10, d)));\n  if (v === v0) return false;\n  if (el.hasAttribute('data-num')) showNum(el, v);\n  else el.value = String(v);\n  fire(el, 'input'); fire(el, 'change');\n  return true;\n}\nfunction onWheel(e){\n  var t = e.target;\n  var box = t && t.closest ? t.closest('input') : null;\n  var now = Date.now();\n  if (!isNumBox(box) || box.disabled || box.readOnly || !e.deltaY || e.ctrlKey){\n    if (e.deltaY) pageWheelAt = now;\n    return;\n  }\n  // Latched to the page: a scroll that began elsewhere carries on over the box.\n  if (now - pageWheelAt < WHEEL_LATCH_MS){ pageWheelAt = now; return; }\n  e.preventDefault();\n  if (wheelBox !== box){ wheelBox = box; wheelAcc = 0; }\n  // A mouse notch is one step (a line, or about 100px); a trackpad's small\n  // deltas add up to one, so a flick does not race through fifty steps.\n  var px = e.deltaMode === 1 ? e.deltaY * 40 : (e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY);\n  if (Math.abs(px) >= 40){ wheelAcc = 0; stepBox(box, px < 0 ? 1 : -1); return; }\n  wheelAcc += px;\n  if (Math.abs(wheelAcc) >= 40){ var dir = wheelAcc < 0 ? 1 : -1; wheelAcc = 0; stepBox(box, dir); }\n}\ntry { document.addEventListener('wheel', onWheel, { passive:false }); }\ncatch(e){ /* a browser without options objects has no wheel-to-step either */ }\n\n// Sidebar pinning (see tool-settings.css). A page marks its sidebar with\n// data-awoo-sidebar, the viewport width from which it sits BESIDE the content\n// (data-side-min) and the pinned offset (data-side-top, e.g. below a sticky\n// top bar). Below that width the layout is one column and nothing is pinned.\nfunction sidebar(){ return document.querySelector('[data-awoo-sidebar]'); }\nfunction layoutSidebar(){\n  var el = sidebar();\n  if (!el) return;\n  var min = parseInt(el.getAttribute('data-side-min'), 10) || 0;\n  var top = parseInt(el.getAttribute('data-side-top'), 10) || 20;\n  el.style.setProperty('--side-top', top + 'px');\n  var mode;\n  if (window.innerWidth < min) mode = 'static';\n  else if (local.sideScroll) mode = 'scroll';\n  // scrollHeight is the content's own height whatever max-height says, so\n  // the measurement does not depend on the mode it is choosing between.\n  else mode = el.scrollHeight <= window.innerHeight - top - 16 ? 'sticky' : 'static';\n  if (el.getAttribute('data-side-mode') !== mode) el.setAttribute('data-side-mode', mode);\n}\nfunction watchSidebar(){\n  var el = sidebar();\n  if (!el) return;\n  layoutSidebar();\n  window.addEventListener('resize', layoutSidebar);\n  // Content grows and shrinks (a details panel opens, live data arrives), so\n  // the fit is re-measured on the element's own size changes too.\n  if (window.ResizeObserver) new ResizeObserver(layoutSidebar).observe(el);\n}\n\nvar listeners = [];\nfunction changed(){ for (var i = 0; i < listeners.length; i++){ try { listeners[i](); } catch(e){ /* one page bug must not stop the others */ } } }\n\n// Painted immediately, at parse time, so the page never flashes the base\n// theme before the stored or inherited one.\napplyTheme(); applyDev(); applyFonts();\n\nfunction el(tag, attrs, text){\n  var n = document.createElement(tag);\n  for (var k in attrs) n.setAttribute(k, attrs[k]);\n  if (text != null) n.textContent = text;\n  return n;\n}\n\n/* The gear menu. `host` is an empty element in the page's top bar; `opts.extra`\n   is an optional node of page-specific rows (Cost Tables' number format),\n   placed between Theme and Show developer info. `opts.up` opens it upward. */\nfunction mount(host, opts){\n  opts = opts || {};\n  if (!host) return;\n  host.classList.add('awoo-gear');\n  host.textContent = '';\n\n  var btn = el('button', { type:'button', 'class':'awoo-gear-btn', 'aria-expanded':'false',\n    'aria-controls':'awooGearMenu', 'aria-label':'Settings', title:'Settings' }, '⚙');\n  var menu = el('div', { id:'awooGearMenu', 'class':'awoo-gear-menu' + (opts.up ? ' up' : '') });\n  menu.hidden = true;\n\n  var themeRow = el('div', { 'class':'awoo-gear-row' });\n  themeRow.appendChild(el('label', { 'for':'awooThemeSel' }, 'Theme'));\n  var sel = el('select', { id:'awooThemeSel' });\n  var matchOpt = el('option', { value:'' }, 'Match game');\n  sel.appendChild(matchOpt);\n  THEMES.forEach(function(t){ sel.appendChild(el('option', { value:t[0] }, t[1])); });\n  themeRow.appendChild(sel);\n  menu.appendChild(themeRow);\n  var themeNote = el('div', { 'class':'awoo-gear-note' });\n  menu.appendChild(themeNote);\n\n  // Numbers and separators: in every tool's gear, not one tool's extra rows.\n  var numRow = el('div', { 'class':'awoo-gear-row' });\n  numRow.appendChild(el('label', { 'for':'awooNumMode' }, 'Number style'));\n  var numSel = el('select', { id:'awooNumMode' });\n  [['', 'Match game'], ['letters', '105.44b'], ['standard', '105,440,000,000'], ['exponential', '1.05e+11']]\n    .forEach(function(o){ numSel.appendChild(el('option', { value:o[0] }, o[1])); });\n  numRow.appendChild(numSel);\n  menu.appendChild(numRow);\n  var locRow = el('div', { 'class':'awoo-gear-row' });\n  locRow.appendChild(el('label', { 'for':'awooNumLocale' }, 'Number format'));\n  var locSel = el('select', { id:'awooNumLocale' });\n  [['', 'Match game'], ['1,000.00', '1,000.00 \\u00b7 point'], ['1.000,00', '1.000,00 \\u00b7 comma'], ['Local', 'Browser default']]\n    .forEach(function(o){ locSel.appendChild(el('option', { value:o[0] }, o[1])); });\n  locRow.appendChild(locSel);\n  menu.appendChild(locRow);\n  var numNote = el('div', { 'class':'awoo-gear-note' });\n  menu.appendChild(numNote);\n\n  function fontRow(id, label, list){\n    var row = el('div', { 'class':'awoo-gear-row' });\n    row.appendChild(el('label', { 'for':id }, label));\n    var sel2 = el('select', { id:id });\n    sel2.appendChild(el('option', { value:'' }, 'Match AWOO+'));\n    Object.keys(list).forEach(function(k){ sel2.appendChild(el('option', { value:k }, FONT_LABEL[k] || k)); });\n    row.appendChild(sel2);\n    menu.appendChild(row);\n    return sel2;\n  }\n  var fontNumSel = fontRow('awooFontNum', 'Number font', FONT_NUM);\n  var fontTextSel = fontRow('awooFontText', 'Text font', FONT_TEXT);\n\n  if (opts.extra) menu.appendChild(opts.extra);\n\n  var devRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });\n  devRow.appendChild(el('label', { 'for':'awooDevToggle' }, 'Show developer info'));\n  var dev = el('input', { type:'checkbox', id:'awooDevToggle' });\n  devRow.appendChild(dev);\n  menu.appendChild(devRow);\n  menu.appendChild(el('div', { 'class':'awoo-gear-note' },\n    opts.devHint || 'Adds the evidence tier, source files and last-checked date.'));\n\n  var side = null;\n  if (sidebar()){\n    var sideRow = el('div', { 'class':'awoo-gear-row awoo-gear-check' });\n    sideRow.appendChild(el('label', { 'for':'awooSideScroll' }, 'Sidebar scrolls on its own'));\n    side = el('input', { type:'checkbox', id:'awooSideScroll' });\n    sideRow.appendChild(side);\n    menu.appendChild(sideRow);\n    side.addEventListener('change', function(){\n      local.sideScroll = side.checked;\n      persist(); layoutSidebar(); changed();\n    });\n  }\n\n  host.appendChild(btn);\n  host.appendChild(menu);\n  watchSidebar();\n\n  function render(){\n    var r = resolveTheme();\n    sel.value = local.theme || '';\n    // \"Match game\" says what it resolved to, so the reader never has to open\n    // the list to find out which theme they are looking at.\n    matchOpt.textContent = 'Match game' + (r.source === 'picked' ? '' :\n      ' · ' + (r.id ? labelOf(r.id) : 'system'));\n    themeNote.textContent = (r.source === 'picked') ? '' : r.note;\n    themeNote.classList.toggle('fallback', r.source === 'fallback');\n    dev.checked = devOn();\n    if (side) side.checked = !!local.sideScroll;\n    numSel.value = local.numMode || '';\n    locSel.value = local.numLocale || '';\n    numNote.textContent = numberNote();\n    var fi = fontIds();\n    fontNumSel.value = local.fontNum || '';\n    fontTextSel.value = local.fontText || '';\n    fontNumSel.options[0].textContent = 'Match AWOO+' + (!local.fontNum ? ' \\u00b7 ' + (FONT_LABEL[fi.num] || 'Public Sans') : '');\n    fontTextSel.options[0].textContent = 'Match AWOO+' + (!local.fontText ? ' \\u00b7 ' + (FONT_LABEL[fi.text] || 'Public Sans') : '');\n  }\n  render();\n\n  fontNumSel.addEventListener('change', function(){\n    local.fontNum = fontNumSel.value || null;\n    persist(); applyFonts(); render(); changed();\n  });\n  fontTextSel.addEventListener('change', function(){\n    local.fontText = fontTextSel.value || null;\n    persist(); applyFonts(); render(); changed();\n  });\n\n  numSel.addEventListener('change', function(){\n    local.numMode = numSel.value || null;\n    persist(); render(); reformatAll(); changed();\n  });\n  locSel.addEventListener('change', function(){\n    local.numLocale = locSel.value || null;\n    persist(); render(); reformatAll(); changed();\n  });\n  enhanceAll();\n\n  sel.addEventListener('change', function(){\n    local.theme = sel.value || null;\n    persist(); applyTheme(); render(); changed();\n  });\n  dev.addEventListener('change', function(){\n    local.dev = dev.checked;\n    persist(); applyDev(); changed();\n  });\n\n  // Closes on outside click and on Escape, because a panel that only closes\n  // by clicking the same button again is a panel people leave open.\n  function setOpen(open){\n    menu.hidden = !open;\n    btn.setAttribute('aria-expanded', String(open));\n  }\n  btn.addEventListener('click', function(e){ e.stopPropagation(); setOpen(menu.hidden); });\n  menu.addEventListener('click', function(e){ e.stopPropagation(); });\n  document.addEventListener('click', function(){ setOpen(false); });\n  document.addEventListener('keydown', function(e){\n    if (e.key === 'Escape' && !menu.hidden){ setOpen(false); btn.focus(); }\n  });\n  // The OS flipping light/dark only matters while nothing more specific is set.\n  if (window.matchMedia){\n    var mq = window.matchMedia('(prefers-color-scheme: dark)');\n    var onOs = function(){ render(); changed(); };\n    if (mq.addEventListener) mq.addEventListener('change', onOs);\n    else if (mq.addListener) mq.addListener(onOs);\n  }\n}\n\n/* The developer tier of a Formula panel: one line per generated fact, with its\n   evidence tier, source file and last-checked date. Read from\n   window.AWOO_FACTS_META, which build.mjs writes from the same data/ entries\n   it generates the functions from — so this list cannot disagree with the\n   code the page actually runs. Returns <li> markup; the caller wraps it in a\n   list marked data-dev-only. */\nfunction esc(v){ return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }\nfunction sources(names){\n  var meta = window.AWOO_FACTS_META || {};\n  var keys = names || Object.keys(meta);\n  if (!keys.length) return '<li>This copy was opened without the generated facts block.</li>';\n  return keys.filter(function(k){ return meta[k]; }).map(function(k){\n    var m = meta[k];\n    return '<li><span class=\"devpill\">' + esc(m.confidence) + '</span> <code>' + esc(m.file) +\n      '</code> &middot; <code>' + esc(m.fact) + '</code>' +\n      (m.checked ? ' &middot; checked ' + esc(m.checked) : '') + '</li>';\n  }).join('');\n}\n\nwindow.AWOO_TOOL_SETTINGS = {\n  mount: mount,\n  // Number presentation, the same for every tool (see NUMBER PRESENTATION).\n  num: { mode:numMode, localeKey:numLocaleKey, localeTag:numLocaleTag,\n         fmt:fmtNum, int:fmtInt, dec:fmtDec, pct:fmtPct, parse:parseNum,\n         read:readNum, show:showNum, enhance:enhanceAll,\n         // How a box reads at rest, by its data-num-kind (NUMBER INPUTS):\n         // the sync kit's hover shows a synced value the way its box does.\n         display:numDisplay, isBox:isNumBox,\n         // Test seam: one wheel notch on a box (+1 up, -1 down).\n         _step:stepBox, _wheel:onWheel,\n         // A tool that stored its own override before this layer carried one\n         // hands it over once; an override already set here wins.\n         adopt:function(mode, locale){\n           var any = false;\n           if (!local.numMode && NUM_MODES.indexOf(mode) >= 0){ local.numMode = mode; any = true; }\n           if (!local.numLocale && Object.prototype.hasOwnProperty.call(LOCALE_MAP, locale)){ local.numLocale = locale; any = true; }\n           if (any) persist();\n         },\n         // Test seam.\n         _set:function(mode, locale){ local.numMode = mode || null; local.numLocale = locale || null; } },\n  sources: sources,\n  onChange: function(fn){ if (typeof fn === 'function') listeners.push(fn); },\n  theme: resolveTheme,\n  devOn: devOn,\n  themes: THEMES.slice(),\n  // Test seam: the resolution rules, callable without a DOM round-trip.\n  _resolve: function(localTheme, inheritedTheme){\n    var pl = local.theme, pa = window.AWOO_APPEARANCE;\n    local.theme = localTheme || null;\n    window.AWOO_APPEARANCE = inheritedTheme ? { theme:inheritedTheme } : undefined;\n    try { return resolveTheme(); } finally { local.theme = pl; window.AWOO_APPEARANCE = pa; }\n  },\n  _fonts: { text:FONT_TEXT, num:FONT_NUM }\n};\n})();\n\n</script>\n<script>\n/* ===========================================================================\n   AWOO+ TOOL SYNC — the profile, the four field states, the Live/Standard\n   switch and the one tooltip every tool shares (2026-09-23).\n\n   Hand-written. Injected by userscripts/build.mjs at <!-- @AWOO_TOOL_SETTINGS@ -->\n   right after tool-settings.js, so a tool that takes the gear menu takes this\n   too. NO-PROVENANCE: it moves the player's observations around and reads no\n   game fact; every formula stays in the tool that uses it.\n\n   WHERE THE PROFILE COMES FROM. A tool opens in its own tab, but that tab has\n   the game's origin (a blob URL), so the BroadcastChannel Core already speaks\n   ('awoo-profile') reaches it:\n     - window.AWOO_INITIAL_PROFILE: what Core handed over at open time, when\n       the tool's .release.json asks for it (prefill: [\"profile\"]);\n     - PROFILE_DELTA (Core v16, REGISTER.md R92): what each capture changed,\n       or saw again, section by section, merged here by observedAt exactly as\n       Core merges it between tabs (mergeDelta below);\n     - PROFILE_UPDATED: a whole profile. Every capture posted one up to Core\n       v15; v16 posts one only in answer to REQUEST_PROFILE_SYNC;\n     - REQUEST_PROFILE_SYNC: \"Sync now\" asks the game tabs to capture now and\n       the leading one to read the sections this tool uses\n       (window.AWOO_TOOL_USES, handed over at open time like the profile;\n       absent, every section).\n   Opening a tool from AWOO+ also asks, once (Core's openTool). Opened\n   anywhere else (a file, a preview), nothing arrives, and the card says so\n   rather than pretending.\n\n   THE FOUR FIELD STATES (REGISTER.md R48; ARTIFACT_STYLE_GUIDE.md Part III).\n   Every bound input carries a light, visible without hovering:\n     synced       read from the profile, fresh               filled, success\n     stale        read from the profile, older than the window filled, accent\n     edited       you typed it; a sync never overwrites it    filled, info\n     unavailable  never observed; the box holds your figure   hollow\n   Hover explains; a click hands that one field back to the profile. \"Reset\n   inputs\" on the card hands every field back at once.\n\n   HOW A PAGE OPTS IN (the input standard, 2026-09-27; how each state LOOKS\n   is at \"THE ONE STANDARD FOR A SYNCED INPUT\" below and in\n   tool-settings.css). All of it is declarative:\n     1. the box:   <label for=\"x\">Combat slot</label>\n                   <input type=\"text\" id=\"x\" data-num data-num-kind=\"int\">\n                   data-num-kind (int | pct | dec | game) and data-num-digits\n                   say how it reads at rest; tool-settings.js \"NUMBER INPUTS\".\n                   A wheel over an unlocked number box steps it and never\n                   scrolls the page (tool-settings.js, \"THE WHEEL\").\n     2. the bind:  AWOO_SYNC.bind({ key:'combat', el:x, read:'pets.combat.slotLevel' })\n                   From then on the box is locked and dimmed while synced,\n                   manual when clicked or typed in, and carries its light,\n                   its ↺ and its hover. The page reads it with\n                   AWOO_TOOL_SETTINGS.num.read(el), never el.value.\n     3. the page:  AWOO_SYNC.onApply(recompute) — called only when a sync\n                   actually CHANGED a box, so it is safe to do real work in.\n   A page that renders its boxes afresh binds the same key to the new element\n   and the field moves onto it. A page with per-subject state of its own and\n   no lasting element (Cost Tables) reports through AWOO_SYNC.extend.\n\n   AFTER OPENING, NOTHING UPDATES BY ITSELF (R125, 2026-09-28): a box fills\n   once, then holds; a newer reading waits behind its light until Sync (all)\n   or the light's click (one). What follows describes the fill itself.\n\n   A SYNC APPLIES ITSELF to every field you have not edited. That replaced the\n   old \"detect, then press Apply\" flow on purpose: R48 (the maintainer's own\n   note) asks that syncs update the fields and never the ones you changed, and\n   the light is the visibility the Apply step used to provide. It writes only\n   a box whose value it changes, and never the box you are in\n   (\"NOTHING MOVES UNLESS A VALUE DID\" below).\n\n   AGE IS PER SECTION. A reading's age is profile.meta.observedAt[section],\n   stamped by Profile Sync only for sections that capture actually saw. A\n   profile from an older AWOO+ has no stamps; its readings show as stale with\n   the age \"unknown\", never as fresh (R49 found a tool falling back to \"now\").\n\n   LIVE / STANDARD. A tool may offer the switch. Live: the account as it is.\n   Standard: a documented reference setup for the parts of the answer that\n   depend on one account's luck (a pet's rolls, a party's make-up), so two\n   runs, or two players, compare like with like. What Standard swaps is the\n   TOOL's decision, stated in the tool; this file only holds the state and\n   hides whatever a page marks data-mode-only=\"live\" or \"standard\".\n   =========================================================================== */\n(function(){\n'use strict';\n\nvar root = document.documentElement;\nvar meta = document.querySelector('meta[name=\"awoo-tool\"]');\nvar TOOL = (meta && meta.getAttribute('content')) || 'tool';\nvar LS = 'awoo:tool:' + TOOL + ':sync';\nvar DEFAULT_STALE_MS = 6 * 60 * 60 * 1000;\nvar NO_ANSWER_MS = 4000;\n// After Sync is pressed (or the page asks on load), what arrives within this\n// long lands in the boxes; outside it, an arriving reading only waits (R125).\nvar SYNC_WINDOW_MS = 20000;\nvar syncUntil = 0;\nfunction syncing(){ return Date.now() < syncUntil; }\n\nfunction settings(){ return window.AWOO_TOOL_SETTINGS || null; }\n\nvar saved = { edited:{}, values:{}, mode:null };\ntry {\n  var raw = localStorage.getItem(LS);\n  if (raw){ var o = JSON.parse(raw); if (o && typeof o === 'object'){\n    if (o.edited && typeof o.edited === 'object') saved.edited = o.edited;\n    if (o.values && typeof o.values === 'object') saved.values = o.values;\n    if (o.mode === 'live' || o.mode === 'standard') saved.mode = o.mode;\n  } }\n} catch(e){ /* storage blocked: nothing remembered, everything still works */ }\nfunction persist(){ try { localStorage.setItem(LS, JSON.stringify(saved)); } catch(e){ /* not durable */ } }\n\n/* ---------------------------------------------------------------- profile */\nvar profile = (window.AWOO_INITIAL_PROFILE && typeof window.AWOO_INITIAL_PROFILE === 'object') ? window.AWOO_INITIAL_PROFILE : null;\nvar connected = !!profile;           // has anything ever arrived?\nvar requestedAt = null;              // last \"Sync now\", for the no-answer state\nvar profileListeners = [];\n\nfunction setProfile(p, fresh){\n  if (!p || typeof p !== 'object') return;\n  profile = p; connected = true; requestedAt = null;\n  // Another character (you switched): a new account, so the boxes fill afresh.\n  if (fresh) for (var i0 = 0; i0 < fields.length; i0++) fields[i0].filled = false;\n  applyAll();\n  for (var i = 0; i < profileListeners.length; i++){ try { profileListeners[i](profile); } catch(e){ /* one page bug must not stop the others */ } }\n  renderCards();\n}\n\n// The sections this tool reads (its release.json `uses`), when whoever opened\n// it said (tool-shelf.js, or the module carrying it). Only names, never\n// guessed: absent, \"Sync now\" asks for everything, as it always did.\nvar USES = (function(){\n  var u = window.AWOO_TOOL_USES;\n  if (!u || typeof u.length !== 'number') return null;\n  var out = [];\n  for (var i = 0; i < u.length; i++) if (typeof u[i] === 'string' && u[i] && out.indexOf(u[i]) < 0) out.push(u[i]);\n  return out.length ? out : null;\n})();\n\n/* MERGING WHAT ARRIVES (REGISTER.md R92). The same rule as Core's own\n   mergeBySection between tabs (core.js), so a tool never believes anything\n   the game tab would not:\n     - another character's message is ignored (ids when both carry one, else\n       names): a tab on your other character is not news about this one;\n     - per section, the newer observedAt wins; a reading whose age is known\n       beats one whose age is not; a section arriving with no stamp only\n       fills a hole; a section absent, or null with no stamp, is \"not\n       observed\" and never erases what is here;\n     - meta: queryAt and the timestamp take the latest; the rest (name,\n       level, ids) comes from the newer message, and a null never erases a\n       name or an id.\n   A whole PROFILE_UPDATED goes through the same merge, since the tab that\n   answers a \"Sync now\" may hold an older copy of a section than a delta\n   already brought; one for ANOTHER character replaces the profile, because\n   Core only answers with its own, current, character (you switched). */\nvar META_KEEP = { characterId:1, characterName:1, characterLevel:1 };\nfunction num(v){ return (typeof v === 'number' && isFinite(v)) ? v : null; }\nfunction who(meta, k){ var v = meta ? meta[k] : null; return (typeof v === 'string' && v) ? v : null; }\nfunction sameCharacter(a, b){\n  var ia = who(a, 'characterId'), ib = who(b, 'characterId');\n  if (ia && ib) return ia === ib;\n  var na = who(a, 'characterName'), nb = who(b, 'characterName');\n  if (na && nb) return na === nb;\n  return true;\n}\nfunction copy(o){ var out = {}; if (o && typeof o === 'object') for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) out[k] = o[k]; return out; }\n// base: the profile held; sections/meta: what arrived (meta carries the\n// observedAt/observedOn/queryAt maps). Returns a new profile.\nfunction mergeInto(base, sections, meta, schemaVersion){\n  var bm = (base && base.meta) || {};\n  var bSeen = bm.observedAt || {}, iSeen = meta.observedAt || {};\n  var bOn = bm.observedOn || {}, iOn = meta.observedOn || {};\n  var out = copy(base);\n  if (out.schemaVersion === undefined && schemaVersion !== undefined) out.schemaVersion = schemaVersion;\n  var seen = copy(bSeen), on = copy(bOn);\n  for (var k in sections){\n    if (!Object.prototype.hasOwnProperty.call(sections, k) || k === 'meta' || k === 'schemaVersion') continue;\n    var v = sections[k], is = num(iSeen[k]), bs = num(bSeen[k]), b = out[k];\n    var take;\n    if (v === undefined || (v === null && is === null)) take = false;\n    else if (is !== null && bs !== null) take = is > bs;\n    else if (is !== null || bs !== null) take = is !== null;\n    else take = b === undefined || b === null;\n    if (!take) continue;\n    out[k] = v;\n    if (is !== null) seen[k] = is;\n    if (iOn[k] != null) on[k] = iOn[k];\n  }\n  var m = copy(bm);\n  var newer = (num(meta.timestamp) || 0) > (num(bm.timestamp) || 0);\n  for (var f in meta){\n    if (!Object.prototype.hasOwnProperty.call(meta, f)) continue;\n    if (f === 'observedAt' || f === 'observedOn' || f === 'queryAt' || f === 'timestamp') continue;\n    var mv = meta[f];\n    if (mv === undefined) continue;\n    if (mv === null && META_KEEP[f] && m[f] != null) continue;\n    if (newer || m[f] === undefined || (m[f] === null && META_KEEP[f])) m[f] = mv;\n  }\n  var ts = Math.max(num(bm.timestamp) || 0, num(meta.timestamp) || 0);\n  if (ts) m.timestamp = ts;\n  m.observedAt = seen;\n  m.observedOn = on;\n  var qa = copy(bm.queryAt), iq = meta.queryAt || {};\n  for (var q in iq) if (num(iq[q]) !== null && !(num(qa[q]) >= iq[q])) qa[q] = iq[q];\n  m.queryAt = qa;\n  out.meta = m;\n  return out;\n}\n// PROFILE_DELTA v1 (core.js postProfileNow): { characterId, characterName,\n// sections, observedAt, observedOn, meta, queryAt?, schemaVersion? }.\nfunction mergeDelta(d){\n  var meta = copy(d.meta);\n  if (typeof d.characterId === 'string' && d.characterId) meta.characterId = d.characterId;\n  if (typeof d.characterName === 'string' && d.characterName) meta.characterName = d.characterName;\n  meta.observedAt = (d.observedAt && typeof d.observedAt === 'object') ? d.observedAt : {};\n  meta.observedOn = (d.observedOn && typeof d.observedOn === 'object') ? d.observedOn : {};\n  if (d.queryAt && typeof d.queryAt === 'object') meta.queryAt = d.queryAt;\n  if (profile && !sameCharacter(profile.meta, meta)) return;\n  setProfile(mergeInto(profile, (d.sections && typeof d.sections === 'object') ? d.sections : {}, meta, d.schemaVersion));\n}\nfunction mergeWhole(p){\n  if (!profile || !sameCharacter(profile.meta, p.meta)) { setProfile(p, true); return; }\n  var meta = copy(p.meta);\n  setProfile(mergeInto(profile, p, meta, p.schemaVersion));\n}\n\nvar bc = null;\ntry {\n  if (typeof BroadcastChannel !== 'undefined'){\n    bc = new BroadcastChannel('awoo-profile');\n    bc.onmessage = function(ev){\n      var d = ev && ev.data;\n      if (!d || typeof d !== 'object') return;\n      if (d.type === 'PROFILE_DELTA' && d.v === 1) mergeDelta(d);\n      else if (d.type === 'PROFILE_UPDATED' && d.profile && typeof d.profile === 'object') mergeWhole(d.profile);\n    };\n  }\n} catch(e){ bc = null; }\n\nfunction request(){\n  requestedAt = Date.now();\n  syncUntil = requestedAt + SYNC_WINDOW_MS;\n  var msg = { type:'REQUEST_PROFILE_SYNC', timestamp:requestedAt };\n  if (USES) msg.sections = USES.slice();\n  if (bc){ try { bc.postMessage(msg); } catch(e){ /* closed */ } }\n  renderCards();\n  setTimeout(renderCards, NO_ANSWER_MS + 50);\n}\n\n// A dotted path into the profile; null for anything absent. Never 0.\nfunction get(path, p){\n  var cur = p || profile;\n  if (!cur || !path) return null;\n  var parts = String(path).split('.');\n  for (var i = 0; i < parts.length; i++){\n    if (cur == null || typeof cur !== 'object') return null;\n    cur = cur[parts[i]];\n  }\n  return cur === undefined ? null : cur;\n}\nfunction sectionAge(section){\n  var at = get('meta.observedAt.' + section);\n  return (typeof at === 'number' && isFinite(at)) ? at : null;\n}\n\n/* ----------------------------------------------------------------- fields */\nvar fields = [];\nvar byKey = {};\nvar applyListeners = [];\nvar refreshListeners = [];\nvar applying = false;\n\n// f.local: the field reads a source of the page's own (another module's\n// handover) and is read even before any profile arrives; f.observedAt()\n// then dates it.\nfunction readField(f){\n  if (!profile && !f.local) return null;\n  var v;\n  try { v = typeof f.read === 'function' ? f.read(profile, get) : get(f.read); } catch(e){ v = null; }\n  if (v === undefined || v === null) return null;\n  if (typeof v === 'number' && !isFinite(v)) return null;\n  return v;\n}\nfunction modeAllows(f){ return !f.modes || f.modes.indexOf(mode()) >= 0; }\n\n// f.unlocked: a synced box you clicked into, manual for as long as you are in\n// it; typing makes that lasting (saved.edited), leaving it untouched hands it\n// back (see bind). Both read as \"edited\" everywhere, so a sync never lands\n// under the caret.\nfunction state(f){\n  if (saved.edited[f.key] || f.unlocked) return 'edited';\n  var v = readField(f);\n  if (v === null) return 'unavailable';\n  var at = fieldAge(f);\n  if (at === null) return 'stale';\n  return (Date.now() - at) > (f.staleMs || DEFAULT_STALE_MS) ? 'stale' : 'synced';\n}\nfunction fieldAge(f){\n  if (typeof f.observedAt === 'function'){ var t = f.observedAt(profile); if (typeof t === 'number' && isFinite(t)) return t; }\n  return sectionAge(f.section || String(f.read).split('.')[0]);\n}\nfunction ago(at){\n  if (at === null) return 'unknown';\n  var s = Math.max(0, Math.round((Date.now() - at) / 1000));\n  if (s < 60) return s + 's';\n  var m = Math.round(s / 60); if (m < 60) return m + 'm';\n  var h = Math.round(m / 60); if (h < 48) return h + 'h';\n  return Math.round(h / 24) + 'd';\n}\n// The clock time beside the age, so \"3h\" can be matched to what you did in\n// the game: 14:02 today, \"26 Sep, 14:02\" before today.\nfunction clock(at){\n  if (at === null) return '';\n  var d = new Date(at), S = settings();\n  var tag = (S && S.num && S.num.localeTag) ? S.num.localeTag() : undefined;\n  var today = new Date().toDateString() === d.toDateString();\n  try {\n    return today ? d.toLocaleTimeString(tag, { hour:'2-digit', minute:'2-digit' })\n      : d.toLocaleString(tag, { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });\n  } catch(e){ return d.toISOString().slice(0, 16).replace('T', ' '); }\n}\n\n/* THE ONE STANDARD FOR A SYNCED INPUT (2026-09-27, the maintainer: \"for\n   each value I want to see the sync status, when it was synced, and what the\n   value reads ... manually edit all the numbers, and reset each individual\n   input value back to synced ... visually display if it's in manual mode or\n   sync mode\"). What bind() makes of a text or number box:\n     synced / stale  dimmed and read-only (NOT disabled: it stays focusable,\n                     hoverable and selectable, and the page still reads it).\n                     A click or a Tab into it makes it manual, starting from\n                     the synced value; leave it unchanged and it is synced\n                     again, so a stray click never detaches a field.\n     edited          a normal bright box with the manual mark, and a small\n                     reset (↺) beside it whenever there is a synced value to\n                     go back to.\n     unavailable     a normal box, hollow light: the figure is yours.\n   Hover on the box or its light: the state, the synced value as its box\n   would show it, when it was read (age and clock time), where from, and in\n   manual mode the synced value it differs from. A checkbox or a select is\n   never locked (a click on one IS the edit); it gets the light and the hover.\n   The input carries data-sync=\"<state>\" and data-sync-lock, which\n   tool-settings.css draws; nothing else is needed from the page. */\nfunction textBox(el){\n  if (!el || el.tagName !== 'INPUT') return false;\n  var t = (el.type || 'text').toLowerCase();\n  return t === 'text' || t === 'number' || t === 'search' || t === 'tel';\n}\nfunction isLocked(f, st){\n  st = st || state(f);\n  return textBox(f.el) && modeAllows(f) && (st === 'synced' || st === 'stale');\n}\n// The value a reading writes into the box: a number where it is one (fmt\n// output is a plain JS number string such as \"163.54\", never the player's\n// separators, so it is read with Number, never with parseNum), else text.\nfunction target(f, v){\n  if (!f.fmt) return v;\n  var s = f.fmt(v);\n  var n = typeof s === 'number' ? s : (/^\\s*[-+]?(\\d+\\.?\\d*|\\.\\d+)(e[-+]?\\d+)?\\s*$/i.test(String(s)) ? Number(s) : NaN);\n  return isFinite(n) ? n : String(s);\n}\n// Does the box already show this reading? Compared as numbers wherever it\n// can be, so \"1,234\" and 1234, or a box at rest (\"163.54%\") and the same\n// value, count as the same and are left alone.\nfunction shows(f, v){\n  var el = f.el, S = settings();\n  if (el.type === 'checkbox') return el.checked === !!v;\n  var want = target(f, v);\n  if (typeof want === 'number'){\n    var cur = (el.hasAttribute('data-num') && S && S.num) ? S.num.read(el) : (el.value === '' ? null : Number(el.value));\n    return cur !== null && cur === want;\n  }\n  return el.value === String(want);\n}\nfunction setInput(f, v){\n  var el = f.el;\n  applying = true;\n  try {\n    var S = settings();\n    var want = target(f, v);\n    if (el.type === 'checkbox') el.checked = !!v;\n    else if (typeof want === 'number' && el.hasAttribute('data-num') && S && S.num) S.num.show(el, want);\n    else if (f.fmt) el.value = String(f.fmt(v));\n    else el.value = String(v);\n  } finally { applying = false; }\n}\n// What a typed box holds, as a value to keep: a number where the box is a\n// number box, a boolean for a tick, else its text (R126).\nfunction readBox(f){\n  var el = f.el, S = settings();\n  if (el.type === 'checkbox') return !!el.checked;\n  if (el.hasAttribute('data-num') && S && S.num){ var n = S.num.read(el); return n === null ? el.value : n; }\n  return el.value;\n}\nfunction writeBox(f, v){\n  var el = f.el, S = settings();\n  applying = true;\n  try {\n    if (el.type === 'checkbox') el.checked = !!v;\n    else if (typeof v === 'number' && el.hasAttribute('data-num') && S && S.num) S.num.show(el, v);\n    else el.value = String(v);\n  } finally { applying = false; }\n}\n// A reading as a person reads it: its box's own display where it has one.\nfunction valueText(f, v){\n  if (v === null || v === undefined) return '—';\n  if (typeof v === 'boolean') return v ? 'On' : 'Off';\n  var S = settings(), want = target(f, v);\n  if (typeof want !== 'number' || !S || !S.num) return String(want);\n  if (f.el && f.el.hasAttribute('data-num')) return S.num.display(f.el, want);\n  return S.num.fmt(want, 2);\n}\nvar STATE_WORD = { synced:'Synced', stale:'Old', edited:'Manual', unavailable:'Not synced' };\nfunction fieldTip(f, st){\n  if (!modeAllows(f)) return 'Not used in ' + (mode() === 'standard' ? 'Standard' : 'Live') + ' mode.';\n  var v = readField(f), at = v === null ? null : fieldAge(f);\n  var src = f.source ? f.source(profile) : null;\n  var from = 'From ' + (src || f.path || f.section || 'the game') + '.';\n  var when = at === null ? 'Age unknown.' : ago(at) + ' ago, ' + clock(at) + '.';\n  if (st === 'unavailable') return f.unavailableTip || 'Not synced yet. This is your own figure.';\n  if (st === 'edited'){\n    if (v === null) return 'Manual. Nothing synced to go back to.';\n    return 'Manual. Synced: ' + valueText(f, v) + '\\n' + when + ' ' + from + '\\n↺ goes back to it.';\n  }\n  if (pending(f)) return 'Newer: ' + valueText(f, v) + ' (waiting)\\n' + when + ' ' + from + '\\nClick the dot to use it, or press Sync.';\n  return STATE_WORD[st] + ': ' + valueText(f, v) + '\\n' + when + ' ' + from + '\\nClick to edit.';\n}\nfunction devTip(f){\n  return 'Profile: ' + (f.path || (typeof f.read === 'string' ? f.read : f.key));\n}\nfunction setAttr(n, k, v){ if (n && n.getAttribute(k) !== v) n.setAttribute(k, v); }\n\n/* NOTHING MOVES UNLESS A VALUE DID (2026-09-27, the maintainer: \"Tool sync\n   keeps enabling/disabling upon sync update in-game? Either way it keeps\n   updating\"). Found: every capture Core posts is a PROFILE_DELTA, and each\n   one rewrote every synced box and told the page \"applied\" whether or not\n   anything had changed. Pet Slot ROI answers \"applied\" by re-ticking \"Use\n   measured Gold Boost\" (which the player may have just unticked, and which\n   greys four boxes in and out) and scrolling its tables back to the current\n   level; every page recomputed. So a reading that the box already shows is\n   not written, \"applied\" is sent only when a box actually changed, a box\n   with the caret in it is never written (its blur applies what arrived),\n   and every attribute below is set only when it differs.\n   userscripts/tests/tool-kit.mjs pins each of those. */\nfunction renderField(f){\n  var st = state(f), tip = fieldTip(f, st), on = modeAllows(f);\n  if (f.light){\n    setAttr(f.light, 'data-state', st);\n    setAttr(f.light, 'data-off', on ? 'false' : 'true');\n    setAttr(f.light, 'data-pending', pending(f) ? 'true' : 'false');\n    setAttr(f.light, 'data-tip', tip);\n    setAttr(f.light, 'data-tip-dev', devTip(f));\n    setAttr(f.light, 'aria-label', 'Sync: ' + STATE_WORD[st]);\n  }\n  var el = f.el;\n  setAttr(el, 'data-sync', on ? st : 'off');\n  setAttr(el, 'data-pending', pending(f) ? 'true' : 'false');\n  setAttr(el, 'data-tip', tip);\n  setAttr(el, 'data-tip-dev', devTip(f));\n  if (textBox(el)){\n    var lock = isLocked(f, st);\n    setAttr(el, 'data-sync-lock', lock ? 'true' : 'false');\n    if (el.readOnly !== lock) el.readOnly = lock;\n  }\n  if (f.reset){\n    var canReset = on && st === 'edited' && readField(f) !== null;\n    if (f.reset.hidden === canReset) f.reset.hidden = !canReset;\n  }\n  if (tipFor && (tipFor === f.light || tipFor === el)) showTip(tipFor);\n}\n// force: the player asked (a reset, the light), so the box is written even\n// with the caret in it.\nfunction applyOne(f, force){\n  if (saved.edited[f.key] || f.unlocked || !modeAllows(f)) return false;\n  var v = readField(f);\n  if (v === null) return false;\n  if (!force && document.activeElement === f.el) return false;\n  f.filled = true;\n  if (shows(f, v)) return false;\n  setInput(f, v);\n  return true;\n}\n/* HOLD WHAT IS SHOWN (2026-09-28, the maintainer: \"Don't keep updating live\n   numbers after opening a tool. Only refresh when clicking sync. You can\n   visualise that a live input has a pending update with the dots at best.\",\n   REGISTER.md R125). A box is filled once, by the first reading it can show\n   (f.filled). After that an arriving delta changes no box: the box keeps its\n   value and its light shows the newer one waiting (pending below). Sync\n   applies every waiting value, a light's click applies that one; what\n   arrives within a Sync's window (syncing) is applied as it comes, since it\n   IS the answer to the press. */\nfunction pending(f){\n  if (!f.filled || saved.edited[f.key] || f.unlocked || !modeAllows(f)) return false;\n  var v = readField(f);\n  return v !== null && !shows(f, v);\n}\nfunction pendingCount(){\n  var n = 0;\n  for (var i = 0; i < fields.length; i++) if (pending(fields[i])) n++;\n  return n;\n}\nfunction notifyApplied(){\n  for (var i = 0; i < applyListeners.length; i++){ try { applyListeners[i](); } catch(e){ /* keep going */ } }\n}\n// explicit: the player asked (Sync, a mode switch, a reset); else only what\n// has never been filled, or what arrives inside a Sync's window.\nfunction applyAll(explicit){\n  var any = false, all = explicit === true || syncing();\n  for (var i = 0; i < fields.length; i++){\n    if (!all && fields[i].filled) continue;\n    any = applyOne(fields[i]) || any;\n  }\n  for (var j = 0; j < fields.length; j++) renderField(fields[j]);\n  if (any) notifyApplied();\n  return any;\n}\n// The Sync button: everything waiting lands now, and the game is asked again.\nfunction syncNow(){\n  var any = applyAll(true);\n  for (var i = 0; i < refreshListeners.length; i++){ try { refreshListeners[i](); } catch(e){ /* keep going */ } }\n  request();\n  return any;\n}\n// One field back to the game: the light's click and the ↺ beside the box.\nfunction handBack(f){\n  delete saved.values[f.key];\n  delete saved.edited[f.key]; f.unlocked = false; persist();\n  if (!connected) request();\n  if (applyOne(f, true)) notifyApplied();\n  renderField(f); renderCards();\n}\n\nfunction labelFor(el){\n  if (el.id){ var l = document.querySelector('label[for=\"' + el.id + '\"]'); if (l) return l; }\n  return el.closest ? el.closest('label') : null;\n}\n\n/* bind(def) — def: { key, el, read: 'dotted.path' | function(profile, get),\n   section?, fmt?, staleMs?, modes?: ['live'], label?, local?, observedAt?,\n   source?, unavailableTip? }. Returns the field. Binding a key again with a\n   NEW element moves the field onto it (a page that re-renders its boxes, as\n   Cost Tables does per subject); with the same element it is a no-op. */\nfunction bind(def){\n  if (!def || !def.el || !def.key) return null;\n  var old = byKey[def.key];\n  if (old){\n    if (old.el === def.el) return old;\n    fields.splice(fields.indexOf(old), 1); delete byKey[def.key];\n  }\n  var f = def;\n  if (!f.path && typeof f.read === 'string') f.path = f.read;\n  // A box that sits in a value cell (.awoo-cell) puts its light in the cell\n  // without the page saying so (R172): wrapping the box is all a page does.\n  var cell = f.el.parentNode && f.el.parentNode.classList && f.el.parentNode.classList.contains('awoo-cell') ? f.el.parentNode : null;\n  var host = f.label || cell || labelFor(f.el);\n  var light = document.createElement('button');\n  light.type = 'button';\n  light.className = 'awoo-light';\n  if (host) host.insertBefore(light, host.firstChild);\n  f.light = light;\n  light.addEventListener('click', function(e){\n    e.preventDefault(); e.stopPropagation();\n    handBack(f);\n  });\n  // The ↺: at the end of the field's label (beside the box in every tool's\n  // label-then-box layout), else straight after the box. Never a wrapper\n  // around the box: pages find their boxes by parentNode and by selectors a\n  // wrapper would break.\n  var reset = document.createElement('button');\n  reset.type = 'button';\n  reset.className = 'awoo-field-reset';\n  reset.textContent = '↺';\n  reset.setAttribute('data-tip', 'Back to synced');\n  reset.setAttribute('aria-label', 'Back to synced');\n  reset.hidden = true;\n  // A value cell (.awoo-cell, the house style) keeps only the light and the\n  // box: the ↺ goes to the end of the box's label, so it never moves the\n  // cell's number off the line the other rows end on (R172).\n  var inCell = host && host.classList && host.classList.contains('awoo-cell');\n  var resetHost = inCell ? (labelFor(f.el) || host) : host;\n  if (resetHost) resetHost.appendChild(reset);\n  else if (f.el.parentNode) f.el.parentNode.insertBefore(reset, f.el.nextSibling || null);\n  f.reset = reset;\n  reset.addEventListener('click', function(e){\n    e.preventDefault(); e.stopPropagation();\n    handBack(f);\n  });\n  if (f.el.classList) f.el.classList.add('awoo-field');\n  var onEdit = function(){\n    if (applying) return;\n    saved.edited[f.key] = true; f.unlocked = false;\n    saved.values[f.key] = readBox(f); persist();\n    renderField(f); renderCards();\n  };\n  f.el.addEventListener('input', onEdit);\n  f.el.addEventListener('change', onEdit);\n  f.el.addEventListener('focus', function(){\n    if (!isLocked(f)) return;\n    f.unlocked = true;\n    renderField(f); renderCards();\n  });\n  f.el.addEventListener('blur', function(){\n    var was = f.unlocked;\n    f.unlocked = false;\n    // A box never filled yet takes what arrived while the caret was in it;\n    // a filled one keeps its value and shows the newer one waiting.\n    if (!f.filled && applyOne(f)) notifyApplied();\n    if (was || !saved.edited[f.key]){ renderField(f); renderCards(); }\n  });\n  fields.push(f); byKey[f.key] = f;\n  // A typed value kept until Reset (R126): back into the box before anything\n  // else; one flagged manual by an older build has none stored, so the value\n  // the page restored is adopted.\n  if (saved.edited[f.key]){\n    if (Object.prototype.hasOwnProperty.call(saved.values, f.key)) writeBox(f, saved.values[f.key]);\n    else { saved.values[f.key] = readBox(f); persist(); }\n  }\n  applyOne(f);\n  renderField(f);\n  return f;\n}\nfunction resetAll(){\n  for (var x = 0; x < extensions.length; x++){ try { if (extensions[x].reset) extensions[x].reset(); } catch(e){ /* keep going */ } }\n  saved.edited = {}; saved.values = {}; persist();\n  for (var i = 0; i < fields.length; i++) fields[i].unlocked = false;\n  if (!connected) request();\n  for (var k = 0; k < fields.length; k++) applyOne(fields[k], true);\n  for (var r = 0; r < refreshListeners.length; r++){ try { refreshListeners[r](); } catch(e){ /* keep going */ } }\n  for (var j = 0; j < fields.length; j++) renderField(fields[j]);\n  notifyApplied();\n  renderCards();\n}\n\n/* ------------------------------------------------------------------- mode */\nvar modeListeners = [];\nvar modeOffered = false;\nfunction mode(){ return modeOffered ? (saved.mode || 'live') : 'live'; }\nfunction setMode(m){\n  if (m !== 'live' && m !== 'standard') return;\n  saved.mode = m; persist();\n  root.setAttribute('data-sync-mode', mode());\n  applyAll(true);\n  for (var i = 0; i < modeListeners.length; i++){ try { modeListeners[i](mode()); } catch(e){ /* keep going */ } }\n  for (var j = 0; j < fields.length; j++) renderField(fields[j]);\n  renderCards();\n}\n\n/* ------------------------------------------------------------------- card */\nvar cards = [];\nfunction el(tag, attrs, text){\n  var n = document.createElement(tag);\n  for (var k in attrs) n.setAttribute(k, attrs[k]);\n  if (text != null) n.textContent = text;\n  return n;\n}\n// A tool that keeps its own per-field state (Cost Tables re-renders its inputs\n// per subject, so it cannot bind a lasting element) reports through this: its\n// counts join the card, and the card's Reset reaches it.\nvar extensions = [];\nfunction summary(){\n  var total = 0, synced = 0, stale = 0, edited = 0;\n  for (var x = 0; x < extensions.length; x++){\n    var e = extensions[x].summary ? extensions[x].summary() : null;\n    if (e){ total += e.total || 0; synced += e.synced || 0; stale += e.stale || 0; edited += e.edited || 0; }\n  }\n  for (var i = 0; i < fields.length; i++){\n    if (!modeAllows(fields[i])) continue;\n    total++;\n    var st = state(fields[i]);\n    if (st === 'synced') synced++; else if (st === 'stale') stale++; else if (st === 'edited') edited++;\n  }\n  return { total:total, synced:synced, stale:stale, edited:edited };\n}\nfunction renderCards(){\n  for (var i = 0; i < cards.length; i++) renderCard(cards[i]);\n}\nfunction renderCard(c){\n  var s = summary();\n  var st, label, tip;\n  if (connected || s.synced || s.stale){\n    st = s.synced ? 'synced' : (s.stale ? 'stale' : 'unavailable');\n    label = s.synced || s.stale ? 'Synced' : 'Connected';\n    var w = pendingCount();\n    tip = 'Fields keep the values they opened with; Sync brings newer ones. ' + (w ? w + ' newer waiting. ' : '') + (s.synced + s.stale) + ' of ' + s.total + ' read' +\n      (s.edited ? ', ' + s.edited + ' typed by you' : '') + '.';\n  } else if (requestedAt && Date.now() - requestedAt < NO_ANSWER_MS){\n    st = 'stale'; label = 'Asking the game…'; tip = 'Waiting for an open Queslar tab to answer.';\n  } else if (requestedAt){\n    st = 'unavailable'; label = 'No game tab'; tip = 'No Queslar tab with AWOO+ answered. Open the game in this browser, then Sync.';\n  } else {\n    st = 'unavailable'; label = 'Not synced'; tip = 'Open this tool from AWOO+ in the game, or keep the game open and press Sync.';\n  }\n  c.box.setAttribute('data-state', st);\n  c.light.setAttribute('data-state', st);\n  c.state.textContent = label;\n  c.state.setAttribute('data-tip', tip);\n  var at = get('meta.timestamp');\n  c.age.textContent = (connected || s.synced || s.stale) ? (s.total ? (s.synced + s.stale) + '/' + s.total : '') + (at ? ' · ' + ago(at) : '') + (pendingCount() ? ' · ' + pendingCount() + ' newer' : '') : '';\n  c.reset.disabled = !s.edited;\n  if (c.seg){\n    var m = mode();\n    c.seg.live.setAttribute('aria-pressed', String(m === 'live'));\n    c.seg.standard.setAttribute('aria-pressed', String(m === 'standard'));\n  }\n}\n/* card(host, { modes?: { live:tip, standard:tip } }) */\nfunction card(host, opts){\n  if (!host) return;\n  opts = opts || {};\n  host.textContent = '';\n  var box = el('div', { 'class':'awoo-sync', 'data-state':'unavailable' });\n  var head = el('div', { 'class':'awoo-sync-head' });\n  var light = el('span', { 'class':'awoo-light', 'data-state':'unavailable', 'aria-hidden':'true' });\n  var stEl = el('span', { 'class':'awoo-sync-state' });\n  var age = el('span', { 'class':'awoo-sync-age' });\n  head.appendChild(light); head.appendChild(stEl); head.appendChild(age);\n  box.appendChild(head);\n  var c = { box:box, light:light, state:stEl, age:age };\n  if (opts.modes){\n    modeOffered = true;\n    root.setAttribute('data-sync-mode', mode());\n    var seg = el('div', { 'class':'awoo-seg', role:'group', 'aria-label':'Mode' });\n    var live = el('button', { type:'button', 'data-tip':opts.modes.live || 'Your account, as synced.' }, 'Live');\n    var std = el('button', { type:'button', 'data-tip':opts.modes.standard || 'A fixed reference setup, for fair comparisons.' }, 'Standard');\n    live.addEventListener('click', function(){ setMode('live'); });\n    std.addEventListener('click', function(){ setMode('standard'); });\n    seg.appendChild(live); seg.appendChild(std);\n    box.appendChild(seg);\n    c.seg = { live:live, standard:std };\n  }\n  var actions = el('div', { 'class':'awoo-sync-actions' });\n  // A plain button, as the exhibit's sync card has it (R172): the card is\n  // the model's header, not the page's one primary action.\n  var syncBtn = el('button', { type:'button', 'class':'awoo-btn', 'data-tip':'Use every newer value waiting, and ask the game tab for a fresh reading.' }, 'Sync');\n  var reset = el('button', { type:'button', 'class':'awoo-btn', 'data-tip':'Hand every field you typed back to the game.' }, 'Reset inputs');\n  syncBtn.addEventListener('click', syncNow);\n  reset.addEventListener('click', resetAll);\n  actions.appendChild(syncBtn); actions.appendChild(reset);\n  box.appendChild(actions);\n  c.reset = reset;\n  host.appendChild(box);\n  cards.push(c);\n  renderCard(c);\n  return c;\n}\n// Ages and staleness move with the clock, not only with events.\nsetInterval(function(){ renderCards(); for (var j = 0; j < fields.length; j++) renderField(fields[j]); }, 30000);\n\n// One quiet request on load when Core handed nothing over: an already-open\n// game tab answers within a moment, and the card says so when none does.\nsetTimeout(function(){ if (!connected && bc) request(); }, 300);\n\n/* ---------------------------------------------------------------- tooltip */\n// ONE fixed-position element on <body> (the Core lesson, DESIGN.md: a\n// pseudo-element or an absolutely-positioned child is clipped by scroll\n// containers and inherits an ancestor's opacity). data-tip is for the\n// player; data-tip-dev is appended only with \"Show developer info\" on, in\n// the --dev tint (R67).\nvar tipEl = null, tipFor = null;\nfunction ensureTip(){\n  if (tipEl || !document.body) return tipEl;\n  tipEl = document.createElement('div');\n  tipEl.id = 'awooTip';\n  tipEl.setAttribute('role', 'tooltip');\n  document.body.appendChild(tipEl);\n  return tipEl;\n}\nfunction showTip(t){\n  var text = t.getAttribute('data-tip');\n  var s = settings();\n  var dev = s && s.devOn && s.devOn() ? t.getAttribute('data-tip-dev') : null;\n  if (!text && !dev) return;\n  var tip = ensureTip(); if (!tip) return;\n  tipFor = t;\n  tip.textContent = text || '';\n  if (dev){ var d = document.createElement('span'); d.className = 'awoo-tip-dev'; d.textContent = dev; tip.appendChild(d); }\n  // Measured at the origin, not where the last tip was left (R34). A fixed\n  // box with no set width is only as wide as the room to the right of its\n  // `left`, so a tip measured where a short one sat by the right edge came\n  // out a thin column: placed from that width it opened to the right of its\n  // mark, and its height was wrong for the flip.\n  tip.style.left = '0px';\n  tip.style.top = '0px';\n  tip.classList.add('on');\n  var r = t.getBoundingClientRect(), b = tip.getBoundingClientRect();\n  var vw = window.innerWidth, vh = window.innerHeight;\n  var left = Math.max(8, Math.min(r.left + r.width / 2 - b.width / 2, vw - b.width - 8));\n  // Above the mark; below it when there is no room above; and when neither\n  // fits, pulled up from the bottom edge rather than left hanging off it.\n  var top = r.top - b.height - 8;\n  if (top < 8) top = r.bottom + 8;\n  if (top + b.height > vh - 8) top = Math.max(8, vh - b.height - 8);\n  tip.style.left = Math.round(left) + 'px';\n  tip.style.top = Math.round(top) + 'px';\n}\nfunction hideTip(){ tipFor = null; if (tipEl) tipEl.classList.remove('on'); }\nfunction tipTarget(e){ return e.target && e.target.closest ? e.target.closest('[data-tip],[data-tip-dev]') : null; }\ndocument.addEventListener('mouseover', function(e){ var t = tipTarget(e); if (t) showTip(t); });\ndocument.addEventListener('mouseout', function(e){ var t = tipTarget(e); if (t && t === tipFor) hideTip(); });\ndocument.addEventListener('focusin', function(e){ var t = tipTarget(e); if (t) showTip(t); });\ndocument.addEventListener('focusout', hideTip);\nwindow.addEventListener('scroll', hideTip, true);\n\nwindow.AWOO_SYNC = {\n  profile: function(){ return profile; },\n  connected: function(){ return connected; },\n  get: get,\n  age: sectionAge,\n  onProfile: function(fn){ if (typeof fn === 'function') profileListeners.push(fn); },\n  onApply: function(fn){ if (typeof fn === 'function') applyListeners.push(fn); },\n  request: request,\n  bind: bind,\n  field: function(key){ return byKey[key] || null; },\n  state: function(key){ var f = byKey[key]; return f ? state(f) : null; },\n  isEdited: function(key){ return !!saved.edited[key]; },\n  // One field back to synced, as its ↺ does.\n  handBack: function(key){ var f = byKey[key]; if (f) handBack(f); },\n  resetAll: resetAll,\n  refresh: function(){ applyAll(true); renderCards(); },\n  // Sync pressed, as the button does it (a page that holds a snapshot re-takes it).\n  onRefresh: function(fn){ if (typeof fn === 'function') refreshListeners.push(fn); },\n  syncing: syncing,\n  pending: function(key){ var f = byKey[key]; return f ? pending(f) : false; },\n  card: card,\n  extend: function(ext){ if (ext && typeof ext === 'object'){ extensions.push(ext); renderCards(); } },\n  renderCards: renderCards,\n  ago: ago,\n  mode: mode,\n  setMode: setMode,\n  onMode: function(fn){ if (typeof fn === 'function') modeListeners.push(fn); },\n  // Test seam: push a profile as if Core had broadcast it.\n  _receive: setProfile\n};\n})();\n\n</script>\n\n<style>\n/* THE HOUSE STYLE (2026-10-06, DESIGN.md §10, §12 \"Cost Tables\"). The\n   panels, headings, tiles, marks, notice and table rules are the kit's\n   (tool-settings.css); what is here is this page's own layout and the few\n   pieces only it has. The old private copies (display-face table head,\n   h2 titles, pills, the sideways-scrolling table) went with the move. */\n*{box-sizing:border-box}\n[hidden]{display:none!important}\nhtml,body{background:var(--ground)}\nbody{\n  margin:0; color:var(--ink);\n  font-family:var(--font-body); font-size:14.4px; line-height:1.45;\n  -webkit-font-smoothing:antialiased; overflow-x:hidden;\n}\nbutton,input,select{font-family:inherit;font-size:inherit;color:inherit}\n:focus-visible{outline:2px solid var(--accent-fill);outline-offset:2px}\n\n/* --- shell: one grid (§10b). Head across the top, the 300px sidebar, main.\n   Main is capped: a four-column table is as wide as its content (§9), and a\n   page that looks empty wants a narrower column, not more padding (§10h). */\n.shell{\n  max-width:calc(300px + 1.25rem + 54rem + 32px); margin:0 auto; padding:1.1rem 16px 3rem;\n  display:grid; grid-template-columns:300px minmax(0,1fr); grid-template-areas:\"head head\" \"side main\";\n  gap:1rem 1.25rem; align-items:start;\n}\n.top{grid-area:head;min-width:0}\n.side{grid-area:side;min-width:0;display:flex;flex-direction:column;gap:.55rem}\n#main{grid-area:main;min-width:0}\n/* One column: the title, sync card, inputs and subject list first. */\n@media (max-width:1000px){\n  .shell{grid-template-columns:minmax(0,1fr);grid-template-areas:\"head\" \"side\" \"main\"}\n}\n\n/* --- the inputs card: the field grid with the light inside the cell --- */\n.awoo-fields .awoo-indent{padding-left:.6rem;color:var(--ink-soft)}\n.awoo-cell .ro{flex:1;text-align:right;font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:.74rem}\n.cardfoot{display:flex;gap:.35rem;margin-top:.5rem}\n\n/* --- the subject list: navigation, under its own section label ------- */\n#nav .grp{\n  margin:.45rem 0 .1rem; font-family:var(--font-mono); font-size:.55rem;\n  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-mute);\n  display:flex; align-items:center; gap:.3rem;\n}\n#nav .grp::after{content:\"\";flex:1;height:1px;background:var(--border)}\n#nav .grp:first-of-type{margin-top:0}\n.navbtn{\n  display:flex; align-items:center; gap:.5rem; width:100%;\n  background:none; border:0; border-radius:var(--in-radius);\n  padding:var(--row-y) .4rem; text-align:left; cursor:pointer;\n  font-size:.75rem; color:var(--ink); line-height:1.45;\n}\n.navbtn:hover{color:var(--accent)}\n/* The selected subject: treatment BC, as a selected row everywhere (§10f). */\n.navbtn[aria-current=\"true\"]{\n  background:var(--bg-accent); box-shadow:inset 0 1px 0 var(--accent-edge),inset 0 -1px 0 var(--accent-edge);\n  font-weight:600;\n}\n.navbtn .nlv{\n  margin-left:auto; font-family:var(--font-num); font-size:.72rem; font-weight:400;\n  color:var(--ink-soft); font-variant-numeric:tabular-nums;\n}\n\n/* --- main ----------------------------------------------------------- */\n#main > .awoo-panel{margin-bottom:.9rem}\n.awoo-tile-v .awoo-tile-u{font-family:var(--font-body)}\n.awoo-panel-h .awoo-mark{letter-spacing:.05em}\n.sysdesc{margin:0 0 .55rem;font-size:.74rem;color:var(--ink-soft);line-height:1.45;max-width:80ch}\n\n/* Breakpoints: every place the formula changes shape (2026-09-23), above the\n   table whatever the step. Click one to make it the target. */\n.bpstrip{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin:0 0 .55rem}\n.bpstrip .bk{font-family:var(--font-mono);font-size:.55rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-mute);margin-right:.15rem}\n.bpchip{\n  display:inline-flex; align-items:baseline; gap:.3rem; cursor:pointer;\n  font-size:.7rem; color:var(--ink-soft); background:var(--surface-2);\n  border:1px solid var(--border-control); border-radius:var(--in-radius); padding:.1rem .45rem;\n}\n.bpchip b{font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--ink);font-weight:700}\n.bpchip:hover{border-color:var(--accent-fill);color:var(--accent)}\n.bpchip.passed{opacity:.55}\n.bpnone{font-size:.7rem;color:var(--ink-mute)}\n\n/* The table: the kit's rules (§10f), in a box that scrolls DOWN only, so the\n   current row can be brought into view. Nothing in it is wider than the\n   box: Cumulative is the optional column and goes first (.awoo-o2). */\n.tablewrap{overflow-y:auto;overflow-x:hidden}\n.tablewrap table{width:100%}\n.tablewrap thead th{position:sticky;top:0;z-index:2}\n.tablewrap tbody tr:first-child td{border-top:0}\n/* Only the level is bold (§7, §10f: bold marks one thing per row). */\n.tablewrap tbody td:first-child{font-weight:600}\n/* You and your target are marks on the level (§10g); the current row is\n   treatment BC (the kit's .awoo-sel); levels already bought fade (.awoo-done). */\ntbody tr.current td:first-child::after,\ntbody tr.target td:first-child::after{\n  display:inline-block; margin-left:.45rem; font-family:var(--font-body); font-size:.55rem; font-weight:600;\n  letter-spacing:.05em; line-height:1.35; text-transform:uppercase; border:1px solid currentColor;\n  border-radius:var(--in-radius); padding:0 .22rem; vertical-align:1px;\n}\ntbody tr.current td:first-child::after{content:'You';color:var(--accent)}\ntbody tr.target td:first-child::after{content:'Target';color:var(--success)}\ntbody td .bpnote{\n  display:inline-block; margin-left:.45rem; font-family:var(--font-body); font-size:.55rem; font-weight:600;\n  letter-spacing:.05em; line-height:1.35; text-transform:uppercase; color:var(--info);\n  border:1px solid currentColor; border-radius:var(--in-radius); padding:0 .22rem; cursor:help; vertical-align:1px;\n}\n\n.rowctl{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:.45rem}\n.rowctl .hint{margin-right:auto;font-size:.68rem;color:var(--ink-soft);min-width:0}\n.rowctl .awoo-btn{flex:none}\n.rowctl .full{font-size:.68rem;color:var(--ink-mute)}\n\n/* The formula panel: a fold, headed like every panel. */\ndetails.notes > summary{cursor:pointer;list-style:none;margin:0}\ndetails.notes > summary::-webkit-details-marker{display:none}\ndetails.notes > summary::before{content:'▸';color:var(--ink-mute);font-size:.7rem}\ndetails.notes[open] > summary::before{content:'▾'}\ndetails.notes:not([open]) > summary{margin:0}\n.notebody{font-size:.76rem;color:var(--ink-soft);max-width:82ch}\n.notebody p{margin:.5em 0}\n.notebody code, .formula{\n  font-family:var(--font-mono);font-size:.74rem;\n  background:var(--surface-2);padding:1px 5px;border-radius:var(--in-radius);color:var(--ink);\n}\n.formula{display:block;padding:.45rem .6rem;margin:.2rem 0 .5rem;white-space:pre-wrap;line-height:1.55;border:1px solid var(--border)}\n.srcline{\n  display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:9px;\n  border-top:1px dashed var(--border);\n}\n\n/* Tooltips are the shared kit's (tool-sync.js); .tip only marks what has one. */\n.tip{cursor:help}\n.tip:hover{color:var(--accent)}\n.foot{\n  max-width:calc(300px + 1.25rem + 54rem + 32px);margin:0 auto;padding:0 16px 40px;\n  font-size:.7rem;color:var(--ink-mute);line-height:1.6;\n}\n\n/* Back to top: shown only once scrolled AND in one column, where the inputs\n   leave the screen. A plain square-ish button, like every other (§9). */\n#backTop{\n  position:fixed; right:16px; bottom:calc(16px + env(safe-area-inset-bottom,0px));\n  z-index:40; width:34px; height:34px; border-radius:var(--in-radius);\n  background:var(--surface); color:var(--ink); border:1px solid var(--border-control);\n  box-shadow:var(--shadow); font-size:1rem; line-height:1; cursor:pointer;\n}\n#backTop:hover{border-color:var(--accent-fill);color:var(--accent)}\n#backTop[hidden]{display:none!important}\n\n@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}\n</style>\n\n<script>\n/* Helpers the generated facts below call but do not define. `triangular` is\n   the shared arithmetic-series cost primitive (village strengths, relic\n   boosts, cave tools, sculptures all use it); `geomCost` is the geometric one\n   (village buildings and the village boss). Both are quoted from\n   engine/costs/primitives.js, and both are on window deliberately: the facts\n   are emitted into their own IIFE and resolve these through global scope,\n   exactly as those facts' own comments assume. */\n/* Function DECLARATIONS, not window assignments: an emitted fact resolves\n   `triangular` as a bare identifier, and a declaration in a classic script is\n   a real global binding in every environment, where `window.x = ...` only\n   happens to be one in a browser. Also mirrored onto window for the page's\n   own use. */\nfunction triangular(a, b, mult) { return ((a + b) * (b - a) * mult) / 2; }\nfunction geomCost(currentLevel, newLevel, base, ratio) {\n  ratio = ratio || 1.15;\n  var start = currentLevel + 1, count = newLevel - currentLevel;\n  return Math.round((base * Math.pow(ratio, start) * (Math.pow(ratio, count) - 1)) / (ratio - 1));\n}\nwindow.triangular = triangular;\nwindow.geomCost = geomCost;\n</script>\n\n<script>\n/* GENERATED from data/ by userscripts/build.mjs — do not edit. */\nwindow.AWOO_FACTS = (function () {\n  /* tables/sanctum-nodes.json :: sanctumNodes.formula.status  [CROSS] */\n  function sanctumNodeCost(currentLevel, newLevel) { const RATE = 125000, EXP = 5; let total = 0; for (let n = currentLevel + 1; n <= newLevel; n++) { total += RATE * Math.pow(n, EXP) + n * RATE * 100; } return { currency: 'gold', value: total }; } // costTable's per-node figures = round(sanctumNodeCost(n-1, n).value / 1e9), i.e. the table is in BILLIONS of gold, rounded\n  /* formulas/pets.json :: pets.slotUpgrade.costFormula  [CODE] */\n  function petSlotUpgradeCost(currentLevel, newLevel) { let total = 0; for (let r = currentLevel + 1; r <= newLevel; r++) total += r <= 150 ? Math.floor(500000 * r**3) : Math.floor(500000 * 150**3 * (r/150)**15); return { currency: 'gold', value: total }; } // per-level marginal cost at level L->L+1: floor(500000*(L+1)^3) while L+1<=150, else floor(500000*150^3*((L+1)/150)^15). Exactly continuous at the seam: both branches evaluate to floor(500000*150^3) = 1,687,500,000,000 at r=150.\n  /* formulas/equipment.json :: equipment.slotUpgrade.costFormula  [CODE] */\n  function slotUpgradeCost(currentLevel, newLevel) { let ratio = 1.1; let count = newLevel - currentLevel; if (count <= 0) return 0; let cost = Math.round(250 * ratio**(currentLevel+1) * (ratio**count - 1) / (ratio - 1)); return { meat: cost, iron: cost, wood: cost, stone: cost }; }\n  /* formulas/leveling.json :: leveling.genericExpRequired.formula  [CODE] */\n  function expRequired(level, type) { if (type === 'sanctum') level += 500; if (level < 10) return level * 150; if (level < 20) return level * 250; if (level < 40) return level * 400; if (level < 50) return level * 600; if (level < 100 || type === 'crafting') return level * 1000; let base = 20000 * Math.sqrt(level); if (level <= 500) return Math.round(base); let n = level - 500; let extra = 2500 * n**1.25; if (level > 10000) { n = level - 10000; extra += 100000 * n**1.4; } return Math.round(base + extra); }\n  /* formulas/partners.json :: partner.level.expFormula  [CODE] */\n  function partnerLevelExp(level) { if (level < 10) return level * 150; if (level < 20) return level * 200; if (level < 40) return level * 300; if (level < 50) return level * 400; let base = Math.round(25000 * level**0.5); if (level <= 1500) return Math.round(base); let n = level - 1500; let extra = 250 * n**1.25; if (level > 6000) { n = level - 6000; extra += 2500 * n**1.4; } return Math.round(base + extra); }\n  /* formulas/partners.json :: partner.boostUpgradeCost.formula  [CODE] */\n  function partnerBoostUpgradeCost(currentLevel, targetLevel) { const tri = (a, b, mult) => (a + b) * (b - a) / 2 * mult; if (targetLevel < 10) return { currency: 'gold', value: tri(currentLevel, targetLevel, 150) }; let total = tri(Math.max(currentLevel - 9, 0), Math.max(targetLevel - 9, 1), 15000); const brackets = [[1000, 10000], [2000, 100000], [3500, 500000]]; for (const [threshold, mult] of brackets) { const a = Math.max(currentLevel, threshold), b = Math.max(targetLevel, threshold); if (a <= b) total += tri(a, b, mult); } return { currency: 'gold', value: total }; }\n  /* formulas/relic-boosts.json :: relicBoost.bracketSurcharge  [CODE] */\n  function bracketSurcharge(currentLevel, newLevel) { const series = (x, m) => x * (x + 1) / 2 * m; if (newLevel <= 5000) return 0; let sum = 0; const first = Math.floor((Math.max(currentLevel, 5001) - 5001) / 1000), last = Math.floor((newLevel - 5001) / 1000); for (let o = first; o <= last; o++) { const bracketStart = 5001 + o * 1000, bracketEnd = Math.min(5000 + (o + 1) * 1000, newLevel); const rate = o < 5 ? 20 : 20 + (o - 4) * 10; const lo = Math.max(currentLevel + 1, bracketStart), hi = bracketEnd; if (hi >= lo) sum += series(hi - 5000, rate) - series(lo - 5000 - 1, rate); } return sum; }\n  /* formulas/relic-boosts.json :: relicBoost.veryHighLevelSurcharge  [CODE] */\n  function veryHighLevelSurcharge(currentLevel, newLevel) { let low = Math.max(currentLevel, 50000); let high = Math.max(newLevel, 50000); if (low > high) return 0; return triangular(low - 50000, high - 50000, 50000); }\n  /* formulas/relic-boosts.json :: relicBoost.costFormula  [CODE] */\n  function boostCost(currentLevel, newLevel, boostType) { const series = (x, m) => x * (x + 1) / 2 * m; if (boostType==='defenseFlat' || boostType==='damageFlat') { let cost = series(newLevel, 100) - series(currentLevel, 100) + bracketSurcharge(currentLevel, newLevel); return {currency:'gold', value: Math.round(cost)}; } let cost = series(newLevel, 10) - series(currentLevel, 10) + bracketSurcharge(currentLevel, newLevel) + veryHighLevelSurcharge(currentLevel, newLevel); return {currency:'relics', value: Math.round(cost)}; }\n  /* formulas/sculptures.json :: sculptures.tileUpgradeCost  [CODE] */\n  function tileUpgradeCost(currentLevel, newLevel) { const series = (x, m) => x * (x + 1) / 2 * m; const a = Math.max(currentLevel, 2500), b = Math.max(newLevel, 2500); const past2500 = a <= b ? triangular(a - 2500, b - 2500, 2500000) : 0; return Math.round(series(newLevel, 25000) - series(currentLevel, 25000) + past2500); }  // level L costs 25,000*L, plus (L-2500-0.5)*2,500,000 past 2500\n  /* formulas/village-boss.json :: villageBoss.costFormula  [CODE] */\n  function villageBossCost(currentLevel, newLevel, base, ratio=1.15) { let start = currentLevel+1; let count = newLevel-currentLevel; return Math.round(base * ratio**start * (ratio**count - 1) / (ratio-1)); }\n  /* formulas/village.json :: village.buildings.costFormula.implementation  [CODE] */\n  function villageBuildingCost(currentLevel, newLevel) { const ratio = 1.15, start = currentLevel + 1, count = newLevel - currentLevel, ratioToStart = ratio ** start; const geomCost = (base) => Math.round(base * ratioToStart * (ratio ** count - 1) / (ratio - 1)); const out = [{currency: 'gold', value: geomCost(200000)}, {currency: 'meat', value: geomCost(4000)}, {currency: 'iron', value: geomCost(4000)}, {currency: 'wood', value: geomCost(4000)}, {currency: 'stone', value: geomCost(4000)}]; if (newLevel > 40) { const relicStart = Math.max(start, 41), relicCount = newLevel - relicStart + 1; if (relicCount > 0) out.push({currency: 'relics', value: Math.round(3000 * (ratio ** relicStart) * (ratio ** relicCount - 1) / (ratio - 1))}); } return out; }\n  /* formulas/caves.json :: caves.toolUpgradeCost.formula  [CODE] */\n  function caveToolUpgradeCost(currentLevel, targetLevel, toolName) { const tri = (a, b, mult) => (a + b) * (b - a) / 2 * mult; if (toolName === 'repeater') return { currency: 'diamonds', value: Math.round(1000 * (2 ** (targetLevel + 1) - 2 ** (currentLevel + 1)) / 9) }; const base = tri(currentLevel, targetLevel, 4000); const a = Math.max(currentLevel, 100), o = Math.max(targetLevel, 100), tier100 = a <= o ? tri(a, o, 4000) : 0; const c = Math.max(currentLevel, 200), l = Math.max(targetLevel, 200), tier200 = c <= l ? tri(c - 200, l - 200, 400000) : 0; const d = Math.max(currentLevel, 600), f = Math.max(targetLevel, 600), tier600 = d <= f ? tri(d - 600, f - 600, 2000000) : 0; const resourceCost = Math.round(base + tier100 + tier200 + tier600); const diamondCost = Math.round(tri(currentLevel, targetLevel, 1)); return { meat: resourceCost, iron: resourceCost, wood: resourceCost, stone: resourceCost, diamonds: diamondCost }; }\n  /* formulas/dungeons.json :: dungeon.fighterSlotCost.formula  [CODE] */\n  function fighterSlotCost(currentCount, targetCount) { if (targetCount <= currentCount) return { currency: 'gold', value: 0 }; return { currency: 'gold', value: 10000 * (Math.pow(10, targetCount + 1) - Math.pow(10, currentCount + 1)) / 9 }; }\n  /* formulas/partners.json :: partner.slotUnlock.formula  [CODE] */\n  function partnerHireCost(currentCount, targetCount) { if (targetCount <= currentCount) return { currency: 'gold', value: 0 }; return { currency: 'gold', value: 10000 * (Math.pow(10, targetCount + 1) - Math.pow(10, currentCount + 1)) / 9 }; }\n  /* tables/house-upgrades.json :: house.resourceCost.formula  [CODE] */\n  function houseUpgradeCost(currentLevel, newLevel) { const perLevel = (lvl) => 5000 + Math.round(5000 * Math.pow(lvl, 1.25)); let total = 0; for (let lvl = currentLevel + 1; lvl <= newLevel; lvl++) total += perLevel(lvl); let extra = 0; if (newLevel > 50) extra = (newLevel - Math.max(currentLevel, 50)) * 1e6; return { meat: total + extra, iron: total + extra, wood: total + extra, stone: total + extra }; }\n  /* formulas/village-boss.json :: villageBoss.upgradeTypes  [CODE] */\n  const villageBossUpgradeTypes = {\"health\":{\"goldBase\":200000,\"currency\":\"gold\",\"boostRatePerLevel\":0.02},\"attackSpeed\":{\"base\":3000,\"currency\":\"relics\",\"boostRatePerLevel\":0.02},\"dropQuality\":{\"base\":3000,\"currency\":\"villageBossEssence\",\"boostRatePerLevel\":0.02},\"duration\":{\"base\":4000,\"currency\":\"meat+iron+wood+stone (all four simultaneously, equal cost each)\",\"boostRatePerLevel\":0.02}};\n  /* formulas/village.json :: village.strengths.currency  [CODE] */\n  const villageStrengthCurrency = \"strength\";\n  return { sanctumNodeCost, petSlotUpgradeCost, slotUpgradeCost, expRequired, partnerLevelExp, partnerBoostUpgradeCost, bracketSurcharge, veryHighLevelSurcharge, boostCost, tileUpgradeCost, villageBossCost, villageBuildingCost, caveToolUpgradeCost, fighterSlotCost, partnerHireCost, houseUpgradeCost, villageBossUpgradeTypes, villageStrengthCurrency };\n})();\nwindow.AWOO_FACTS_META = {\"sanctumNodeCost\":{\"file\":\"tables/sanctum-nodes.json\",\"fact\":\"sanctumNodes.formula.status\",\"confidence\":\"CROSS\",\"checked\":\"2026-08-23\"},\"petSlotUpgradeCost\":{\"file\":\"formulas/pets.json\",\"fact\":\"pets.slotUpgrade.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-09-28\"},\"slotUpgradeCost\":{\"file\":\"formulas/equipment.json\",\"fact\":\"equipment.slotUpgrade.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"expRequired\":{\"file\":\"formulas/leveling.json\",\"fact\":\"leveling.genericExpRequired.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"partnerLevelExp\":{\"file\":\"formulas/partners.json\",\"fact\":\"partner.level.expFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"partnerBoostUpgradeCost\":{\"file\":\"formulas/partners.json\",\"fact\":\"partner.boostUpgradeCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"bracketSurcharge\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.bracketSurcharge\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"veryHighLevelSurcharge\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.veryHighLevelSurcharge\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"boostCost\":{\"file\":\"formulas/relic-boosts.json\",\"fact\":\"relicBoost.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"tileUpgradeCost\":{\"file\":\"formulas/sculptures.json\",\"fact\":\"sculptures.tileUpgradeCost\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageBossCost\":{\"file\":\"formulas/village-boss.json\",\"fact\":\"villageBoss.costFormula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageBuildingCost\":{\"file\":\"formulas/village.json\",\"fact\":\"village.buildings.costFormula.implementation\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"caveToolUpgradeCost\":{\"file\":\"formulas/caves.json\",\"fact\":\"caves.toolUpgradeCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"fighterSlotCost\":{\"file\":\"formulas/dungeons.json\",\"fact\":\"dungeon.fighterSlotCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"partnerHireCost\":{\"file\":\"formulas/partners.json\",\"fact\":\"partner.slotUnlock.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"houseUpgradeCost\":{\"file\":\"tables/house-upgrades.json\",\"fact\":\"house.resourceCost.formula\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageBossUpgradeTypes\":{\"file\":\"formulas/village-boss.json\",\"fact\":\"villageBoss.upgradeTypes\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"},\"villageStrengthCurrency\":{\"file\":\"formulas/village.json\",\"fact\":\"village.strengths.currency\",\"confidence\":\"CODE\",\"checked\":\"2026-08-23\"}};\n</script>\n\n<div class=\"shell\">\n  <div class=\"top awoo-head\">\n    <div id=\"gear\"></div>\n    <div class=\"awoo-eyebrow\">Upgrade pricing &middot; 15 systems</div>\n    <h1 class=\"awoo-title\">Cost Tables</h1>\n    <p class=\"awoo-sub\">What the next levels cost, from where you are to where you want to be.</p>\n  </div>\n  <!-- The sidebar is the model (DESIGN.md §10d): the sync card, then the\n       subject list (the first thing you reach for, so it sits right under\n       sync), then the inputs the table is priced from. The old Legend card\n       is the tier mark's hover now (§9: marks are explained in a legend on\n       hover, not beside every row). -->\n  <aside class=\"side\" data-awoo-sidebar data-side-min=\"1001\" data-side-top=\"20\">\n    <div id=\"syncCard\"></div>\n    <nav class=\"awoo-card\" id=\"nav\" aria-label=\"Cost systems\"></nav>\n    <div class=\"awoo-card\" id=\"inputs\"></div>\n  </aside>\n\n  <main id=\"main\"></main>\n</div>\n\n<button id=\"backTop\" type=\"button\" aria-label=\"Back to top\" hidden>↑</button>\n\n<div class=\"foot\">\n  Formulas are generated from the AWOO+ core (<code>core/data/formulas/</code>) and\n  were last checked against the game's own code (1.2.3.13) on 2026-09-23. Confidence tags are that core's own evidence\n  tiers, not a generic severity scale — a <b>CROSS</b> or <b>OPEN</b> table is\n  telling you something real about how far to trust the number.\n</div>\n\n<script>\n(function(){\n'use strict';\n\n/* =====================================================================\n   NUMBER FORMATTING — the shared settings layer's (tool-settings.js,\n   2026-09-23). The game's own two settings, inherited through AWOO+ and\n   overridable in the gear menu, the same in every tool. This page carried\n   its own copy of that until then; its saved override is handed over once\n   (see load()).\n   ===================================================================== */\nvar NUM = window.AWOO_TOOL_SETTINGS.num;\nfunction fmtInt(n){ return NUM.int(n); }\nfunction fmtNum(n){ return NUM.fmt(n); }\n\n/* =====================================================================\n   COST FORMULAS — verbatim ports. Each system exposes range(a,b,variant)\n   returning a currency->amount map, NOT a per-level marginal that the\n   page then sums. That matters: several of these are bracketed\n   triangular sums whose own range function is the authority, and at\n   least one (partner boosts) is provably non-additive across its\n   level-10 seam. Summing marginals would quietly disagree with the game.\n   ===================================================================== */\nvar F = (typeof window !== 'undefined' && window.AWOO_FACTS) || null;\nvar triangular = window.triangular, geomCost = window.geomCost;\n\n// Every generated fact returns one of three shapes: a bare number, a\n// { currency, value } pair, or a map of currency -> amount. One normaliser,\n// so the emitted text is never edited to fit this page.\nfunction asCost(out, fallbackCurrency){\n  if (out == null) return {};\n  if (typeof out === 'number'){ var o = {}; o[fallbackCurrency] = out; return o; }\n  // Some facts return an ARRAY of {currency,value} (village buildings bills in\n  // six currencies that way); others a single such pair; others a plain map.\n  if (Array.isArray(out)){\n    var m = {};\n    for (var i=0;i<out.length;i++){ if (out[i] && out[i].currency) m[out[i].currency] = out[i].value; }\n    return m;\n  }\n  if (typeof out.currency === 'string'){ var p = {}; p[out.currency] = out.value; return p; }\n  return out;\n}\n// A fact that failed to generate must not silently become zero. If the build\n// did not inject it, the page says so rather than pricing everything free.\nfunction fact(name){\n  if (!F || typeof F[name] !== 'function') {\n    throw new Error('Cost Tables: generated fact \"' + name + '\" is missing — the page was opened unbuilt.');\n  }\n  return F[name];\n}\n\n\n/* GENERATED: tables/sanctum-nodes.json :: sanctumNodes.formula.status */\nfunction sanctumNodeCost(a,b){ return asCost(fact('sanctumNodeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/pets.json :: pets.slotUpgrade.costFormula */\nfunction petSlotCost(a,b){ return asCost(fact('petSlotUpgradeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/partners.json :: partner.boostUpgradeCost.formula */\nfunction partnerBoostCost(a,b){ return asCost(fact('partnerBoostUpgradeCost')(a,b),'gold').gold; }\n/* GENERATED: formulas/partners.json :: partner.level.expFormula */\nfunction partnerLevelExpAt(level){ return fact('partnerLevelExp')(level); }\n/* GENERATED: formulas/leveling.json :: leveling.genericExpRequired.formula */\nfunction levelExp(level,type){ return fact('expRequired')(level, type || 'battling'); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.bracketSurcharge.\n   Hand-translated here until 2026-09-21, when the fact's pseudocode was\n   rewritten as real JavaScript (pinned against the engine's loop in\n   tests/income-relic-boosts-vs-known-captures.mjs). */\nfunction relicBracketSurcharge(a,b){ return fact('bracketSurcharge')(a,b); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.costFormula — all three\n   layers, priced by the game's own boostCost rather than re-assembled here. */\nfunction relicBoostCost(a,b,boostType){ return fact('boostCost')(a,b,boostType); }\n/* GENERATED: formulas/relic-boosts.json :: relicBoost.veryHighLevelSurcharge */\nfunction relicVeryHigh(a,b){ return fact('veryHighLevelSurcharge')(a,b); }\n/* GENERATED: formulas/caves.json :: caves.toolUpgradeCost.formula */\nfunction caveToolCost(a,b,tool){ return asCost(fact('caveToolUpgradeCost')(a,b,tool),'meat'); }\n/* GENERATED: tables/house-upgrades.json :: house.resourceCost.formula */\nfunction houseCost(a,b){ return asCost(fact('houseUpgradeCost')(a,b),'meat'); }\n/* GENERATED: formulas/village.json :: village.buildings.costFormula.implementation */\nfunction villageBuildingCost(a,b){ return asCost(fact('villageBuildingCost')(a,b),'gold'); }\n\n/* =====================================================================\n   SYSTEM REGISTRY\n   ===================================================================== */\nvar CUR = {\n  gold:{label:'Gold'}, relics:{label:'Relics'}, diamonds:{label:'Diamonds'},\n  meat:{label:'Meat'}, iron:{label:'Iron'}, wood:{label:'Wood'}, stone:{label:'Stone'},\n  exp:{label:'EXP'}, essence:{label:'Boss essence'},\n  tileres:{label:'Tile resource'}\n};\n/* GENERATED key: formulas/village.json :: village.strengths.currency. Was\n   \"Unrecorded currency\" until 2026-09-27 (formula-audit.md finding #12): the\n   bundle's own cost function (pe(), CharacterDataProvider-Ba19Q8CX.js) always\n   returned this currency name — it just was not in data/ yet. This is the\n   VILLAGE currency, not the character combat stat of the same capitalized\n   name — see GLOSSARY.md's \"Strength\" collision entry. */\nvar VILLAGE_STRENGTH_CUR = (F && F.villageStrengthCurrency) || 'strength';\nCUR[VILLAGE_STRENGTH_CUR] = { label:'Village Strength' };\n\nvar SYSTEMS = [\n{\n  id:'sanctum', group:'Character', name:'Sanctum skill tree', tier:'CROSS',\n  unit:'nodes bought', unitShort:'Nodes', def:25, min:0, max:84, view:84, expandBy:0, step:1, checked:'2026-08-23',\n  maxNote:'84 is the whole tree — counted from the node graph in tables/skill-tree.json, not estimated.',\n  desc:'Priced on the TOTAL number of nodes you have bought tree-wide — not on any one node’s level. Node 26 costs the same whichever node you spend it on.',\n  cur:['gold'],\n  range:function(a,b){ return { gold: sanctumNodeCost(a,b) }; },\n  formula:'cost(n) = 125,000 · n⁵  +  12,500,000 · n      (n = the nth node bought)',\n  userNote:'Every node costs the same wherever you spend it — the price is set by how many you have bought in total, so the cheapest node is always the next one.',\n  devNote:'Matches the shipped bundle function <b>exactly</b> (harness-checked at every level, not just nodes 6–15) — the drift is in the reference TABLE this fact was checked against, not the formula: the table reads 0.3–0.4% high from node 16 onward (999 at node 24 vs the bundle’s 996). Trust the formula; treat the table as the doubtful side. Reading one real per-node price off the Skill Tree page past node 24 would settle whether the table or the bundle is stale. Checked against the 1.2.3.12 bundle 2026-09-23: unchanged.',\n  srcs:['tables/sanctum-nodes.json','engine/income/sanctum.js'],\n  alias:'Called \"sanctum nodes\" in game, but 81 of its 84 nodes have nothing to do with sanctums.',\n  noBreaks:'One smooth curve: no breakpoints.'\n},\n{\n  id:'petslot', group:'Pets', name:'Pet slot', tier:'LIVE',\n  unit:'slot level', unitShort:'Level', def:100, min:0, max:300, view:30, expandBy:30, step:1, checked:'2026-09-28',\n  desc:'Each of the three slots levels and is paid for separately. Gold only — pet slots never cost village resources.',\n  variants:{ label:'Slot', options:[{id:'combat',label:'Combat'},{id:'utility',label:'Utility'},{id:'gathering',label:'Gathering'}] },\n  defByVariant:{ combat:136, utility:51, gathering:71 },\n  cur:['gold'],\n  breaks:[\n    { at:31, short:'boost ×2 rate', tip:'From here each level adds 2% boost instead of 1%. The rate steps up every 30 levels.' },\n    { at:61, short:'boost ×3 rate', tip:'Each level now adds 3% boost.' },\n    { at:91, short:'boost ×4 rate', tip:'Each level now adds 4% boost.' },\n    { at:121, short:'boost ×5 rate', tip:'Each level now adds 5% boost.' },\n    { at:151, short:'cost ×5 curve · boost ×6 rate', tip:'Past 150 the cost exponent jumps from 3 to 15 (the patch notes call it \"x5 scaling\"). The boost rate steps up one last time: from here each level adds 6%, for good.', dev:'pets.slotUpgrade.costFormula: floor(500,000 · 150³ · (L/150)^15) for L > 150.' },\n    { at:181, short:'boost rate stays 6%', tip:'Equipment slots step up to 7% a level here; pet slots keep adding 6% a level. (Before patch 1.2.3.13 the pet boost fell back to +450% at 180.)', dev:'pets.slotUpgrade.boostFormula (1.2.3.13): 0.3·5·6/2 + (level − 150)·0.01·6 for level ≥ 150.' }\n  ],\n  range:function(a,b){ return { gold: petSlotCost(a,b) }; },\n  formula:'level ≤ 150:  floor(500,000 · level³)\\nlevel > 150:  floor(500,000 · 150³ · (level/150)¹⁵)',\n  userNote:'Gold only, and each of the three slots is priced separately. Past level 150 the cost climbs far faster — the exponent jumps from 3 to 15, which is the dev’s “x5 scaling” note, while the boost settles at +6% a level.',\n  devNote:'The cubic branch is <b>live-verified</b> at three points on a real account (combat 135→136, utility 50→51, gathering 70→71 — all exact). The post-150 branch is <b>bundle-only</b>: no tracked account has reached 150 yet.',\n  srcs:['formulas/pets.json','engine/income/profile.js']\n},\n{\n  id:'equipslot', group:'Character', name:'Equipment slot', tier:'CODE',\n  unit:'slot level', unitShort:'Level', def:60, min:1, max:300, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Character equipment slots, each levelled on its own. Costs the same amount of all four village resources at once — no gold.',\n  variants:{ label:'Slot', options:[{id:'head',label:'Head'},{id:'body',label:'Body'},{id:'legs',label:'Legs'},{id:'hands',label:'Hands'},{id:'feet',label:'Feet'},{id:'leftHand',label:'Left hand'},{id:'rightHand',label:'Right hand'}] },\n  cur:['meat','iron','wood','stone'],\n  breaks:[\n    { at:31, short:'boost ×2 rate', tip:'The boost these levels buy accelerates in 30-level blocks: from here each level adds 2%.' },\n    { at:61, short:'boost ×3 rate', tip:'Each level now adds 3%.' },\n    { at:91, short:'boost ×4 rate', tip:'Each level now adds 4%.' },\n    { at:121, short:'boost ×5 rate', tip:'Each level now adds 5%.' },\n    { at:151, short:'boost ×6 rate', tip:'Each level now adds 6%. Unlike pets, equipment keeps climbing past 150.' },\n    { at:181, short:'boost ×7 rate', tip:'Each level now adds 7%.' },\n    { at:211, short:'boost ×8 rate', tip:'Each level now adds 8%.' },\n    { at:241, short:'boost ×9 rate', tip:'Each level now adds 9%.' },\n    { at:271, short:'boost ×10 rate', tip:'Each level now adds 10%.' }\n  ],\n  range:function(a,b){ return asCost(fact('slotUpgradeCost')(a,b),'meat'); },  /* GENERATED: equipment.slotUpgrade.costFormula */\n  formula:'geometric series, base 250, ratio 1.10 per level, charged in each of meat / iron / wood / stone',\n  userNote:'Costs the same amount of all four village resources at once, and no gold. The cost itself has no breakpoints; the boost these levels buy steps up every 30 levels — level 30 gives +30%, 60 gives +90%, 90 gives +180%.',\n  devNote:'A different curve from pet slots, and deliberately so — pets keep adding +6% a level past level 150 (patch 1.2.3.13); that was a pet-only branch and never touched equipment.',\n  srcs:['formulas/equipment.json','engine/income/profile.js']\n},\n{\n  id:'charlevel', group:'Character', name:'Level EXP', tier:'CODE',\n  unit:'level', unitShort:'Level', def:300, min:1, max:20000, view:2000, expandBy:2000, step:10, checked:'2026-09-23',\n  desc:'One curve backs three tracks. Crafting never leaves the flat stair-step; sanctum shifts the level by +500 before applying the same curve, so sanctum level N costs what battling level N+500 costs.',\n  variants:{ label:'Which level', options:[{id:'battling',label:'Character level'},{id:'crafting',label:'Crafting / forging level'},{id:'sanctum',label:'Sanctum level'}] },\n  defByVariant:{ battling:300, crafting:300, sanctum:120 },\n  cur:['exp'],\n  breaks:function(v){\n    var stairs = [\n      { at:10, short:'250 per level', tip:'Levels 10–19 cost 250 EXP × level.' },\n      { at:20, short:'400 per level', tip:'Levels 20–39 cost 400 EXP × level.' },\n      { at:40, short:'600 per level', tip:'Levels 40–49 cost 600 EXP × level.' },\n      { at:50, short:'1,000 per level', tip:'Levels 50–99 cost 1,000 EXP × level.' }\n    ];\n    if (v === 'crafting') return stairs.concat([{ at:100, short:'stays flat', tip:'Crafting never leaves the flat 1,000 × level stair-step.' }]);\n    var tail = [\n      { at:100, short:'√ curve', tip:'From here: 20,000 · √level.' },\n      { at:501, short:'+ power tail', tip:'Adds 2,500 · (level − 500)^1.25.' },\n      { at:10001, short:'+ steep tail', tip:'Adds 100,000 · (level − 10,000)^1.4 — the steepest part of the curve.', dev:'Changed in 1.2.3.11 from 10,000 · (level − 10,000)^1.35; this table used the old tail until 2026-09-23.' }\n    ];\n    if (v === 'sanctum') return [\n      { at:1, short:'starts on the √ curve', tip:'Sanctum level N is priced as character level N + 500, so it starts past the stair-steps, on the √ curve with its first tail.' },\n      { at:9501, short:'+ steep tail', tip:'Sanctum 9,501 is character-curve level 10,001: the steep tail starts here.' }\n    ];\n    return stairs.concat(tail);\n  },\n  range:function(a,b,v){ var t=0; for(var n=a+1;n<=b;n++) t+=levelExp(n,v||'battling'); return {exp:t}; },\n  formula:'<10: L·150   <20: L·250   <40: L·400   <50: L·600   <100: L·1000\\n≥100: 20,000·√L  (+ 2,500·(L−500)^1.25 past 500, + 100,000·(L−10,000)^1.4 past 10,000)',\n  userNote:'This is EXP required, not currency — the “cost” columns count experience. Crafting never leaves the flat stair-step; a sanctum level costs what a character level 500 higher would.',\n  devNote:'<b>Corrected 2026-09-23</b>: the past-10,000 tail changed in 1.2.3.11 (was 10,000·(L−10,000)^1.35). Every figure above level 10,000 in this table was low until then — about a sixth of the real value at 11,500. The sanctum +500 shift was read from the bundle only and has not been checked against a live sanctum level.',\n  srcs:['formulas/leveling.json','engine/income/leveling.js']\n},\n\n{\n  id:'partnerboost', group:'Partners', name:'Speed / intelligence boost', tier:'CODE',\n  unit:'boost level', unitShort:'Level', def:900, min:0, max:5000, view:200, expandBy:200, step:10, checked:'2026-08-25',\n  desc:'Per partner, per boost. The same function priced at current level 0 is what the game shows you as the refund when you reset a partner’s boosts.',\n  variants:{ label:'Boost', options:[{id:'speed',label:'Speed'},{id:'intelligence',label:'Intelligence'}] },\n  cur:['gold'],\n  breaks:[\n    { at:10, short:'rate 15,000', tip:'From level 10 each level costs about 15,000 × (level − 9). One purchase across this seam is slightly cheaper than two.', dev:'Known discontinuity: cost(5→15) = 270,000 but cost(5→9) + cost(9→15) = 274,200.' },\n    { at:1001, short:'+10,000/level', tip:'Past 1,000 each level adds about 10,000 × level on top.' },\n    { at:2001, short:'+100,000/level', tip:'Past 2,000 each level adds about 100,000 × level on top.' },\n    { at:3501, short:'+500,000/level', tip:'Past 3,500 each level adds about 500,000 × level on top: the steepest stretch.' }\n  ],\n  range:function(a,b){ return { gold: partnerBoostCost(a,b) }; },\n  formula:'below 10:  triangular(a, b, 150)\\nfrom 10:   triangular(max(a−9,0), max(b−9,1), 15,000)\\n+ triangular past 1,000 @ 10,000 · past 2,000 @ 100,000 · past 3,500 @ 500,000',\n  userNote:'Per partner, per boost: buying a level for every partner costs this times your partner count. The same figure priced from level 0 is what the game shows you as the refund when you reset a partner’s boosts.',\n  devNote:'<b>Known discontinuity at level 10.</b> One purchase spanning the seam is cheaper than the same range bought as two: cost(5→15) = 270,000, but cost(5→9) + cost(9→15) = 274,200. The ≥10 branch re-indexes by −9 and clamps at zero, so every starting level from 0 to 9 lands on the same point. A real property of the game’s formula, not a transcription slip — and the reason this page always prices a range with the range function rather than adding up single levels. The other three thresholds are properly additive. Synced level = your LOWEST partner’s, the one you would buy next to keep them even.',\n  srcs:['formulas/partners.json','engine/income/partners.js']\n},\n{\n  id:'partnerhire', group:'Partners', name:'Hire a partner', tier:'CODE',\n  unit:'partners owned', unitShort:'Partners', def:5, min:0, max:12, view:12, expandBy:0, step:1, checked:'2026-08-23',\n  desc:'Unlocking the next partner slot. Ten times the previous one, every time — the single steepest curve in the game.',\n  cur:['gold'],\n  range:function(a,b){ return asCost(fact('partnerHireCost')(a,b),'gold'); },  /* GENERATED: partner.slotUnlock.formula */\n  formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',\n  userNote:'Ten times the previous one, every time — the steepest curve in the game. <b>Whether partners cap at all is unknown</b>; this table stops at 12 for a technical reason, not a game one.',\n  devNote:'It stops at 12 because that is where the cost passes what a double-precision number represents exactly. Byte-for-byte the same closed form as the fighter-slot cost, one shared primitive across two unrelated systems; fighter slots are known to cap at 6.',\n  srcs:['formulas/partners.json','engine/income/partners.js'],\n  noBreaks:'No breakpoints: every partner costs exactly ten times the one before.'\n},\n{\n  id:'partnerlevel', group:'Partners', name:'Partner level EXP', tier:'CODE',\n  unit:'partner level', unitShort:'Level', def:400, min:0, max:10000, view:500, expandBy:500, step:10, checked:'2026-09-23',\n  desc:'A sibling of the character curve with its own coefficients — same √ + power-tail family, different numbers.',\n  cur:['exp'],\n  breaks:[\n    { at:10, short:'200 per level', tip:'Levels 10–19 cost 200 EXP × level.' },\n    { at:20, short:'300 per level', tip:'Levels 20–39 cost 300 EXP × level.' },\n    { at:40, short:'400 per level', tip:'Levels 40–49 cost 400 EXP × level.' },\n    { at:50, short:'√ curve', tip:'From here: 25,000 · √level.' },\n    { at:1501, short:'+ power tail', tip:'Adds 250 · (level − 1,500)^1.25.' },\n    { at:6001, short:'+ steep tail', tip:'Adds 2,500 · (level − 6,000)^1.4.', dev:'The game’s own formula label still prints 1.35 here; the code charges 1.4 (since 1.2.3.11).' }\n  ],\n  range:function(a,b){ var t=0; for(var n=a+1;n<=b;n++) t+=partnerLevelExpAt(n); return {exp:t}; },\n  formula:'<10: L·150   <20: L·200   <40: L·300   <50: L·400\\n≥50: 25,000·√L  (+ 250·(L−1500)^1.25 past 1500, + 2,500·(L−6000)^1.4 past 6000)',\n  userNote:'A partner’s four <i>skills</i> level on this curve. They are not the same thing as its four base <i>stats</i>. Every skill level also raises that partner’s own income multiplier.',\n  devNote:'<b>Corrected 2026-09-23</b>: the past-6000 exponent is 1.4 since 1.2.3.11 (the Partners page label still says 1.35). The live checks all sit between 1,500 and 6,000, where the two agree. How partner stats grow is still unknown; the dev’s own wiki page for it reads “coming soon”.',\n  srcs:['formulas/partners.json','engine/income/partners.js']\n},\n\n{\n  id:'villagebuilding', group:'Village', name:'Buildings', tier:'LIVE',\n  unit:'building level', unitShort:'Level', def:38, min:1, max:200, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Every building shares one price curve. Gold and all four resources at once, on the same geometric curve at different bases. Relics join the bill only past level 40.',\n  variants:{ label:'Building', options:[{id:'market',label:'Market'},{id:'stable',label:'Stable'},{id:'tavern',label:'Tavern'},{id:'well',label:'Well'},{id:'mill',label:'Mill'},{id:'granary',label:'Granary'},{id:'shrine',label:'Shrine'},{id:'treasury',label:'Treasury'},{id:'warehouse',label:'Warehouse'}] },\n  cur:['gold','meat','iron','wood','stone','relics'],\n  breaks:[{ at:41, short:'relics join the bill', tip:'From level 41 every level also costs relics (base 3,000, ratio 1.15).' }],\n  range:villageBuildingCost,\n  formula:'gold: geometric base 200,000 · ratio 1.15\\nmeat / iron / wood / stone: geometric base 4,000 · ratio 1.15\\nrelics: geometric base 3,000, pivoted at level 41, nothing below',\n  userNote:'Every building shares one curve: pick yours to see your own level. Gold and all four resources at once; relics join the bill only past level 40.',\n  devNote:'<b>Live-verified end to end</b> across all six currencies against a real Village → Upgrades price, which also settled a long-standing 3,000-vs-8,000 disagreement in the relic coefficient in favour of 3,000.',\n  srcs:['formulas/village.json','engine/costs/village.js']\n},\n{\n  id:'villagestrength', group:'Village', name:'Strengths', tier:'CODE',\n  unit:'strength level', unitShort:'Level', def:20, min:0, max:500, view:50, expandBy:50, step:1, checked:'2026-09-27',\n  desc:'Brave / Wealthy / Bold / Swift / Trailblazer / Potent all cost ×2. Loyal alone costs ×10 — five times any other strength, per level.',\n  variants:{ label:'Strength', options:[{id:'brave',label:'Brave (×2)'},{id:'wealthy',label:'Wealthy (×2)'},{id:'bold',label:'Bold (×2)'},{id:'swift',label:'Swift (×2)'},{id:'trailblazer',label:'Trailblazer (×2)'},{id:'potent',label:'Potent (×2)'},{id:'loyal',label:'Loyal (×10)'}] },\n  cur:[VILLAGE_STRENGTH_CUR],\n  range:function(a,b,v){ var o = {}; o[VILLAGE_STRENGTH_CUR] = Math.round(triangular(a,b, v==='loyal'?10:2)); return o; },\n  formula:'cost(a → b) = triangular(a, b) × 10 for Loyal, × 2 for every other strength',\n  userNote:'Loyal costs five times what any other strength costs per level. The bonus side is simpler: level × 1% for the six, while Loyal returns the bare level.',\n  devNote:'<b>Corrected 2026-09-27</b> (formula-audit.md finding #12): the bundle’s own cost function returns this currency (“Village Strength”, a village-level currency distinct from the character combat stat of the same capitalized name) in every response — it was labelled “Unrecorded currency” only because data/ had not recorded it yet, not because the game withholds it. The exact in-game display label for this currency is still unverified. The bonus formula is cross-confirmed exactly against six live readings on two different characters.',\n  srcs:['formulas/village.json','engine/costs/village.js'],\n  noBreaks:'No breakpoints: one triangular curve.'\n},\n{\n  id:'villageboss', group:'Village', name:'Boss upgrades', tier:'CODE',\n  unit:'upgrade level', unitShort:'Level', def:15, min:0, max:200, view:50, expandBy:50, step:1, checked:'2026-08-25',\n  desc:'Four upgrade types, four different currencies, one shared curve — and an identical +2% per level whichever you buy.',\n  variants:{ label:'Upgrade', options:[\n    {id:'health',label:'Health (gold)'},{id:'attackSpeed',label:'Attack speed (relics)'},\n    {id:'dropQuality',label:'Drop quality (essence)'},{id:'duration',label:'Duration (4 resources)'}]},\n  cur:['gold','relics','essence','meat','iron','wood','stone'],\n  range:function(a,b,v){\n    var U=F.villageBossUpgradeTypes;  /* GENERATED: villageBoss.upgradeTypes (the base costs) */\n    var cfg={health:[U.health.goldBase,'gold'],attackSpeed:[U.attackSpeed.base,'relics'],dropQuality:[U.dropQuality.base,'essence'],duration:[U.duration.base,'res']}[v||'health'];\n    var c=fact('villageBossCost')(a,b,cfg[0]);  /* GENERATED: villageBoss.costFormula */\n    if (cfg[1]==='res') return {meat:c,iron:c,wood:c,stone:c};\n    var o={}; o[cfg[1]]=c; return o;\n  },\n  formula:'geometric series, ratio 1.15, base 200,000 (gold) / 3,000 (relics) / 3,000 (essence) / 4,000 (each of four resources)',\n  userNote:'Four upgrade types, four different currencies, one shared curve — and every type gives the same +2% per level. The only real decision is which currency you would rather spend.',\n  devNote:'Confirmed to be literally the same helper function as Buildings, not merely a similar shape.',\n  srcs:['formulas/village-boss.json','engine/costs/village.js'],\n  noBreaks:'No breakpoints: one geometric curve (×1.15 per level).'\n},\n\n{\n  id:'sculpture', group:'Sculpture', name:'Sculpture tile', tier:'LIVE',\n  unit:'tile level', unitShort:'Level', def:223, min:0, max:3000, view:300, expandBy:300, step:25, checked:'2026-09-23',\n  desc:'Which resource a tile bills you in is fixed by its position on a 2×2 checkerboard — 16 of the 64 tiles on each resource. The price is the same wherever it sits.',\n  cur:['tileres'],\n  breaks:[{ at:2501, short:'+2.5m per level', tip:'Past level 2,500 every level also pays (level − 2,500) × 2,500,000 on top: the cost climbs a hundred times faster.', dev:'New in 1.2.3.11; this table did not know it until 2026-09-23.' }],\n  range:function(a,b){ return { tileres: fact('tileUpgradeCost')(a,b) }; },  /* GENERATED: sculptures.tileUpgradeCost */\n  formula:'level L costs 25,000 · L\\n+ past 2,500: (L − 2,500 − ½) · 2,500,000, in the same resource',\n  userNote:'Which resource a tile bills you in is fixed by its position on the grid; the price is the same wherever it sits. The slot boost these levels feed has diminishing returns, so the last levels cost the most and give the least.',\n  devNote:'<b>Corrected 2026-09-23.</b> Level L costs 25,000 × L exactly: 223 → 224 is 5,600,000, the live-observed “5.60m”. This table used triangular(a, b, 25,000), which prices it at 5,587,500 (“5.59m”) and was wrongly recorded as a match. The past-2,500 surcharge is from 1.2.3.11.',\n  srcs:['formulas/sculptures.json','engine/income/sculptures.js'],\n  curNote:'meat / iron / wood / stone — set by the tile’s coordinates'\n},\n{\n  id:'cavetool', group:'Caves', name:'Cave tools', tier:'LIVE',\n  unit:'tool level', unitShort:'Level', def:150, min:0, max:500, view:300, expandBy:100, step:5, checked:'2026-08-25',\n  desc:'Every tool but the repeater costs four resources plus a gentle diamond fee. The repeater is diamonds only, and doubles.',\n  variants:{ label:'Tool', options:[{id:'standard',label:'Any tool except repeater'},{id:'repeater',label:'Repeater (diamonds, ×2/level)'}] },\n  cur:['meat','iron','wood','stone','diamonds'],\n  breaks:function(v){\n    if (v === 'repeater') return [];\n    return [\n      { at:101, short:'+4,000 layer', tip:'Past level 100 a second 4,000-per-level layer is added to the resource cost.' },\n      { at:201, short:'+400,000 layer', tip:'Past level 200 a 400,000-per-level layer is added.' },\n      { at:601, short:'+2m layer', tip:'Past level 600 a 2,000,000-per-level layer is added.' }\n    ];\n  },\n  range:function(a,b,v){ return caveToolCost(a,b,v==='repeater'?'repeater':'standard'); },\n  formula:'resources: triangular @ 4,000, + 4,000 from level 100, + 400,000 from 200, + 2,000,000 from 600\\ndiamonds: triangular @ 1  (≈ the target level per single upgrade)\\nrepeater: 1,000 · (2^(b+1) − 2^(a+1)) / 9, diamonds only',\n  userNote:'Every tool but the repeater costs four resources plus a gentle diamond fee; the repeater is diamonds only, and doubles. Worth knowing before you spend: resetting a tool refunds all four resources and none of the diamonds — so the repeater refunds nothing at all.',\n  devNote:'<b>Live-verified exact</b> against four real upgrade prices. Checked against the 1.2.3.12 bundle 2026-09-23: unchanged.',\n  srcs:['formulas/caves.json','engine/income/caves.js']\n},\n{\n  id:'house', group:'Caves', name:'House', tier:'CROSS',\n  unit:'house level', unitShort:'Level', def:40, min:0, max:100, view:100, expandBy:50, step:1, checked:'2026-08-27',\n  desc:'All four resources at the same value each, on a gentle power curve — until level 50, where a flat million per level per resource lands on top.',\n  cur:['meat','iron','wood','stone'],\n  breaks:[{ at:51, short:'+1m per level', tip:'From level 51 every level also costs a flat 1,000,000 of each resource.' }],\n  range:houseCost,\n  formula:'per level: 5,000 + round(5,000 · level^1.25)\\npast level 50: + 1,000,000 per level, to each of the four resources',\n  userNote:'All four resources at the same value each, on a gentle curve — until level 50, where a flat million per level per resource lands on top.',\n  devNote:'26 of 32 known table rows match exactly; the six that miss look like transcription noise in the source table rather than a second branch.',\n  srcs:['tables/house-upgrades.json','engine/income/house.js']\n},\n{\n  id:'relicboost', group:'Relics', name:'Relic boost shop', tier:'CODE',\n  unit:'boost level', unitShort:'Level', def:2000, min:0, max:60000, view:2000, expandBy:2000, step:100, checked:'2026-09-23',\n  desc:'Defense and damage flat are gold and skip the top surcharge layer. Everything else is relic-paid and carries all three layers.',\n  variants:{ label:'Boost', options:[\n    {id:'critChance',label:'Crit chance'},{id:'critDamage',label:'Crit damage'},{id:'multistrike',label:'Multistrike'},\n    {id:'healing',label:'Healing'},{id:'defense',label:'Defense'},\n    {id:'huntingBoost',label:'Hunting'},{id:'miningBoost',label:'Mining'},{id:'woodcuttingBoost',label:'Woodcutting'},{id:'stonecarvingBoost',label:'Stonecarving'},\n    {id:'damageFlat',label:'Damage flat (gold)'},{id:'defenseFlat',label:'Defense flat (gold)'}]},\n  defByVariant:{ damageFlat:1000, defenseFlat:1000 },\n  cur:['relics','gold'],\n  breaks:function(v){\n    var gold = v === 'damageFlat' || v === 'defenseFlat';\n    var out = [\n      { at:5001, short:'+20 × (L−5,000)', tip:'Past 5,000 every level pays an extra (level − 5,000) × 20.' },\n      { at:10001, short:'rate +10 per 1,000', tip:'From 10,001 that extra rate climbs by 10 every 1,000 levels (30, 40, 50, …).' }\n    ];\n    if (!gold) out.push({ at:50001, short:'+50,000 layer', tip:'Past 50,000 relic-paid boosts add a third layer at 50,000 per level.', dev:'50,000 since 1.2.3.11; this table used 1.2.3.7’s 20,000 until 2026-09-23.' });\n    return out;\n  },\n  range:function(a,b,v){\n    var gold = v==='damageFlat' || v==='defenseFlat';\n    var out = relicBoostCost(a, b, gold ? 'damageFlat' : 'critChance');\n    return asCost(out, gold ? 'gold' : 'relics');\n  },\n  formula:'layer 1: level L costs L · 100 (gold types) or L · 10 (relic types)\\nlayer 2, past 5,000: (L − 5,000) · rate — 20 through 10,000, then +10 per 1,000 levels\\nlayer 3, past 50,000, relic types only: triangular @ 50,000/level',\n  userNote:'Defense and damage flat are gold-paid; everything else costs relics, and every relic type is priced the same. What a level buys: +10 flat for the gold types, level/5,000 for attack speed, level/2,000 for everything else.',\n  devNote:'<b>Corrected 2026-09-23</b> against the 1.2.3.12 function: layers 1 and 2 are arithmetic-series differences (level L costs L·rate; the old triangular form charged (L−½)·rate), and layer 3 charges 50,000 since 1.2.3.11 (was 20,000). The shattered-relics discount the game shows is server-side and not modelled.',\n  srcs:['formulas/relic-boosts.json','engine/income/relicBoosts.js']\n},\n{\n  id:'fighterslot', group:'Fighters', name:'Fighter slot', tier:'LIVE', generated:true,\n  unit:'fighter slots', unitShort:'Slots', def:5, min:0, max:6, view:6, expandBy:0, step:1, checked:'2026-08-23',\n  desc:'Expanding the fighter roster for dungeons. Six slots is the cap, and each one costs ten times the last. Gold by default; the game\\u2019s Toggle Fighter Gold switch can bill fighter gold instead.',\n  cur:['gold'],\n  range:function(a,b){ return asCost(fact('fighterSlotCost')(a,b),'gold'); },  /* GENERATED: dungeon.fighterSlotCost.formula */\n  formula:'cost(a → b) = 10,000 · (10^(b+1) − 10^(a+1)) / 9',\n  userNote:'Six slots is the cap, and each one costs ten times the last.',\n  devNote:'The cap of 6 is from the maintainer (2026-09-21). The arithmetic is certain, but <b>what it buys is inferred</b> from the function’s shape and where it sits in the bundle, not from watching a slot get bought — if you expand one and the price does not match this row, that is the more interesting finding.',\n  srcs:['formulas/dungeons.json','engine/costs/dungeon.js'],\n  noBreaks:'No breakpoints: each slot costs ten times the last, to the cap of 6.'\n}\n];\n\n// Groups are ordered by when a player unlocks the system, from\n// data/tables/feature-unlock-levels.json — not alphabetically and not by build\n// order. A newer player meets them top to bottom.\n// Ordered by roughly when a player meets each system (unlock levels are in\n// data/tables/feature-unlock-levels.json) - but the level itself is not shown.\n// It explains the order to whoever maintains this list; it is noise to a\n// reader who just wants the cost of their next pet slot.\nvar GROUPS = [\n  { id:'Character', label:'Character' },\n  { id:'Partners',  label:'Partners' },\n  { id:'Village',   label:'Village' },\n  { id:'Fighters',  label:'Fighters' },\n  { id:'Pets',      label:'Pets' },\n  { id:'Caves',     label:'Caves & house' },\n  { id:'Relics',    label:'Relics' },\n  { id:'Sculpture', label:'Sculptures' }\n];\n// Within a group, the order a player meets them: the thing you level first,\n// then what it gates. Explicit, because build order is not a meaning.\nvar ORDER = ['charlevel','equipslot','sanctum',\n             'partnerhire','partnerboost','partnerlevel',\n             'villagebuilding','villagestrength','villageboss',\n             'fighterslot',\n             'petslot',\n             'cavetool','house',\n             'relicboost',\n             'sculpture'];\nSYSTEMS.sort(function(a,b){\n  var ia = GROUPS.findIndex(function(g){ return g.id===a.group; });\n  var ib = GROUPS.findIndex(function(g){ return g.id===b.group; });\n  return ia !== ib ? ia - ib : ORDER.indexOf(a.id) - ORDER.indexOf(b.id);\n});\n\nvar BY_ID = {};\nSYSTEMS.forEach(function(s){ BY_ID[s.id]=s; });\n\n/* =====================================================================\n   PROFILE SYNC — live since 2026-09-23, through the shared kit\n   (tool-sync.js: the profile Core hands over and every capture after it).\n\n   Each subject key (\"<systemId>\" or \"<systemId>:<variantId>\") names what it\n   reads and which profile section dates it. A key with no entry is never\n   synced: its level is always yours to type. The four states are the kit's\n   (synced / stale / edited / unavailable); this page keeps its own record of\n   which keys you typed, because its inputs are rebuilt for every subject.\n   ===================================================================== */\nvar SYNC = window.AWOO_SYNC;\nvar STALE_MS = 6*60*60*1000;\n// HELD (R125, 2026-09-28: \"Don't keep updating live numbers after opening a\n// tool. Only refresh when clicking sync.\"): the prices read the profile as it\n// was when the page opened, and again when Sync is pressed, never as each\n// capture arrives. The kit builds a new profile object per capture, so keeping\n// the object is keeping the moment.\nvar held = null;\nfunction take(){ var p = SYNC.profile(); if (p) held = p; }\nfunction g(path){ return SYNC.get(path, held || undefined); }\n// The lowest of your partners' speed or intelligence: the level you would buy\n// next to keep them even, which is the price this table can honestly quote.\nfunction lowestPartner(boost){\n  return function(){\n    var r = g('partner.roster');\n    if (!Array.isArray(r) || !r.length) return null;\n    var min = null;\n    for (var i = 0; i < r.length; i++){ var v = r[i] && r[i][boost]; if (typeof v === 'number' && (min === null || v < min)) min = v; }\n    return min;\n  };\n}\n// Every partner's four SKILLS (hunting/mining/woodcutting/stonecarving —\n// partner.roster[].skills, NOT the speed/intelligence boosts lowestPartner()\n// reads above): the lowest, average and highest, plus how many were counted.\n// The Partner level EXP page starts from the AVERAGE (maintainer, 2026-10-04:\n// the lowest skill of any partner read as an odd number). A partner or skill\n// with no number is skipped, never counted as 0 (AGENTS.md rule 3).\nfunction partnerSkillStats(){\n  var r = g('partner.roster');\n  if (!Array.isArray(r) || !r.length) return null;\n  var lo = null, hi = null, sum = 0, n = 0;\n  for (var i = 0; i < r.length; i++){\n    var sk = r[i] && r[i].skills;\n    if (!sk) continue;\n    ['hunting','mining','woodcutting','stonecarving'].forEach(function(k){\n      var v = sk[k];\n      if (typeof v !== 'number' || !isFinite(v)) return;\n      if (lo === null || v < lo) lo = v;\n      if (hi === null || v > hi) hi = v;\n      sum += v; n++;\n    });\n  }\n  return n ? { lowest: lo, average: sum / n, highest: hi, count: n } : null;\n}\nfunction averagePartnerSkill(){\n  var st = partnerSkillStats();\n  return st ? Math.round(st.average) : null;\n}\nvar PROFILE_READS = {\n  'charlevel:battling':   ['levels', function(){ var v = g('levels.battling'); return v != null ? v : g('core.level'); }],\n  'charlevel:crafting':   ['levels', 'levels.crafting'],\n  'charlevel:sanctum':    ['levels', 'levels.sanctum'],\n  'petslot:combat':       ['pets', 'pets.combat.slotLevel'],\n  'petslot:utility':      ['pets', 'pets.utility.slotLevel'],\n  'petslot:gathering':    ['pets', 'pets.gathering.slotLevel'],\n  'partnerboost:speed':        ['partner', lowestPartner('speed')],\n  'partnerboost:intelligence': ['partner', lowestPartner('intelligence')],\n  'partnerhire':          ['partner', 'partner.count'],\n  'partnerlevel':         ['partner', averagePartnerSkill],\n  // sanctum.skillTreePoints: skill-tree points bought with gold (BUNDLE,\n  // PROFILE.md) — priced on the total bought tree-wide, matching this\n  // system's own \"priced on the TOTAL number of nodes\" description.\n  'sanctum':              ['sanctum', 'sanctum.skillTreePoints']\n};\n['head','body','legs','hands','feet','leftHand','rightHand'].forEach(function(k){ PROFILE_READS['equipslot:' + k] = ['equipment', 'equipment.slots.' + k + 'Level']; });\n['market','stable','tavern','well','mill','granary','shrine','treasury','warehouse'].forEach(function(k){ PROFILE_READS['villagebuilding:' + k] = ['village', 'village.buildings.' + k]; });\n['brave','wealthy','bold','swift','trailblazer','potent','loyal'].forEach(function(k){ PROFILE_READS['villagestrength:' + k] = ['village', 'village.strengths.' + k]; });\n['critChance','critDamage','multistrike','healing','defense','huntingBoost','miningBoost','woodcuttingBoost','stonecarvingBoost','damageFlat','defenseFlat'].forEach(function(k){ PROFILE_READS['relicboost:' + k] = ['relicBoosts', 'relicBoosts.' + k]; });\n\n// key -> { value, observedAt } | null. Never 0 for \"not observed\".\nfunction profileValue(key){\n  var spec = PROFILE_READS[key];\n  if (!spec || !SYNC) return null;\n  var v = typeof spec[1] === 'function' ? spec[1]() : g(spec[1]);\n  if (typeof v !== 'number' || !isFinite(v)) return null;\n  var at = g('meta.observedAt.' + spec[0]);\n  return { value:v, observedAt:(typeof at === 'number' && isFinite(at)) ? at : null };\n}\n\nvar edited = {};   // key -> true once the user types in that field\n\n/* state of one field: 'edited' | 'synced' | 'stale' | 'unavailable' */\nfunction fieldState(key){\n  if (edited[key]) return 'edited';\n  var p = profileValue(key);\n  if (!p) return 'unavailable';\n  if (p.observedAt === null || (Date.now() - p.observedAt) > STALE_MS) return 'stale';\n  return 'synced';\n}\nvar STATE_TEXT = {\n  edited:'Typed by you; a sync keeps it. Click to sync it again.',\n  synced:'Synced from the game. Click to re-sync.',\n  stale:'Synced, but over six hours old. Click to re-sync.',\n  unavailable:'Not synced: this is your own figure.'\n};\nfunction syncSummary(){\n  var out = { total:0, synced:0, stale:0, edited:0 };\n  for (var key in PROFILE_READS){\n    out.total++;\n    var st = fieldState(key);\n    if (st === 'synced') out.synced++; else if (st === 'stale') out.stale++; else if (st === 'edited') out.edited++;\n  }\n  return out;\n}\n\n/* =====================================================================\n   STATE\n   ===================================================================== */\n// Theme and \"Show developer info\" are the shared tool-settings layer's\n// (tool-settings.js): inherited from AWOO+ Core, overridable in the gear menu,\n// remembered per tool. Nothing here duplicates that.\n\nvar LS = 'awooCostTables.v1';\nvar state = { active:'charlevel', levels:{}, variants:{}, rows:{}, targets:{}, currency:{}, steps:{}, expanded:false };\n\n// Every system that HAS variants gets one selected before the first render.\n// Leaving it undefined would split the field key (\"petslot\") from the variant\n// the table is actually priced with (\"petslot:combat\") — a level typed into\n// one would be read back under the other, and no profile reading would match.\nSYSTEMS.forEach(function(s){\n  if (s.variants && !state.variants[s.id]) state.variants[s.id] = s.variants.options[0].id;\n});\n\nfunction keyFor(sys){\n  var v = state.variants[sys.id];\n  return (sys.variants && v) ? sys.id + ':' + v : sys.id;\n}\nfunction clampLevel(sys, v){\n  if (!isFinite(v)) return sys.min;\n  return Math.max(sys.min, Math.min(sys.max, Math.round(v)));\n}\nfunction stepFor(sys){\n  var v = state.steps[keyFor(sys)];\n  return (v && v > 0) ? Math.round(v) : sys.step;\n}\nfunction targetLevel(sys){\n  var k = keyFor(sys), lv = currentLevel(sys);\n  var t = state.targets[k];\n  if (t == null || t <= lv) return Math.min(lv + 10, sys.max);\n  return Math.min(t, sys.max);\n}\nfunction defaultLevel(sys){\n  var v = state.variants[sys.id];\n  if (sys.defByVariant && v && sys.defByVariant[v] != null) return sys.defByVariant[v];\n  return sys.def;\n}\nfunction currentLevel(sys){\n  var k = keyFor(sys);\n  if (edited[k] && state.levels[k] != null) return clampLevel(sys, state.levels[k]);\n  var p = profileValue(k);\n  if (p) return clampLevel(sys, p.value);\n  if (state.levels[k] != null) return clampLevel(sys, state.levels[k]);\n  return clampLevel(sys, defaultLevel(sys));\n}\n\nfunction load(){\n  try {\n    var raw = localStorage.getItem(LS);\n    if (!raw) return;\n    var o = JSON.parse(raw);\n    if (o.levels) state.levels = o.levels;\n    if (o.variants) state.variants = o.variants;\n    if (o.currency) state.currency = o.currency;\n    if (o.edited) edited = o.edited;\n    if (o.targets) state.targets = o.targets;\n    if (o.steps) state.steps = o.steps;\n    // This page kept its own number override until 2026-09-23; hand it to\n    // the shared layer once, where every tool now keeps it.\n    if (o.numberMode || o.numberLocale) NUM.adopt(o.numberMode, o.numberLocale);\n    if (o.expanded) state.expanded = true;\n    if (o.active && BY_ID[o.active]) state.active = o.active;\n  } catch(e){}\n}\nvar saveTimer = null;\nfunction save(){\n  clearTimeout(saveTimer);\n  saveTimer = setTimeout(function(){\n    try {\n      localStorage.setItem(LS, JSON.stringify({\n        levels:state.levels, variants:state.variants, currency:state.currency,\n        targets:state.targets, expanded:state.expanded,\n        steps:state.steps, edited:edited, active:state.active\n      }));\n    } catch(e){}\n  }, 700);\n}\n\n/* =====================================================================\n   RENDER\n   ===================================================================== */\nfunction esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\"/g,'&quot;'); }\n\nfunction activeCurrency(sys){\n  var c = state.currency[sys.id];\n  if (c && sys.cur.indexOf(c) >= 0) return c;\n  return sys.cur[0];\n}\n\n// The subject list (house style, 2026-10-06): one section label, the game's\n// groups as sub-headings with a rule, one row per subject with your level\n// right-aligned. Reset every subject sits at its foot, since it acts on the\n// whole list; init() listens on #nav, so the rebuilt button needs no wiring.\nfunction renderNav(){\n  var html = '<div class=\"awoo-sec\">Subjects</div>', lastGroup = null;\n  SYSTEMS.forEach(function(s){\n    if (s.group !== lastGroup){\n      var g = GROUPS.filter(function(x){ return x.id===s.group; })[0] || { label:s.group };\n      html += '<div class=\"grp\">' + esc(g.label) + '</div>';\n      lastGroup = s.group;\n    }\n    var lv = currentLevel(s);\n    html += '<button class=\"navbtn\" type=\"button\" data-sys=\"' + s.id + '\"' +\n            (s.id===state.active ? ' aria-current=\"true\"' : '') + '>' +\n            esc(s.name) + '<span class=\"nlv\">' + fmtInt(lv) + '</span></button>';\n  });\n  html += '<div class=\"cardfoot\"><button class=\"awoo-btn\" type=\"button\" id=\"resetAllBtn\" data-tip=\"Current levels, targets, steps and row counts back to their defaults, for every subject.\">Reset every subject</button></div>';\n  document.getElementById('nav').innerHTML = html;\n}\n\n// What the evidence tiers mean: the old sidebar Legend card, now on the tier\n// mark's hover (§9: marks are explained by a legend, not beside every row).\nvar TIER_TIP = {\n  LIVE:'LIVE: checked against the real game.',\n  CODE:'CODE: read from the shipped bundle.',\n  CROSS:'CROSS: matches a known table, small drift.',\n  OPEN:'OPEN: something here is unresolved.'\n};\nvar TIER_MARK = { LIVE:'awoo-mark-ok', CODE:'awoo-mark-ok', CROSS:'awoo-mark-acc', OPEN:'awoo-mark-info' };\nfunction tierTip(tier){\n  return (TIER_TIP[tier] || tier) + '\\n\\nAll tiers:\\n' + Object.keys(TIER_TIP).map(function(k){ return TIER_TIP[k]; }).join('\\n');\n}\n\nfunction costCell(amounts, cur, cls){\n  var v = amounts[cur];\n  if (v == null) return '<td class=\"awoo-dash' + (cls || '') + '\">—</td>';\n  return '<td' + (cls ? ' class=\"' + cls.trim() + '\"' : '') + '>' + fmtNum(v) + '</td>';\n}\n\nfunction renderSystem(){\n  var sys = BY_ID[state.active];\n  var cur = activeCurrency(sys);\n  var lv  = currentLevel(sys);\n  var key = keyFor(sys);\n  var fstate = fieldState(key);\n  var tgt = targetLevel(sys);\n  var step = stepFor(sys);\n  var rowsTo = state.rows[key];\n  if (rowsTo == null || rowsTo <= lv) rowsTo = Math.min(Math.max(lv + sys.view, tgt), sys.max);\n  rowsTo = Math.min(rowsTo, sys.max);\n  var from = Math.max(sys.min, lv - 3*step);\n  var variant = state.variants[sys.id] || (sys.variants ? sys.variants.options[0].id : null);\n\n  /* the inputs card (house style, DESIGN.md §10d): this subject's inputs in\n     the sidebar, on the field grid, with the sync light inside the level's\n     cell and the cell's look saying where the level came from. */\n  var CELL_KIND = { synced:' awoo-k-sync', stale:' awoo-k-sync', edited:' awoo-k-typed', unavailable:'' };\n  var f = '<div class=\"awoo-sec\">' + esc(sys.name) + '</div><div class=\"awoo-fields\">';\n  f += '<label for=\"lvInput\">Current ' + esc(sys.unit) + '</label><span class=\"awoo-cell' + (PROFILE_READS[key] ? CELL_KIND[fstate] : '') + '\">' +\n       (PROFILE_READS[key]\n         ? '<button class=\"awoo-light\" type=\"button\" id=\"stateLight\" data-state=\"' + fstate + '\" aria-label=\"Sync: ' + fstate + '\" data-tip=\"' + esc(STATE_TEXT[fstate]) + '\" data-tip-dev=\"' + esc('Profile: ' + (typeof PROFILE_READS[key][1] === 'string' ? PROFILE_READS[key][1] : PROFILE_READS[key][0])) + '\"></button>'\n         : '<span class=\"awoo-light\" data-state=\"unavailable\" data-tip=\"Not something the game sync reads. Type your own level.\"></span>') +\n       '<input type=\"text\" data-num data-num-kind=\"int\" id=\"lvInput\" value=\"' + lv + '\" min=\"' + sys.min + '\" max=\"' + sys.max + '\"></span>';\n  if (sys.id === 'partnerlevel'){\n    // Shown as calculated rows under the level they explain (§10d derivation).\n    var pst = partnerSkillStats();\n    if (pst){\n      var pTip = esc('Every partner’s four skills (Hunting, Mining, Woodcutting, Stonecarving). The table starts from the average.');\n      [['Lowest', pst.lowest], ['Average', Math.round(pst.average)], ['Highest', pst.highest]].forEach(function(r){\n        f += '<span class=\"awoo-lbl awoo-indent tip\" data-tip=\"' + pTip + '\">' + r[0] + ' skill</span>' +\n             '<span class=\"awoo-cell awoo-k-calc\"><span class=\"ro\">' + fmtInt(r[1]) + '</span></span>';\n      });\n    }\n  }\n  f += '<label for=\"tgtInput\"><span class=\"tip\" data-tip=\"' +\n       esc('Where you want to get to. Sets the headline total, and grows the table to reach it.') +\n       '\">Target</span></label><span class=\"awoo-cell\">' +\n       '<input type=\"text\" data-num data-num-kind=\"int\" id=\"tgtInput\" value=\"' + tgt + '\" min=\"' + (lv+1) + '\" max=\"' + sys.max + '\"></span>';\n  if (sys.variants){\n    f += '<label for=\"varSel\">' + esc(sys.variants.label) + '</label><span class=\"awoo-cell\"><select id=\"varSel\">';\n    sys.variants.options.forEach(function(o){\n      f += '<option value=\"' + o.id + '\"' + (o.id===variant?' selected':'') + '>' + esc(o.label) + '</option>';\n    });\n    f += '</select></span>';\n  }\n  if (sys.cur.length > 1){\n    f += '<label for=\"curSel\">Show cost in</label><span class=\"awoo-cell\"><select id=\"curSel\">';\n    sys.cur.forEach(function(c){\n      f += '<option value=\"' + c + '\"' + (c===cur?' selected':'') + '>' + esc(CUR[c].label) + '</option>';\n    });\n    f += '</select></span>';\n  }\n  f += '<label for=\"stepInput\"><span class=\"tip\" data-tip=\"' +\n       esc('Rows advance by this many levels. A subject that runs to thousands is unreadable at 1.') +\n       '\">Step</span></label><span class=\"awoo-cell\">' +\n       '<input type=\"text\" data-num data-num-kind=\"int\" id=\"stepInput\" value=\"' + step + '\" min=\"1\" max=\"' + Math.max(1, sys.max) + '\"></span>';\n  f += '</div><div class=\"cardfoot\"><button class=\"awoo-btn\" type=\"button\" id=\"resetSysBtn\">Reset this subject</button></div>';\n  var inputsEl = document.getElementById('inputs');\n  inputsEl.innerHTML = f;\n\n  var h = '';\n\n  /* summary — the headline is the question this page exists to answer:\n     what does it cost to get from where I am to where I want to be. */\n  var toTarget = sys.range(lv, tgt, variant);\n  var next1 = sys.range(lv, Math.min(lv+1, sys.max), variant);\n  var next5 = sys.range(lv, Math.min(lv+5, sys.max), variant);\n  var spent = sys.range(sys.min, lv, variant);\n  // Tiles (§10e): the cost to your target is the one hero; each tile's last\n  // line says which levels it covers.\n  var unit = esc(CUR[cur].label.toLowerCase());\n  var tile = function(k, v, w, extra){\n    return '<div class=\"awoo-tile' + (extra || '') + '\"><div class=\"awoo-tile-k\">' + k + '</div>' +\n           '<div class=\"awoo-tile-v\">' + v + '</div><div class=\"awoo-tile-w\">' + w + '</div></div>';\n  };\n  h += '<div class=\"awoo-tiles\">';\n  h += tile('To target', fmtNum(toTarget[cur]||0) + '<span class=\"awoo-tile-u\">' + unit + '</span>',\n            fmtInt(lv) + ' → ' + fmtInt(tgt), ' awoo-hero');\n  h += tile('Next level', fmtNum(next1[cur]||0), fmtInt(lv) + ' → ' + fmtInt(Math.min(lv+1, sys.max)));\n  h += tile('Next 5', fmtNum(next5[cur]||0), fmtInt(lv) + ' → ' + fmtInt(Math.min(lv+5, sys.max)));\n  h += tile('Sunk', fmtNum(spent[cur]||0), fmtInt(sys.min) + ' → ' + fmtInt(lv));\n\n  // The full bill for the target, when a system charges in more than one\n  // currency. The table can only show one column at a time; a village\n  // building upgrade you cannot actually afford in wood is not a detail, so\n  // each other currency gets a tile of its own rather than a strip.\n  for (var ck in toTarget){\n    if (ck !== cur && toTarget[ck]) h += tile(esc(CUR[ck].label), fmtNum(toTarget[ck]), 'also, ' + fmtInt(lv) + ' → ' + fmtInt(tgt), ' other');\n  }\n  h += '</div>';\n\n  /* The table panel: the subject's name as the one panel heading, its marks,\n     its controls on the right (§10e); the description under it. */\n  var curNames = sys.cur.map(function(c){ return CUR[c].label; }).join(' · ');\n  // A currency note is this page's one notice, above the panel it is about (§10g).\n  if (sys.curNote){\n    h += '<div class=\"awoo-notice\"><span class=\"awoo-notice-g\">i</span><span>' + sys.curNote + '</span></div>';\n  }\n  h += '<section class=\"awoo-panel\">';\n  h += '<h2 class=\"awoo-panel-h\">' + esc(sys.name) +\n       '<span class=\"awoo-mark ' + (TIER_MARK[sys.tier] || 'awoo-mark-mute') + ' tip\" data-tip=\"' + esc(tierTip(sys.tier)) + '\">' + sys.tier + '</span>' +\n       '<span class=\"awoo-mark awoo-mark-mute\">' + esc(curNames) + '</span>' +\n       '<span class=\"awoo-panel-ctl\">' +\n       '<button class=\"awoo-btn\" type=\"button\" id=\"expandBtn\" aria-pressed=\"' + (state.expanded ? 'true' : 'false') + '\">' +\n       (state.expanded ? 'Shrink table' : 'Expand table') + '</button>' +\n       (rowsTo < sys.max && sys.expandBy ? '<button class=\"awoo-btn\" type=\"button\" id=\"more30\">+' + sys.expandBy + ' levels</button>' : '') +\n       '</span></h2>';\n  h += '<p class=\"sysdesc\">' + sys.desc +\n       (sys.alias ? ' <span class=\"tip\" data-tip=\"' + esc(sys.alias) + '\">Naming note.</span>' : '') + '</p>';\n\n  /* breakpoints: every one, whatever the step, with what changes there */\n  var bps = breaksFor(sys, variant);\n  h += '<div class=\"bpstrip\"><span class=\"bk\">Breakpoints</span>';\n  if (bps.length){\n    bps.forEach(function(b){\n      h += '<button type=\"button\" class=\"bpchip' + (b.at <= lv ? ' passed' : '') + '\" data-bp=\"' + b.at + '\" data-tip=\"' +\n           esc(b.tip + (b.at <= lv ? ' (Behind you.)' : ' Click to make it your target.')) + '\"' +\n           (b.dev ? ' data-tip-dev=\"' + esc(b.dev) + '\"' : '') + '><b>' + fmtInt(b.at) + '</b>' + esc(b.short) + '</button>';\n    });\n  } else {\n    h += '<span class=\"bpnone\">' + esc(sys.noBreaks || 'None.') + '</span>';\n  }\n  h += '</div>';\n\n  /* table: the kit's rules (§10f). What each head means is on its hover;\n     Cumulative is the optional column and goes first on a narrow page. */\n  h += '<div class=\"tablewrap\"><table class=\"awoo-t\"><thead><tr>' +\n       '<th>' + esc(sys.unitShort) + '</th>' +\n       '<th class=\"tip\" data-tip=\"' + esc('The cost of ' + (step === 1 ? 'this level alone.' : 'this ' + step + '-level step.')) + '\">Cost</th>' +\n       '<th class=\"tip awoo-o2\" data-tip=\"' + esc('Everything from ' + sys.min + ' to this level.') + '\">Cumulative</th>' +\n       '<th class=\"tip\" data-tip=\"What you still owe from your level to this one.\">From level ' + fmtInt(lv) + '</th>' +\n       '</tr></thead><tbody>';\n\n  // Rows advance by `step`, and always include the current and target levels\n  // even when they do not land on a step boundary - a table that hides the two\n  // rows the reader came for is worse than an unaligned one.\n  var marks = {};\n  for (var q = Math.max(from, sys.min + 1); q <= rowsTo; q += step) marks[q] = true;\n  if (lv > sys.min) marks[lv] = true;\n  if (tgt > sys.min && tgt <= rowsTo) marks[tgt] = true;\n  // Breakpoint rows are always shown in range, even off-step: a table that\n  // steps past the level where the formula changes hides the one row that\n  // explains the jump.\n  var bpAt = {};\n  bps.forEach(function(b){ bpAt[b.at] = b; if (b.at > sys.min && b.at >= from && b.at <= rowsTo) marks[b.at] = true; });\n  var rowLevels = Object.keys(marks).map(Number).sort(function(a,b){ return a-b; });\n\n  for (var ri = 0; ri < rowLevels.length; ri++){\n    var n = rowLevels[ri];\n    var prev = ri > 0 ? rowLevels[ri-1] : Math.max(sys.min, n - step);\n    // Current is treatment BC (.awoo-sel); bought levels fade (.awoo-done).\n    var cls = n === lv ? 'current awoo-sel' : (n < lv ? 'past awoo-done' : '');\n    if (n === tgt && n !== lv) cls += ' target';\n    var bp = bpAt[n] || null;\n    if (bp) cls += ' bp';\n    var stepCost = sys.range(prev, n, variant);\n    var cum  = sys.range(sys.min, n, variant);\n    h += '<tr class=\"' + cls + '\"' + (n===lv ? ' id=\"curRow\"' : '') + '>';\n    h += '<td>' + fmtInt(n) + (bp ? '<span class=\"bpnote\" data-tip=\"' + esc(bp.tip) + '\">' + esc(bp.short) + '</span>' : '') + '</td>';\n    h += costCell(stepCost, cur);\n    h += costCell(cum, cur, ' awoo-o2');\n    if (n <= lv) h += '<td class=\"awoo-dash\">—</td>';\n    else h += costCell(sys.range(lv, n, variant), cur);\n    h += '</tr>';\n  }\n  h += '</tbody></table></div>';\n\n  /* the legend line under the table (§10g) */\n  h += '<div class=\"rowctl\">';\n  h += '<span class=\"hint\">Showing ' + Math.max(from, sys.min+1) + '–' + rowsTo +\n       ' of ' + sys.min + '–' + fmtInt(sys.max) + ', every ' + step + '.' +\n       (sys.maxNote ? ' ' + sys.maxNote : '') +\n       (bps.length ? ' Marked rows are where the formula changes shape.' : '') +\n       (rowsTo < sys.max && sys.expandBy ? '' : ' Showing the full range.') + '</span>';\n  h += '</div></section>';\n\n  /* notes */\n  // Two audiences, one panel. A player wants the formula and the sentence that\n  // says what it means; the evidence tier, the source files and the\n  // last-checked date are for whoever maintains the numbers. The developer half\n  // is hidden unless \"Show developer info\" is on, and tinted with --dev when\n  // it is, so the two are never confused. DESIGN.md §7, register R67.\n  h += '<details class=\"notes awoo-panel\"><summary class=\"awoo-panel-h\">Formula' +\n       '<span data-dev-only> &amp; source</span></summary><div class=\"notebody\">';\n  h += '<span class=\"formula\">' + esc(sys.formula) + '</span>';\n  h += '<p>' + sys.userNote + '</p>';\n  if (sys.devNote) h += '<p data-dev-only><span class=\"devpill\">dev</span> ' + sys.devNote + '</p>';\n  h += '<div class=\"srcline\" data-dev-only>' +\n       '<span class=\"devpill\">' + sys.tier + '</span>';\n  sys.srcs.forEach(function(x){ h += '<span class=\"devpill\">' + esc(x) + '</span>'; });\n  h += '<span class=\"devpill\">last checked ' + esc(sys.checked) + '</span>';\n  h += '</div></div></details>';\n\n  document.getElementById('main').innerHTML = h;\n  NUM.enhance(inputsEl);\n  NUM.enhance(document.getElementById('main'));\n  wireSystem(sys);\n}\n\nfunction breaksFor(sys, variant){\n  var b = typeof sys.breaks === 'function' ? sys.breaks(variant) : (sys.breaks || []);\n  return b.filter(function(x){ return x.at >= sys.min && x.at <= sys.max; }).sort(function(x, y){ return x.at - y.at; });\n}\n\nfunction wireSystem(sys){\n  var key = keyFor(sys);\n\n  Array.prototype.forEach.call(document.querySelectorAll('.bpchip'), function(chip){\n    chip.addEventListener('click', function(){\n      var at = parseInt(chip.getAttribute('data-bp'), 10);\n      if (at > currentLevel(sys)){ state.targets[key] = at; delete state.rows[key]; save(); }\n      renderSystem(); sizeTable(); scrollRowIntoView(at);\n    });\n  });\n\n  var lvInput = document.getElementById('lvInput');\n  lvInput.addEventListener('input', function(){\n    var v = NUM.read(lvInput); if (v !== null) v = Math.round(v);\n    if (v === null || v < sys.min || v > sys.max) return;\n    state.levels[key] = v;\n    edited[key] = true;\n    save();\n    renderAll('lvInput');\n  });\n\n  var tgtInput = document.getElementById('tgtInput');\n  tgtInput.addEventListener('input', function(){\n    var v = NUM.read(tgtInput); if (v !== null) v = Math.round(v);\n    if (v === null || v <= currentLevel(sys) || v > sys.max) return;\n    state.targets[key] = v;\n    delete state.rows[key];\n    save();\n    renderAll('tgtInput');\n  });\n\n  var light = document.getElementById('stateLight');\n  if (light) light.addEventListener('click', function(){\n    delete edited[key];\n    delete state.levels[key];\n    save();\n    if (!SYNC.connected()) SYNC.request();\n    take();   // the held moment is refreshed for this page as a whole\n    renderAll();\n  });\n\n  document.getElementById('resetSysBtn').addEventListener('click', function(){\n    delete edited[key];\n    delete state.levels[key];\n    delete state.rows[key];\n    delete state.targets[key];\n    delete state.steps[key];\n    save();\n    renderAll();\n  });\n\n  var varSel = document.getElementById('varSel');\n  if (varSel) varSel.addEventListener('change', function(){\n    state.variants[sys.id] = varSel.value;\n    save(); renderAll();\n  });\n\n  var curSel = document.getElementById('curSel');\n  if (curSel) curSel.addEventListener('change', function(){\n    state.currency[sys.id] = curSel.value;\n    save(); renderSystem();\n  });\n\n  var stepInput = document.getElementById('stepInput');\n  stepInput.addEventListener('input', function(){\n    var v = NUM.read(stepInput); if (v !== null) v = Math.round(v);\n    if (v === null || v < 1 || v > sys.max) return;\n    state.steps[key] = v;\n    save(); renderAll('stepInput');\n  });\n\n  document.getElementById('expandBtn').addEventListener('click', function(){\n    state.expanded = !state.expanded;\n    save(); renderSystem(); sizeTable(); scrollCurrentIntoView();\n  });\n\n  var more = document.getElementById('more30');\n  if (more) more.addEventListener('click', function(){\n    var lv = currentLevel(sys);\n    var now = state.rows[key] || Math.max(lv + sys.view, targetLevel(sys));\n    state.rows[key] = Math.min(now + sys.expandBy, sys.max);\n    save(); renderSystem();\n  });\n}\n\nfunction renderAll(refocusId, forceScrollY){\n  var scrollY = forceScrollY != null ? forceScrollY : window.scrollY;\n  var caret = null;\n  if (refocusId){\n    var was = document.getElementById(refocusId);\n    if (was) { try { caret = was.selectionStart; } catch(e){} }\n  }\n  renderNav();\n  if (SYNC) SYNC.renderCards();\n  renderSystem();\n  if (refocusId){\n    var el = document.getElementById(refocusId);\n    if (el){\n      el.focus();\n      // Put the caret back where the user left it. Jamming it to the end\n      // makes editing the middle of a number impossible.\n      try { if (caret != null) el.setSelectionRange(caret, caret); } catch(e){}\n    }\n  }\n  window.scrollTo(0, scrollY);\n  sizeTable();\n  scrollCurrentIntoView();\n}\n\n// The table gets a real height so \"scroll the current row into view\" means\n// something — sized to the viewport, not a fixed pixel count. Re-applied on\n// every render, because renderSystem() replaces the element.\nfunction sizeTable(){\n  var w = document.querySelector('.tablewrap');\n  if (!w) return;\n  var reserve = state.expanded ? 150 : 380;\n  w.style.maxHeight = Math.max(320, window.innerHeight - reserve) + 'px';\n}\n\nfunction scrollRowIntoView(level){\n  var wrap = document.querySelector('.tablewrap');\n  if (!wrap) return;\n  var rows = wrap.querySelectorAll('tbody tr');\n  for (var i = 0; i < rows.length; i++){\n    var c = rows[i].firstChild;\n    if (c && parseInt(c.textContent.replace(/[^0-9]/g, ''), 10) === level){\n      var delta = rows[i].getBoundingClientRect().top - wrap.getBoundingClientRect().top;\n      wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * rows[i].offsetHeight);\n      return;\n    }\n  }\n}\n\nfunction scrollCurrentIntoView(){\n  var wrap = document.querySelector('.tablewrap');\n  var row = document.getElementById('curRow');\n  if (!wrap || !row) return;\n  // A few rows above the current one, the rest below — the decision is about\n  // what comes next, not what is already paid for. Measured rather than read\n  // off offsetTop, whose offsetParent is the panel here, not the scroller.\n  var delta = row.getBoundingClientRect().top - wrap.getBoundingClientRect().top;\n  wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * row.offsetHeight);\n}\n\n/* =====================================================================\n   BOOT\n   ===================================================================== */\nfunction init(){\n  load();\n\n  // One listener for the whole subject list, Reset every subject included:\n  // renderNav() rebuilds the card, so its buttons carry no listeners of their own.\n  document.getElementById('nav').addEventListener('click', function(e){\n    if (e.target.closest('#resetAllBtn')){\n      state.levels = {}; state.rows = {}; state.targets = {}; state.steps = {}; edited = {};\n      save(); renderAll();\n      return;\n    }\n    var b = e.target.closest('.navbtn');\n    if (!b) return;\n    state.active = b.getAttribute('data-sys');\n    save();\n    renderAll(null, 0);\n  });\n\n  AWOO_TOOL_SETTINGS.mount(document.getElementById('gear'), {\n    devHint: 'Adds the evidence tier, source files and last-checked date to each Formula panel.'\n  });\n  // Numbers and theme re-render the page; the gear menu says when they change.\n  AWOO_TOOL_SETTINGS.onChange(function(){ renderAll(); });\n\n  // The shared sync card, with this page's own per-subject state reported\n  // into it: its counts, and its Reset.\n  SYNC.card(document.getElementById('syncCard'));\n  SYNC.extend({\n    summary: syncSummary,\n    reset: function(){\n      for (var k in edited){ if (PROFILE_READS[k]) { delete edited[k]; delete state.levels[k]; } }\n      save(); renderAll();\n    }\n  });\n  // A live capture re-prices the page, but never under someone's typing: an\n  // input with focus waits for blur.\n  var pendingProfile = false;\n  take();\n  // After the first reading, a capture changes no price (R125); Sync (the\n  // button, or what answers it) re-takes the moment and re-prices.\n  SYNC.onRefresh(function(){ take(); renderAll(); });\n  SYNC.onProfile(function(){\n    if (held && !SYNC.syncing()) return;\n    take();\n    var a = document.activeElement;\n    if (a && a.closest && a.closest('#main, #inputs') && /INPUT|SELECT/.test(a.tagName)){ pendingProfile = true; return; }\n    renderAll();\n  });\n  document.addEventListener('focusout', function(){\n    if (pendingProfile){ pendingProfile = false; setTimeout(function(){ renderAll(); }, 0); }\n  });\n\n  var backTop = document.getElementById('backTop');\n  backTop.addEventListener('click', function(){ window.scrollTo({ top:0, behavior:'smooth' }); });\n  // Cheap enough not to need rAF gating, and a plain handler is verifiable in\n  // an automated browser where an rAF-gated one is not (style guide, Lessons).\n  var updateBackTop = function(){\n    backTop.hidden = !(window.scrollY > 320 && window.innerWidth <= 1000);\n  };\n  window.addEventListener('scroll', updateBackTop);\n  window.addEventListener('resize', function(){ sizeTable(); scrollCurrentIntoView(); updateBackTop(); });\n  updateBackTop();\n\n  renderAll();\n}\n\n/* The test seam, and the profile reads for inspection. */\nwindow.AWOO_COST_TABLES = {\n  refresh: function(){ renderAll(); return syncSummary(); },\n  reads: PROFILE_READS,\n  systems: SYSTEMS,\n  breaks: breaksFor\n};\nwindow.__AWOO_COST_TABLES_FOR_TEST = {\n  sanctumNodeCost:sanctumNodeCost, petSlotCost:petSlotCost,\n  partnerBoostCost:partnerBoostCost, levelExp:levelExp, houseCost:houseCost,\n  caveToolCost:caveToolCost, villageBuildingCost:villageBuildingCost,\n  relicBracketSurcharge:relicBracketSurcharge, triangular:triangular,\n  geomCost:geomCost,\n  fmtNum:function(n, mode, localeKey){\n    NUM._set(mode || 'letters', localeKey);\n    try { return fmtNum(n); } finally { NUM._set(null, null); }\n  },\n  profileValue:profileValue, fieldState:fieldState, breaksFor:breaksFor\n};\n\nif (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);\nelse init();\n})();\n</script>\n";
 
   // ---- Core intake shim (generated) ----
   // Requires the "AWOO+" userscript. Without it this module does nothing.
@@ -15275,7 +18194,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.14", function (Core) {
+  })("awoo-tools-public", "7.0.15", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
@@ -15360,6 +18279,8 @@ if (document.body) {
       label,
       description: (about && about.description) || '',
       audience: (about && about.audience) || null,
+      // Who to send feedback to (R171): the tool's .release.json `author`.
+      author: (about && about.author) || null,
       uses,
       open() {
         if (url) { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }
@@ -15376,7 +18297,7 @@ if (document.body) {
   }
 
   // ==== GENERATED — one row per tool, from src/tools/<id>.release.json ====
-  shelve("cost-tables", "Cost Tables", AWOO_TOOL_COST_TABLES, ["profile"], {"description":"Upgrade costs by tier, with your own levels filled in.","uses":["levels","relicBoosts","pets","partner","equipment","village"],"audience":"public"});
+  shelve("cost-tables", "Cost Tables", AWOO_TOOL_COST_TABLES, ["profile"], {"description":"Upgrade costs by tier, with your own levels filled in.","uses":["levels","relicBoosts","pets","partner","equipment","village"],"audience":"public","author":"Apoz"});
 
   });
 })();

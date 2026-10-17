@@ -15,10 +15,14 @@
    every tool page by userscripts/build.mjs at the <!-- @AWOO_THEME_TOKENS@ -->
    marker, so one palette correction reaches every tool on the next build.
 
-   SEVEN THEMES, FOUR FAMILIES. A family name carries no mode; the variant
+   EIGHT THEMES, FIVE FAMILIES. A family name carries no mode; the variant
    does, and only where more than one exists — which is why Slate and Claude
    Code have no suffix.
 
+     Default      the default since 2026-10-06; follows the device's light
+                  or dark setting (one choice, two sets, see its block).
+                  Its id is `partners`: it was named Partners until
+                  2026-10-07, and saved settings hold the id
      Beach        light · dimmed
      Slate        (was "war room" before the merge)
      Claude       light · medium · dark
@@ -42,34 +46,35 @@
    AA-large by design across the whole family.
    =========================================================================== */
 :root{
-  /* Beach (light) is the base layer, so an un-stamped page is always legible. */
-  --ground:#EFE7D7;
-  --surface:#FAF5EC;
-  --surface-2:#F1E8D8;
-  --surface-3:#E7DCC7;
-  --border:#D8CBB2;
-  --border-strong:#C3B193;
-  --border-control:#8C7D64;
-  --ink:#33291D;
-  --ink-soft:#6B5C48;
-  --ink-mute:#94836C;
-  --accent:#8A4322;
-  --accent-fill:#A8552C;
-  --accent-edge:#D4AB93;
-  --bg-accent:#F3E2D8;
-  --on-accent:#FBF0E6;
-  --success:#3F5C33;
-  --success-fill:#4A6741;
-  --bg-success:#E4EBDC;
-  --danger:#8C2F2A;
-  --danger-fill:#A83A33;
-  --bg-danger:#F5E0DD;
-  --info:#41528A;
-  --bg-info:#E2E5F2;
-  --neutral:#6E5F49;
-  --bg-neutral:#EDE4D3;
-  --dev:#2E6B5C;
-  --bg-dev:#DCEBE6;
+  /* Default (light) is the base layer since 2026-10-06 (it was Beach), so an
+     un-stamped page is always legible and wears the default theme. */
+  --ground:#F0EEE6;
+  --surface:#FFFFFF;
+  --surface-2:#F7F6F1;
+  --surface-3:#EBE9E0;
+  --border:#DEDACE;
+  --border-strong:#C5C0B2;
+  --border-control:#8A8474;
+  --ink:#191917;
+  --ink-soft:#57544C;
+  --ink-mute:#84806F;
+  --accent:#A8461F;
+  --accent-fill:#B4552F;
+  --accent-edge:#DEB49F;
+  --bg-accent:#F7E6DD;
+  --on-accent:#FFF4EE;
+  --success:#276048;
+  --success-fill:#317055;
+  --bg-success:#D3E8DC;
+  --danger:#9E2B22;
+  --danger-fill:#BE4034;
+  --bg-danger:#F8E2DF;
+  --info:#474C93;
+  --bg-info:#E5E6F4;
+  --neutral:#6B6759;
+  --bg-neutral:#EDEBE2;
+  --dev:#256657;
+  --bg-dev:#D8EBE5;
   --trusted:#23618F;
   --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);
 
@@ -105,7 +110,7 @@
      nav row both want to be tighter than a paragraph. Tokens rather than
      literals so "slightly more condensed" is one edit, everywhere. */
   --row-y:2px;        /* table cell vertical padding */
-  --row-x:12px;       /* table cell horizontal padding */
+  --row-x:10px;       /* table cell horizontal padding (12px until the house style, DESIGN.md §10b) */
   --nav-y:3px;        /* sidebar nav row */
   --ctl-y:2px;        /* input and select vertical padding */
   --ctl-x:6px;
@@ -113,9 +118,87 @@
   --pad-panel:11px;
 }
 
-/* No explicit choice and a dark OS: Slate. */
+/* No explicit choice and a dark OS: Default's dark set (the same values as
+   Slate), so an un-stamped page is the default theme in both modes. */
 @media (prefers-color-scheme: dark){
   :root:not([data-theme]){
+    --ground:#14181D;
+    --surface:#1B2027;
+    --surface-2:#20262D;
+    --surface-3:#272F37;
+    --border:#2B323A;
+    --border-strong:#3A434C;
+    --border-control:#6A7684;
+    --ink:#E8EAEB;
+    --ink-soft:#A9B0B6;
+    --ink-mute:#78828B;
+    --accent:#E3B36B;
+    --accent-fill:#C4923F;
+    --accent-edge:#5A4522;
+    --bg-accent:#2E2412;
+    --on-accent:#241300;
+    --success:#84C4AA;
+    --success-fill:#4F8C74;
+    --bg-success:#172E25;
+    --danger:#E28270;
+    --danger-fill:#C1503C;
+    --bg-danger:#351F1A;
+    --info:#B4A4E0;
+    --bg-info:#241F36;
+    --neutral:#9AA6B2;
+    --bg-neutral:#222A32;
+    --dev:#78C8BC;
+    --bg-dev:#14302C;
+    --trusted:#8CC4EE;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.34);
+  }
+}
+
+/* Default */
+:root[data-theme="partners"]{
+  --ground:#F0EEE6;
+  --surface:#FFFFFF;
+  --surface-2:#F7F6F1;
+  --surface-3:#EBE9E0;
+  --border:#DEDACE;
+  --border-strong:#C5C0B2;
+  --border-control:#8A8474;
+  --ink:#191917;
+  --ink-soft:#57544C;
+  --ink-mute:#84806F;
+  --accent:#A8461F;
+  --accent-fill:#B4552F;
+  --accent-edge:#DEB49F;
+  --bg-accent:#F7E6DD;
+  --on-accent:#FFF4EE;
+  --success:#276048;
+  --success-fill:#317055;
+  --bg-success:#D3E8DC;
+  --danger:#9E2B22;
+  --danger-fill:#BE4034;
+  --bg-danger:#F8E2DF;
+  --info:#474C93;
+  --bg-info:#E5E6F4;
+  --neutral:#6B6759;
+  --bg-neutral:#EDEBE2;
+  --dev:#256657;
+  --bg-dev:#D8EBE5;
+  --trusted:#23618F;
+  --shadow:0 1px 2px rgba(60,50,35,.07),0 4px 14px rgba(60,50,35,.06);
+}
+
+/* DEFAULT FOLLOWS THE DEVICE (2026-10-06, the maintainer: the R153 Partners
+   mockup's palette, made the default theme everywhere; renamed from Partners
+   on 2026-10-07 so it is not confused with the Partners tool. The id stays
+   `partners`, because that is what saved settings hold). It is the one theme
+   with two sets: the light set above, and the dark set below when the device
+   asks for dark - exactly how the mockup behaved. The sets are the mockup's
+   own tokens, which are Claude (light) and Slate value for value; Default
+   adds the switching, not new colours. build.mjs reads this @media block as
+   the theme's `dark` set for Core, which switches on the same media query.
+   Keep the @media wrapper directly around ONE :root[data-theme] rule. */
+@media (prefers-color-scheme: dark){
+  :root[data-theme="partners"]{
     --ground:#14181D;
     --surface:#1B2027;
     --surface-2:#20262D;
@@ -443,7 +526,7 @@
 .awoo-gear{position:relative;flex:none}
 .awoo-gear-btn{
   background:transparent; border:1px solid var(--border-control); color:var(--ink-soft);
-  border-radius:4px; padding:3px 8px; cursor:pointer;
+  border-radius:var(--in-radius); padding:3px 8px; cursor:pointer;
   font:inherit; font-size:.95rem; line-height:1;
 }
 .awoo-gear-btn:hover,.awoo-gear-btn[aria-expanded="true"]{
@@ -465,7 +548,7 @@
 }
 .awoo-gear-row select{
   background:var(--surface-2); color:var(--ink); border:1px solid var(--border-control);
-  border-radius:4px; padding:var(--ctl-y) var(--ctl-x); font:inherit; font-size:.76rem; width:100%;
+  border-radius:var(--in-radius); padding:var(--ctl-y) var(--ctl-x); font:inherit; font-size:.76rem; width:100%;
 }
 .awoo-gear-check{flex-direction:row;align-items:center;gap:7px}
 .awoo-gear-check label{flex:1}
@@ -529,13 +612,14 @@
 .awoo-sync[data-state="stale"]{border-left-color:var(--accent-fill)}
 .awoo-sync-head{display:flex;align-items:center;gap:.45rem}
 .awoo-sync-head .awoo-light{cursor:default;margin:0}
-.awoo-sync-state{font-weight:600;color:var(--ink);border-bottom:1px dotted var(--ink-mute);cursor:help}
+.awoo-sync-state{font-weight:600;color:var(--ink);cursor:help}
+.awoo-sync-state:hover{color:var(--accent)}
 .awoo-sync-age{margin-left:auto;font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--ink-mute);font-size:.68rem}
 .awoo-sync-actions{display:flex;gap:.35rem}
 
 /* Live / Standard. */
 .awoo-seg{display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:2px;background:var(--surface-2);border:1px solid var(--border-control);border-radius:var(--in-radius)}
-.awoo-seg button{border:0;background:transparent;color:var(--ink-soft);font:inherit;font-size:.72rem;font-weight:600;padding:.22rem .4rem;border-radius:2px;cursor:pointer}
+.awoo-seg button{border:0;background:transparent;color:var(--ink-soft);font:inherit;font-size:.7rem;font-weight:600;padding:.14rem .5rem;border-radius:2px;cursor:pointer;white-space:nowrap}
 .awoo-seg button:hover{color:var(--ink)}
 .awoo-seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:var(--shadow)}
 [data-sync-mode="live"] [data-mode-only="standard"],
@@ -545,11 +629,13 @@
 /* A field's light. Filled means the game supplied it; hollow means it never
    did (Core's convention: a state you cannot act on renders hollow). */
 .awoo-light{
-  display:inline-block; flex:none; width:.55rem; height:.55rem; border-radius:50%;
+  display:inline-block; flex:none; width:8px; height:8px; border-radius:50%;
   border:0; padding:0; margin:0 .3rem 0 0; vertical-align:middle; cursor:pointer;
   background:transparent; box-shadow:inset 0 0 0 1.5px var(--ink-mute);
 }
-.awoo-light[data-state="synced"]{background:var(--success-fill);box-shadow:none}
+/* Synced carries the exhibit's faint halo (R172), so the one state that
+   needs nothing from you reads at a glance. */
+.awoo-light[data-state="synced"]{background:var(--success-fill);box-shadow:0 0 0 2px color-mix(in srgb,var(--success-fill) 25%,transparent)}
 .awoo-light[data-state="stale"]{background:var(--accent-fill);box-shadow:none}
 .awoo-light[data-state="edited"]{background:var(--info);box-shadow:none}
 /* A newer reading is waiting (R125): the box keeps its value, the dot gets a ring. */
@@ -558,16 +644,22 @@
 .awoo-light:focus-visible{outline:2px solid var(--accent-fill);outline-offset:2px}
 
 /* The one tooltip. */
+/* The one tooltip, as the exhibit draws it (DESIGN.md §10g, R172): the
+   surface with a --border-strong edge and the shadow, ink text, at most
+   300px. It was an inverted --ink box until round 2 of the house style. */
 #awooTip{
-  position:fixed; z-index:200; left:0; top:0; max-width:22rem; pointer-events:none;
-  background:var(--ink); color:var(--surface); white-space:pre-line;
-  font-family:var(--font-body); font-size:.73rem; font-weight:400; line-height:1.45; letter-spacing:normal; text-transform:none;
-  padding:.45rem .6rem; border-radius:6px; box-shadow:var(--shadow);
+  position:fixed; z-index:200; left:0; top:0; max-width:min(300px,calc(100vw - 24px)); pointer-events:none;
+  background:var(--surface); color:var(--ink); border:1px solid var(--border-strong); white-space:pre-line;
+  font-family:var(--font-body); font-size:.72rem; font-weight:400; line-height:1.4; letter-spacing:normal; text-transform:none;
+  padding:.45rem .6rem; border-radius:var(--radius); box-shadow:var(--shadow);
   opacity:0; visibility:hidden; transition:opacity .1s;
 }
 #awooTip.on{opacity:1;visibility:visible}
-#awooTip .awoo-tip-dev{display:block;margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--ink-mute);color:var(--bg-dev)}
-.awoo-tip{border-bottom:1px dotted var(--ink-mute);cursor:help}
+#awooTip .awoo-tip-dev{display:block;margin-top:.35rem;padding-top:.35rem;border-top:1px solid var(--border);color:var(--dev)}
+/* A label with a hover: no dotted underline (the exhibit has none, R172); it
+   says so by the help cursor and an accent tint under the pointer. */
+.awoo-tip{cursor:help}
+.awoo-tip:hover{color:var(--accent)}
 @media (prefers-reduced-motion:reduce){#awooTip{transition:none}}
 
 /* Number boxes (data-num): tabular figures in the number font, right-aligned
@@ -654,6 +746,218 @@ input[type=checkbox]:focus-visible{outline:2px solid var(--accent-fill);outline-
 input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed}
 input[type=checkbox]:disabled:hover{border-color:var(--border-control)}
 
+/* ===========================================================================
+   THE HOUSE STYLE (2026-10-06, DESIGN.md §10; the §12 "every tool page"
+   items). The maintainer made the R153 Partners mockup the standard for every
+   tool page ("neater, clearer, things are more aligned which creates
+   calmness"), and the exhibit is userscripts/design/partners-mockup.html. The
+   pieces every page repeats live here, once, so a page drops its own copy and
+   the next correction is one edit: the panel and its heading, the sidebar
+   section label, the field grid with the light inside the value cell, the
+   (i) square, marks, the notice, tabs as cards, tiles, and the table rules.
+   Opt-in by class, like the rest of the kit: a page that has not moved yet is
+   untouched. The values are the exhibit's own; where this and §10 disagree,
+   the exhibit wins and both of these are the ones to fix.
+   =========================================================================== */
+
+/* Panels and cards (§10e, §10b). A panel is main's unit; a card is the
+   sidebar's, a little tighter (--pad-panel). */
+.awoo-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.7rem .85rem;box-shadow:var(--shadow);min-width:0}
+.awoo-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:var(--pad-panel);box-shadow:var(--shadow);min-width:0}
+
+/* THE ONE PANEL HEADING (§10e): micro uppercase in --ink-mute, an (i) beside
+   it, the panel's own controls pushed right in normal case. No big headings
+   inside a page: the title is the only large text apart from tile values. */
+.awoo-panel-h{
+  margin:0 0 .5rem; font-family:var(--font-body); font-size:.62rem; font-weight:600; line-height:1.45;
+  text-transform:uppercase; letter-spacing:.08em; color:var(--ink-mute);
+  display:flex; align-items:center; gap:.45rem; flex-wrap:wrap}
+.awoo-panel-ctl{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
+
+/* A sidebar card's section label (§10e): the same idea in mono, with a
+   hairline running from the label to its controls. A .awoo-sec-rule span
+   places the rule before controls; without one, the rule is drawn after the
+   label. */
+.awoo-sec{
+  font-family:var(--font-mono); font-size:.6rem; font-weight:400; line-height:1.45;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-mute);
+  display:flex; align-items:center; gap:.35rem; margin:0 0 .45rem}
+.awoo-sec-rule,.awoo-sec:not(:has(.awoo-sec-rule))::after{content:"";flex:1;height:1px;background:var(--border)}
+.awoo-sec .awoo-panel-ctl{font-family:var(--font-body);font-size:.68rem}
+
+/* THE FIELD GRID (§10d, §10b): label left, one value column of 7.2rem in
+   every card, so values in different cards sit in one vertical line. A
+   sub-heading spans the grid with a rule to the edge. */
+.awoo-fields{display:grid;grid-template-columns:minmax(0,1fr) 7.2rem;align-items:center;gap:.14rem .45rem}
+.awoo-fields > label,.awoo-fields > .awoo-lbl,.awoo-rows > label,.awoo-rows > .awoo-lbl{font-size:.75rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+/* A block of rows a script renders into one element joins the grid as if
+   its rows were the grid's own (R172). */
+.awoo-rows{display:contents}
+.awoo-fields-sub{
+  grid-column:1 / -1; margin:.4rem 0 .1rem; font-family:var(--font-mono); font-size:.55rem;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-mute);
+  display:flex; align-items:center; gap:.3rem}
+.awoo-fields-sub::after{content:"";flex:1;height:1px;background:var(--border)}
+
+/* THE VALUE CELL: the box with its light INSIDE, on the left, in one column
+   on every row (§9 2026-10-03, §10d). tool-sync.js puts the light first in
+   whatever bind() is given as `label`, so a page passes the cell. The cell
+   tells the value's kind without a hover: synced and typed come from the
+   attributes tool-sync.js already sets on the box; calculated and the game's
+   own figure are the page's to say (.awoo-k-calc, .awoo-k-game). The box
+   inside drops its own frame; the class is repeated so it outranks the
+   kit's synced-box rules above (0,3,1), which frame a box standing alone. */
+/* THE LIGHT SLOT (R172, the maintainer 2026-10-07: a status mark inside a box
+   sits on one centre in every row, even when it is smaller, such as the grey
+   dot). The cell is a grid whose first column is a fixed slot, the mark
+   centred in it whatever its size; the value takes the second column, so its
+   right edge is the cell's in every row. Placement is explicit, so a cell
+   without a mark keeps the slot empty and its number still ends on the same
+   line. Caves proved the shape first (2026-10-07); it lives here now. */
+.awoo-cell{
+  display:grid; grid-template-columns:.7rem minmax(0,1fr); align-items:center; column-gap:.25rem;
+  height:1.45rem; padding:0 .35rem; min-width:0;
+  border:1px solid var(--border-control); border-radius:var(--in-radius); background:var(--surface-2)}
+.awoo-cell:focus-within{border-color:var(--accent-fill)}
+.awoo-cell > *{grid-row:1;grid-column:2;min-width:0}
+.awoo-cell > .awoo-light,.awoo-cell > .awoo-dot,.awoo-cell::before{grid-column:1;justify-self:center;align-self:center;margin:0}
+.awoo-cell > .awoo-field-reset{grid-column:3;margin:0;padding:0}
+.awoo-cell > select{text-align-last:right}
+/* Read-only text in a cell (a calculated figure): right-aligned in the number
+   face, like a box's value. */
+.awoo-ro{text-align:right;font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:.74rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* THE MARKS IN THE SLOT (§10d, the exhibit's lights):
+     .awoo-light (the sync kit's, bound fields)  synced / old / typed / not synced
+     a cell the sync never reads                 the small grey dot (5px)
+     a calculated cell (.awoo-k-calc)            a hollow --border-strong ring
+   The last two are drawn by the kit itself, so a page writes only the cell.
+   A page that keeps its own state puts an .awoo-dot in the slot instead
+   (.awoo-dot-typed for a value you typed). Inside a cell, a bound field the
+   sync cannot read yet is the same small grey dot: it is your own figure,
+   exactly like a cell the sync never reads. */
+.awoo-dot{display:inline-block;flex:none;width:5px;height:5px;border-radius:50%;background:var(--ink-mute)}
+.awoo-dot.awoo-dot-typed{width:8px;height:8px;background:var(--info)}
+.awoo-dot.awoo-dot-calc{width:8px;height:8px;background:transparent;box-shadow:inset 0 0 0 1px var(--border-strong)}
+.awoo-cell:not(:has(> .awoo-light)):not(:has(> .awoo-dot))::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--ink-mute)}
+.awoo-cell.awoo-k-calc:not(:has(> .awoo-light)):not(:has(> .awoo-dot))::before{width:8px;height:8px;background:transparent;box-shadow:inset 0 0 0 1px var(--border-strong)}
+.awoo-cell.awoo-nomark::before{content:none}
+.awoo-cell > .awoo-light[data-state="unavailable"]:not([data-pending="true"]){width:5px;height:5px;background:var(--ink-mute);box-shadow:none}
+/* A label beside a cell holds the field's ↺ (tool-sync.js puts it there), at
+   its end, so the ↺ never pushes the cell's number off its line. */
+.awoo-fields > label,.awoo-rows > label{display:flex;align-items:center;gap:.25rem}
+.awoo-cell.awoo-cell.awoo-cell.awoo-cell > input,.awoo-cell.awoo-cell.awoo-cell.awoo-cell > select{
+  flex:1; min-width:0; width:100%; height:100%; border:0; border-radius:0; background:transparent;
+  box-shadow:none; padding:0; outline:none; color:inherit; font-size:.74rem}
+.awoo-cell:has(> [data-sync-lock="true"]),.awoo-cell.awoo-k-sync{background:color-mix(in srgb,var(--success-fill) 9%,var(--surface));border-color:var(--border);color:var(--ink-soft)}
+.awoo-cell:has(> [data-sync-lock="true"]):hover,.awoo-cell.awoo-k-sync:hover{border-color:var(--accent-fill)}
+.awoo-cell:has(> [data-sync="edited"]),.awoo-cell.awoo-k-typed{border-color:var(--info);background:var(--surface)}
+/* A page that keeps its own field state (Cost Tables) says the kind itself:
+   .awoo-k-sync and .awoo-k-typed draw the same as the attributes above. */
+.awoo-cell.awoo-k-calc{background:transparent;border-color:var(--border)}
+/* A box switched off by the page fades as a whole cell, mark and all, once. */
+.awoo-cell:has(> :disabled){opacity:.45;cursor:not-allowed}
+.awoo-cell.awoo-cell.awoo-cell.awoo-cell > :disabled{opacity:1}
+.awoo-cell.awoo-k-game{border-color:var(--border-strong);font-weight:600}
+
+/* The (i) (§10e): a 13px square that carries the explanation, so the label
+   it sits beside stays short. */
+.awoo-i{
+  display:inline-flex; align-items:center; justify-content:center; flex:none; width:13px; height:13px;
+  border-radius:var(--in-radius); background:var(--surface-3); color:var(--ink-soft);
+  font-family:var(--font-body); font-size:.55rem; font-weight:700; font-style:normal; line-height:1;
+  letter-spacing:0; text-transform:none; cursor:help}
+.awoo-i:hover,.awoo-i:focus{color:var(--accent);outline:none}
+
+/* Marks (§10g): tiny, outlined in their role's colour, explained on hover or
+   in a legend rather than beside every row. */
+.awoo-mark{
+  display:inline-block; font-family:var(--font-body); font-size:.55rem; font-weight:600; line-height:1.35;
+  letter-spacing:.05em; text-transform:uppercase; border:1px solid currentColor;
+  border-radius:var(--in-radius); padding:0 .22rem; color:var(--trusted); white-space:nowrap; vertical-align:middle}
+.awoo-mark-acc{color:var(--accent)} .awoo-mark-ok{color:var(--success)}
+.awoo-mark-mute{color:var(--ink-mute)} .awoo-mark-warn{color:var(--danger)} .awoo-mark-info{color:var(--info)}
+
+/* The notice (§10g): one per tab at most, above the panel it is about. The
+   first phrase is bold in the notice's colour. */
+.awoo-notice{
+  display:flex; gap:.6rem; align-items:flex-start; margin:0 0 .8rem; padding:.5rem .7rem;
+  border:1px solid var(--info); background:var(--bg-info); border-radius:var(--radius);
+  font-size:.76rem; line-height:1.45; color:var(--ink)}
+.awoo-notice b{color:var(--info)}
+.awoo-notice-g{font-weight:700;color:var(--info);flex:none}
+.awoo-notice-danger{border-color:var(--danger);background:var(--bg-danger)}
+.awoo-notice-danger b,.awoo-notice-danger .awoo-notice-g{color:var(--danger)}
+.awoo-notice-success{border-color:var(--success);background:var(--bg-success)}
+.awoo-notice-success b,.awoo-notice-success .awoo-notice-g{color:var(--success)}
+
+/* TABS ARE CARDS (§10c): a name and a two- or three-word sub-line; the
+   page's one global switch sits right in the same row (.awoo-tabbar-end).
+   Below 560px the sub-line goes and the tabs share the row. */
+.awoo-tabbar{display:flex;align-items:flex-end;gap:.8rem;flex-wrap:wrap;margin-top:.7rem}
+.awoo-tabbar > .awoo-tabbar-end{margin-left:auto}
+.awoo-tabs{display:flex;gap:.45rem;flex-wrap:wrap}
+.awoo-tab{
+  display:flex; flex-direction:column; align-items:flex-start; gap:.05rem; min-width:10.5rem;
+  padding:.5rem .85rem; background:var(--surface); border:1px solid var(--border);
+  border-radius:var(--in-radius); color:var(--ink); text-align:left; cursor:pointer;
+  box-shadow:var(--shadow); font:inherit}
+.awoo-tab:hover{border-color:var(--accent-fill)}
+.awoo-tab[aria-selected="true"]{background:var(--bg-accent);border-color:var(--accent-edge)}
+.awoo-tab-name{font-weight:700;font-size:1rem;line-height:1.2}
+.awoo-tab-sub{font-size:.7rem;color:var(--ink-soft);line-height:1.35}
+@media (max-width:560px){
+  .awoo-tab{min-width:0;flex:1 1 30%;padding:.4rem .5rem}
+  .awoo-tab-name{font-size:.86rem}
+  .awoo-tab-sub{display:none}
+}
+
+/* Tiles (§10e): a tab's headline figures. One hero per tab has its value in
+   the accent; the rest are ink. */
+.awoo-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem;margin:0 0 .9rem}
+.awoo-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.55rem .75rem;box-shadow:var(--shadow);min-width:0}
+.awoo-tile-k{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-mute);display:flex;gap:.3rem;align-items:center;line-height:1.45}
+.awoo-tile-v{font-family:var(--font-display);font-weight:700;font-size:1.35rem;line-height:1.15;font-variant-numeric:tabular-nums;color:var(--ink);overflow-wrap:anywhere}
+.awoo-tile-u{font-size:.7rem;font-weight:400;color:var(--ink-mute);margin-left:.2rem}
+.awoo-tile-w{font-size:.7rem;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.45}
+.awoo-tile.awoo-hero .awoo-tile-v{color:var(--accent)}
+
+/* TABLES (§10f): as wide as the content, never a sideways scrollbar.
+   Optional columns carry a priority and go as the page narrows (.awoo-o1 at
+   1300px, .awoo-o2 at 760px, .awoo-o3 at 480px); .awoo-p-only stands in on a
+   phone for what went. Numbers right, the first column and .awoo-l left;
+   state is a colour, not a word; empty is "—" in --ink-mute (.awoo-dash). */
+table.awoo-t{border-collapse:collapse;font-size:.75rem}
+table.awoo-t.awoo-wide{width:100%}
+table.awoo-t th{
+  text-align:right; font-family:var(--font-mono); font-weight:500; font-size:.6rem; line-height:1.35;
+  letter-spacing:.04em; text-transform:uppercase; color:var(--ink-mute);
+  padding:.3rem var(--row-x); background:var(--surface-2); border-bottom:1px solid var(--border);
+  vertical-align:bottom; white-space:normal}
+table.awoo-t td{
+  text-align:right; padding:var(--row-y) var(--row-x); line-height:1.45;
+  font-family:var(--font-num); font-variant-numeric:tabular-nums;
+  border-top:1px solid var(--border); white-space:nowrap}
+table.awoo-t th:first-child,table.awoo-t td:first-child,
+table.awoo-t th.awoo-l,table.awoo-t td.awoo-l{text-align:left}
+table.awoo-t tr.awoo-sel td{background:var(--bg-accent);box-shadow:inset 0 1px 0 var(--accent-edge),inset 0 -1px 0 var(--accent-edge)}
+table.awoo-t tfoot td{font-weight:700;border-top:1px solid var(--border-strong)}
+table.awoo-t td.awoo-dash{color:var(--ink-mute)}
+table.awoo-t tr.awoo-stay td{opacity:.42}
+table.awoo-t tr.awoo-done td{opacity:.6}
+.awoo-pos{color:var(--success)} .awoo-neg{color:var(--danger)} .awoo-zero{color:var(--ink-mute)}
+/* Identity colour (a resource, a stat): a 7px square before the name, never
+   coloured text and never a fill. The page sets the square's colour. */
+.awoo-id{display:inline-flex;align-items:center;gap:.3rem}
+.awoo-id > i{width:7px;height:7px;border-radius:2px;display:inline-block;flex:none}
+@media (max-width:1300px){.awoo-o1{display:none}}
+@media (max-width:760px){.awoo-o2{display:none}}
+@media (min-width:761px){.awoo-p-only{display:none}}
+@media (max-width:480px){.awoo-o3{display:none} :root{--row-x:6px}}
+
+/* A legend under a table or chart (§10g). */
+.awoo-legend{display:flex;gap:.9rem;flex-wrap:wrap;font-size:.68rem;color:var(--ink-soft);margin-top:.45rem}
+.awoo-legend > span{display:inline-flex;align-items:center;gap:.3rem}
+
 </style>
 <script>
 /* ===========================================================================
@@ -674,8 +978,9 @@ input[type=checkbox]:disabled:hover{border-color:var(--border-control)}
 
    THE FALLBACKS, stated because each one is a deliberate answer rather than
    whatever happened to render:
-     - Opened outside the game (nothing inherited): the OS preference decides,
-       Beach (light) or Slate — theme-tokens.css does that with no stamp.
+     - Opened outside the game (nothing inherited): Partners, the default
+       theme, light or dark as the OS asks — theme-tokens.css does that with
+       no stamp (its base layer is Partners since 2026-10-06; it was Beach).
      - Core's theme is game-shaped ("Match game", or the AWOO Turquoise preset):
        a tool opened in its own tab cannot read the game page's variables, and
        Core's snapshot of them does not reach tool payloads yet. So the page
@@ -687,6 +992,7 @@ input[type=checkbox]:disabled:hover{border-color:var(--border-control)}
 'use strict';
 
 var THEMES = [
+  ['partners','Default'], // named Partners until 2026-10-07; the id is what saved settings hold
   ['beach','Beach (light)'], ['beach-dim','Beach (dimmed)'], ['slate','Slate'],
   ['claude','Claude (light)'], ['claude-med','Claude (medium)'], ['claude-dark','Claude (dark)'],
   ['claude-code','Claude Code']
@@ -781,7 +1087,7 @@ function resolveTheme(){
     return { id:FALLBACK_THEME, source:'fallback',
       note:'Your AWOO+ theme is ' + GAME_SHAPED[inh] + ', which a tool cannot read yet. Showing Slate.' };
   }
-  return { id:null, source:'os', note:'No AWOO+ theme to match, so this follows your system: Beach or Slate.' };
+  return { id:null, source:'os', note:'No AWOO+ theme to match, so this shows the Default theme, light or dark as your system is.' };
 }
 
 function labelOf(id){
@@ -991,9 +1297,23 @@ function enhanceNum(el){
   el.setAttribute('autocomplete', 'off');
   el.addEventListener('focus', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });
   el.addEventListener('blur', function(){ var v = readNum(el); if (v !== null) showNum(el, v); });
-  var v0 = readNum(el);
-  if (v0 === null && el.value){ var raw = parseFloat(el.value); if (isFinite(raw)) v0 = raw; }
+  var v0 = initialNum(el);
   if (v0 !== null) showNum(el, v0);
+}
+// THE VALUE A BOX STARTS WITH IS THE PAGE'S, NOT THE PLAYER'S (2026-10-07).
+// A page writes it into the markup from a JS number (value="3.5"), so it is
+// in JavaScript's own form whatever the player's separators are. It used to
+// go through parseNum, which under the comma convention ("1.000,00") reads
+// the dot as a thousands mark: the Caves tool's Boss / treasure default 3.5
+// opened as 35,00. A plain JS number literal is read as one; anything else
+// (text the page formatted, or a letter suffix) still goes through parseNum.
+var JS_NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)(e[-+]?\d+)?$/i;
+function initialNum(el){
+  if (el.__awooNumShown !== undefined && el.value === el.__awooNumShown) return el.__awooNumV;
+  var t = String(el.value == null ? '' : el.value).trim();
+  if (!t) return null;
+  if (JS_NUMBER.test(t)){ var v = parseFloat(t); return finite(v) ? v : null; }
+  return parseNum(t);
 }
 function enhanceAll(scope){
   var list = (scope || document).querySelectorAll('input[data-num]');
@@ -1163,14 +1483,14 @@ function mount(host, opts){
 
   // Numbers and separators: in every tool's gear, not one tool's extra rows.
   var numRow = el('div', { 'class':'awoo-gear-row' });
-  numRow.appendChild(el('label', { 'for':'awooNumMode' }, 'Numbers'));
+  numRow.appendChild(el('label', { 'for':'awooNumMode' }, 'Number style'));
   var numSel = el('select', { id:'awooNumMode' });
   [['', 'Match game'], ['letters', '105.44b'], ['standard', '105,440,000,000'], ['exponential', '1.05e+11']]
     .forEach(function(o){ numSel.appendChild(el('option', { value:o[0] }, o[1])); });
   numRow.appendChild(numSel);
   menu.appendChild(numRow);
   var locRow = el('div', { 'class':'awoo-gear-row' });
-  locRow.appendChild(el('label', { 'for':'awooNumLocale' }, 'Decimal separator'));
+  locRow.appendChild(el('label', { 'for':'awooNumLocale' }, 'Number format'));
   var locSel = el('select', { id:'awooNumLocale' });
   [['', 'Match game'], ['1,000.00', '1,000.00 \u00b7 point'], ['1.000,00', '1.000,00 \u00b7 comma'], ['Local', 'Browser default']]
     .forEach(function(o){ locSel.appendChild(el('option', { value:o[0] }, o[1])); });
@@ -1893,7 +2213,10 @@ function bind(def){
   }
   var f = def;
   if (!f.path && typeof f.read === 'string') f.path = f.read;
-  var host = f.label || labelFor(f.el);
+  // A box that sits in a value cell (.awoo-cell) puts its light in the cell
+  // without the page saying so (R172): wrapping the box is all a page does.
+  var cell = f.el.parentNode && f.el.parentNode.classList && f.el.parentNode.classList.contains('awoo-cell') ? f.el.parentNode : null;
+  var host = f.label || cell || labelFor(f.el);
   var light = document.createElement('button');
   light.type = 'button';
   light.className = 'awoo-light';
@@ -1914,7 +2237,12 @@ function bind(def){
   reset.setAttribute('data-tip', 'Back to synced');
   reset.setAttribute('aria-label', 'Back to synced');
   reset.hidden = true;
-  if (host) host.appendChild(reset);
+  // A value cell (.awoo-cell, the house style) keeps only the light and the
+  // box: the ↺ goes to the end of the box's label, so it never moves the
+  // cell's number off the line the other rows end on (R172).
+  var inCell = host && host.classList && host.classList.contains('awoo-cell');
+  var resetHost = inCell ? (labelFor(f.el) || host) : host;
+  if (resetHost) resetHost.appendChild(reset);
   else if (f.el.parentNode) f.el.parentNode.insertBefore(reset, f.el.nextSibling || null);
   f.reset = reset;
   reset.addEventListener('click', function(e){
@@ -2065,7 +2393,9 @@ function card(host, opts){
     c.seg = { live:live, standard:std };
   }
   var actions = el('div', { 'class':'awoo-sync-actions' });
-  var syncBtn = el('button', { type:'button', 'class':'awoo-btn awoo-btn-primary', 'data-tip':'Use every newer value waiting, and ask the game tab for a fresh reading.' }, 'Sync');
+  // A plain button, as the exhibit's sync card has it (R172): the card is
+  // the model's header, not the page's one primary action.
+  var syncBtn = el('button', { type:'button', 'class':'awoo-btn', 'data-tip':'Use every newer value waiting, and ask the game tab for a fresh reading.' }, 'Sync');
   var reset = el('button', { type:'button', 'class':'awoo-btn', 'data-tip':'Hand every field you typed back to the game.' }, 'Reset inputs');
   syncBtn.addEventListener('click', syncNow);
   reset.addEventListener('click', resetAll);
@@ -2170,322 +2500,153 @@ window.AWOO_SYNC = {
 </script>
 
 <style>
+/* THE HOUSE STYLE (2026-10-06, DESIGN.md §10, §12 "Cost Tables"). The
+   panels, headings, tiles, marks, notice and table rules are the kit's
+   (tool-settings.css); what is here is this page's own layout and the few
+   pieces only it has. The old private copies (display-face table head,
+   h2 titles, pills, the sideways-scrolling table) went with the move. */
 *{box-sizing:border-box}
 [hidden]{display:none!important}
+html,body{background:var(--ground)}
 body{
-  margin:0; background:var(--ground); color:var(--ink);
-  font-family:var(--font-body); font-size:14px; line-height:1.5;
-  -webkit-font-smoothing:antialiased;
+  margin:0; color:var(--ink);
+  font-family:var(--font-body); font-size:14.4px; line-height:1.45;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
 }
 button,input,select{font-family:inherit;font-size:inherit;color:inherit}
-:focus-visible{outline:2px solid var(--brass-fill);outline-offset:2px;border-radius:3px}
+:focus-visible{outline:2px solid var(--accent-fill);outline-offset:2px}
 
-/* The title block and the gear live at the top of the sidebar, like every
-   other tool (2026-09-23; this page had its own top bar until then). */
-.btn{
-  background:var(--surface-2); border:1px solid var(--border-control);
-  border-radius:4px; padding:5px 11px; cursor:pointer;
-  font-size:.78rem; font-weight:600; letter-spacing:.02em;
-  transition:background .12s,border-color .12s;
-}
-.btn:hover{background:var(--surface-3);border-color:var(--brass-fill)}
-.btn.primary{background:var(--brass-fill);border-color:var(--brass-fill);color:var(--on-brass)}
-.btn.primary:hover{filter:brightness(1.07)}
-.btn.ghost{background:transparent}
-.btn.sm{padding:3px 8px;font-size:.72rem}
-
-/* --- shell ---------------------------------------------------------- */
+/* --- shell: one grid (§10b). Head across the top, the 300px sidebar, main.
+   Main is capped: a four-column table is as wide as its content (§9), and a
+   page that looks empty wants a narrower column, not more padding (§10h). */
 .shell{
-  max-width:1400px; margin:0 auto; padding:18px 20px 60px;
-  display:grid; grid-template-columns:288px minmax(0,1fr); gap:18px; align-items:start;
+  max-width:calc(300px + 1.25rem + 54rem + 32px); margin:0 auto; padding:1.1rem 16px 3rem;
+  display:grid; grid-template-columns:300px minmax(0,1fr); grid-template-areas:"head head" "side main";
+  gap:1rem 1.25rem; align-items:start;
 }
-/* One column: the title, sync card and subject list first, as in every tool. */
-@media (max-width:1040px){
-  .shell{grid-template-columns:minmax(0,1fr)}
+.top{grid-area:head;min-width:0}
+.side{grid-area:side;min-width:0;display:flex;flex-direction:column;gap:.55rem}
+#main{grid-area:main;min-width:0}
+/* One column: the title, sync card, inputs and subject list first. */
+@media (max-width:1000px){
+  .shell{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "side" "main"}
 }
 
-/* Pinned or not is the shared settings layer's call (tool-settings.js,
-   "Sidebar scrolls on its own"): by default the sidebar scrolls with the page
-   and is pinned only while it fits on screen. */
-.side{display:flex; flex-direction:column; gap:10px}
-.panel{
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:6px; box-shadow:var(--shadow);
-}
-.panel > .ph{
-  font-family:var(--font-display); font-size:.7rem; font-weight:700;
-  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-soft);
-  padding:7px var(--pad-panel); border-bottom:1px solid var(--border);
-  display:flex; align-items:center; gap:8px;
-}
-.panel .pb{padding:8px var(--pad-panel)}
+/* --- the inputs card: the field grid with the light inside the cell --- */
+.awoo-fields .awoo-indent{padding-left:.6rem;color:var(--ink-soft)}
+.awoo-cell .ro{flex:1;text-align:right;font-family:var(--font-num);font-variant-numeric:tabular-nums;font-size:.74rem}
+.cardfoot{display:flex;gap:.35rem;margin-top:.5rem}
 
-/* --- nav ------------------------------------------------------------ */
-.navgroup{padding:5px 0 4px}
-.navgroup + .navgroup{border-top:1px solid var(--border)}
-.navgroup h3{
-  margin:0 0 3px; padding:0 12px;
-  font-family:var(--font-head); font-size:.66rem; font-weight:600;
-  letter-spacing:.13em; text-transform:uppercase; color:var(--ink-mute);
-  display:flex; align-items:baseline; gap:6px;
+/* --- the subject list: navigation, under its own section label ------- */
+#nav .grp{
+  margin:.45rem 0 .1rem; font-family:var(--font-mono); font-size:.55rem;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-mute);
+  display:flex; align-items:center; gap:.3rem;
 }
-/* The character level the group's system unlocks at. It is why the list is in
-   this order, so it may as well say so. */
-.navgroup h3 .gu{
-  margin-left:auto; font-family:var(--font-mono); font-size:.6rem;
-  letter-spacing:.02em; text-transform:none; color:var(--ink-mute); opacity:.8;
-}
-.ctl-inline{display:flex;align-items:center;gap:6px}
-.ctl-inline label{
-  font-size:.64rem;font-weight:600;letter-spacing:.09em;
-  text-transform:uppercase;color:var(--ink-mute);
-}
-.ctl-inline select{
-  background:var(--surface-2); border:1px solid var(--border-control);
-  border-radius:4px; padding:3px 6px; font-size:.74rem;
-}
+#nav .grp::after{content:"";flex:1;height:1px;background:var(--border)}
+#nav .grp:first-of-type{margin-top:0}
 .navbtn{
-  display:flex; align-items:center; gap:8px; width:100%;
-  background:none; border:0; border-left:3px solid transparent;
-  padding:var(--nav-y) 12px var(--nav-y) 9px; text-align:left; cursor:pointer;
-  font-size:.79rem; color:var(--ink-soft); line-height:1.35;
+  display:flex; align-items:center; gap:.5rem; width:100%;
+  background:none; border:0; border-radius:var(--in-radius);
+  padding:var(--row-y) .4rem; text-align:left; cursor:pointer;
+  font-size:.75rem; color:var(--ink); line-height:1.45;
 }
-.navbtn:hover{background:var(--surface-2);color:var(--ink)}
+.navbtn:hover{color:var(--accent)}
+/* The selected subject: treatment BC, as a selected row everywhere (§10f). */
 .navbtn[aria-current="true"]{
-  background:var(--bg-brass); border-left-color:var(--brass-fill);
-  color:var(--ink); font-weight:600;
+  background:var(--bg-accent); box-shadow:inset 0 1px 0 var(--accent-edge),inset 0 -1px 0 var(--accent-edge);
+  font-weight:600;
 }
 .navbtn .nlv{
-  margin-left:auto; font-family:var(--font-mono); font-size:.7rem;
-  color:var(--ink-mute); font-variant-numeric:tabular-nums;
-}
-.navbtn[aria-current="true"] .nlv{color:var(--brass)}
-
-/* --- options -------------------------------------------------------- */
-.optrow{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:3px 0}
-.optrow label{font-size:.78rem;color:var(--ink-soft)}
-.switch{display:flex;border:1px solid var(--border-strong);border-radius:4px;overflow:hidden}
-.switch button{
-  background:var(--surface-2);border:0;padding:3px 9px;cursor:pointer;
-  font-size:.72rem;font-weight:600;color:var(--ink-mute);
-}
-.switch button + button{border-left:1px solid var(--border-strong)}
-.switch button[aria-pressed="true"]{background:var(--brass-fill);color:var(--on-brass)}
-
-/* --- main system panel ---------------------------------------------- */
-.syshead{
-  display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;
-  padding:11px 14px; border-bottom:1px solid var(--border);
-}
-.syshead h2{
-  font-family:var(--font-head); font-size:1.32rem; font-weight:600;
-  letter-spacing:.045em; text-transform:uppercase; margin:0; line-height:1.15;
-}
-.syshead .desc{flex-basis:100%;margin:0;font-size:.83rem;color:var(--ink-soft);max-width:72ch}
-.pill{
-  display:inline-flex;align-items:center;gap:5px;
-  font-family:var(--font-mono); font-size:.66rem; font-weight:600;
-  letter-spacing:.06em; padding:2px 7px; border-radius:3px;
-  background:var(--bg-steel); color:var(--steel); white-space:nowrap;
-}
-.pill.code{background:var(--bg-moss);color:var(--moss)}
-.pill.cross{background:var(--bg-brass);color:var(--brass-text)}
-.pill.live{background:var(--bg-moss);color:var(--moss)}
-.pill.open{background:var(--bg-violet);color:var(--violet)}
-.pill.cur{background:var(--bg-steel);color:var(--steel)}
-
-/* control strip */
-.controls{
-  display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap;
-  padding:9px 14px; background:var(--surface-2); border-bottom:1px solid var(--border);
-}
-.field{display:flex;flex-direction:column;gap:3px}
-.field > .lab{
-  font-size:.66rem; font-weight:600; letter-spacing:.09em;
-  text-transform:uppercase; color:var(--ink-mute);
-  display:flex; align-items:center; gap:5px;
-}
-.field input, .field select{width:var(--ctl-w)}
-.field select{width:auto;min-width:112px}
-.field > .lab .awoo-light{margin:0}
-
-/* summary strip */
-.summary{
-  display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-  gap:1px; background:var(--border); border-bottom:1px solid var(--border);
-}
-.stat{background:var(--surface);padding:8px 14px}
-.stat .k{
-  font-size:.64rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--ink-mute);display:block;margin-bottom:2px;
-}
-.stat .v{
-  font-family:var(--font-num); font-size:1.02rem; font-weight:600;
-  font-variant-numeric:tabular-nums; font-feature-settings:"zero" 0;
-  color:var(--ink); word-break:break-word;
-}
-.stat .v.accent{color:var(--brass)}
-.stat .u{font-size:.68rem;color:var(--ink-mute);font-weight:400;margin-left:3px}
-
-/* the rest of the bill, for systems that charge in more than one currency */
-.billstrip{
-  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-  padding:8px 16px; background:var(--surface-2); border-bottom:1px solid var(--border);
-}
-.billstrip .bk{
-  font-size:.64rem; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
-  color:var(--ink-mute);
-}
-.billstrip .bv{
-  font-family:var(--font-mono); font-size:.76rem; font-variant-numeric:tabular-nums;
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:3px; padding:1px 7px; color:var(--ink-soft);
+  margin-left:auto; font-family:var(--font-num); font-size:.72rem; font-weight:400;
+  color:var(--ink-soft); font-variant-numeric:tabular-nums;
 }
 
-/* table */
-.tablewrap{overflow-x:auto;overflow-y:auto}
-table{border-collapse:collapse;width:100%;min-width:560px}
-thead th{
-  position:sticky; top:0; z-index:2; background:var(--surface-3);
-  font-family:var(--font-display); font-size:.64rem; font-weight:700;
-  letter-spacing:.08em; text-transform:uppercase; color:var(--ink-soft);
-  text-align:right; padding:5px var(--row-x); line-height:1.4;
-  border-bottom:1px solid var(--border-strong);
-  white-space:nowrap;
-}
-thead th:first-child{text-align:left}
-thead th .hsub{
-  display:block;font-family:var(--font-body);font-size:.64rem;
-  letter-spacing:.01em;text-transform:none;color:var(--ink-mute);font-weight:400;
-}
-tbody td{
-  padding:var(--row-y) var(--row-x); text-align:right;
-  border-bottom:1px solid var(--border);
-  font-family:var(--font-num); font-size:.8rem; line-height:1.7;
-  font-variant-numeric:tabular-nums;
-  white-space:nowrap;
-}
-/* Only the level itself is emphasised. Every figure bold made the whole table
-   read as bold, which is the same as none of it being emphasised. */
-tbody td:first-child{text-align:left;font-weight:600}
-tbody tr.past td{color:var(--ink-mute);background:var(--surface-2)}
-/* Fill treatment BC, settled 2026-09-21: the accent tint carries the state,
-   a SOFT edge gives it a shape. --accent-edge, never --accent-fill: a
-   full-strength ring reads as a frame around the row rather than emphasis on
-   it, which is exactly what it looked like at full strength. */
-/* The tint already says "you are here"; bolding every figure in the row on top
-   of it is the third signal for one fact. Only the level stays bold. */
-tbody tr.current td{
-  background:var(--bg-accent);
-  border-top:1px solid var(--accent-edge); border-bottom:1px solid var(--accent-edge);
-}
-tbody tr.current td:first-child{font-weight:700}
-tbody tr.current td:first-child::after{
-  content:'YOU'; margin-left:8px; font-family:var(--font-body);
-  font-size:.6rem; letter-spacing:.09em; color:var(--brass-text);
-  background:var(--surface); padding:1px 5px; border-radius:3px; font-weight:600;
-}
-tbody tr.target td{
-  background:var(--bg-success);
-  border-top:1px solid var(--accent-edge); border-bottom:1px solid var(--accent-edge);
-}
-tbody tr.target td:first-child{font-weight:700}
-tbody tr.target td:first-child::after{
-  content:'TARGET'; margin-left:8px; font-family:var(--font-body);
-  font-size:.6rem; letter-spacing:.09em; color:var(--moss);
-  background:var(--surface); padding:1px 5px; border-radius:3px; font-weight:600;
-}
-tbody tr:hover td{background:var(--surface-3)}
-tbody tr.current:hover td{background:var(--bg-brass)}
-tbody tr.target:hover td{background:var(--bg-moss)}
-tbody td.dash{color:var(--ink-mute)}
-tbody tr.bp td{background:var(--bg-info);border-top:1px solid var(--info)}
-tbody tr.bp:hover td{background:var(--bg-violet)}
-tbody td .bpnote{
-  font-family:var(--font-body);font-size:.6rem;letter-spacing:.06em;
-  color:var(--violet);margin-left:8px;text-transform:uppercase;font-weight:600;
-  border-bottom:1px dotted currentColor;cursor:help;
-}
+/* --- main ----------------------------------------------------------- */
+#main > .awoo-panel{margin-bottom:.9rem}
+.awoo-tile-v .awoo-tile-u{font-family:var(--font-body)}
+.awoo-panel-h .awoo-mark{letter-spacing:.05em}
+.sysdesc{margin:0 0 .55rem;font-size:.74rem;color:var(--ink-soft);line-height:1.45;max-width:80ch}
 
-/* BREAKPOINTS (2026-09-23): every place the formula changes shape, listed
-   above the table whatever the step, with what changes there. Click one to
-   make it the target. */
-.bpstrip{
-  display:flex; align-items:center; gap:6px; flex-wrap:wrap;
-  padding:8px 14px; border-bottom:1px solid var(--border); background:var(--surface);
-}
-.bpstrip .bk{font-size:.64rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-mute);margin-right:2px}
+/* Breakpoints: every place the formula changes shape (2026-09-23), above the
+   table whatever the step. Click one to make it the target. */
+.bpstrip{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin:0 0 .55rem}
+.bpstrip .bk{font-family:var(--font-mono);font-size:.55rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-mute);margin-right:.15rem}
 .bpchip{
-  display:inline-flex; align-items:baseline; gap:5px; cursor:pointer;
-  font-size:.72rem; color:var(--ink-soft); background:var(--bg-info);
-  border:1px solid color-mix(in srgb,var(--info) 35%,transparent); border-radius:4px; padding:2px 7px;
+  display:inline-flex; align-items:baseline; gap:.3rem; cursor:pointer;
+  font-size:.7rem; color:var(--ink-soft); background:var(--surface-2);
+  border:1px solid var(--border-control); border-radius:var(--in-radius); padding:.1rem .45rem;
 }
-.bpchip b{font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--info);font-weight:700}
-.bpchip:hover{border-color:var(--info);color:var(--ink)}
-.bpchip.passed{background:var(--surface-2);border-color:var(--border);opacity:.7}
-.bpchip.passed b{color:var(--ink-mute)}
-.bpnone{font-size:.72rem;color:var(--ink-mute)}
+.bpchip b{font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--ink);font-weight:700}
+.bpchip:hover{border-color:var(--accent-fill);color:var(--accent)}
+.bpchip.passed{opacity:.55}
+.bpnone{font-size:.7rem;color:var(--ink-mute)}
 
-.rowctl{
-  display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;
-  padding:7px 14px; border-top:1px solid var(--border); background:var(--surface-2);
+/* The table: the kit's rules (§10f), in a box that scrolls DOWN only, so the
+   current row can be brought into view. Nothing in it is wider than the
+   box: Cumulative is the optional column and goes first (.awoo-o2). */
+.tablewrap{overflow-y:auto;overflow-x:hidden}
+.tablewrap table{width:100%}
+.tablewrap thead th{position:sticky;top:0;z-index:2}
+.tablewrap tbody tr:first-child td{border-top:0}
+/* Only the level is bold (§7, §10f: bold marks one thing per row). */
+.tablewrap tbody td:first-child{font-weight:600}
+/* You and your target are marks on the level (§10g); the current row is
+   treatment BC (the kit's .awoo-sel); levels already bought fade (.awoo-done). */
+tbody tr.current td:first-child::after,
+tbody tr.target td:first-child::after{
+  display:inline-block; margin-left:.45rem; font-family:var(--font-body); font-size:.55rem; font-weight:600;
+  letter-spacing:.05em; line-height:1.35; text-transform:uppercase; border:1px solid currentColor;
+  border-radius:var(--in-radius); padding:0 .22rem; vertical-align:1px;
 }
-.rowctl .hint{margin-right:auto;font-size:.72rem;color:var(--ink-mute)}
-.rowctl input{width:64px}
-.rowctl label{font-size:.72rem;color:var(--ink-soft)}
+tbody tr.current td:first-child::after{content:'You';color:var(--accent)}
+tbody tr.target td:first-child::after{content:'Target';color:var(--success)}
+tbody td .bpnote{
+  display:inline-block; margin-left:.45rem; font-family:var(--font-body); font-size:.55rem; font-weight:600;
+  letter-spacing:.05em; line-height:1.35; text-transform:uppercase; color:var(--info);
+  border:1px solid currentColor; border-radius:var(--in-radius); padding:0 .22rem; cursor:help; vertical-align:1px;
+}
 
-/* notes */
-details.notes{border-top:1px solid var(--border)}
-details.notes > summary{
-  cursor:pointer; padding:9px 16px; list-style:none;
-  font-family:var(--font-head); font-size:.72rem; font-weight:600;
-  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-soft);
-  display:flex; align-items:center; gap:8px;
-}
+.rowctl{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:.45rem}
+.rowctl .hint{margin-right:auto;font-size:.68rem;color:var(--ink-soft);min-width:0}
+.rowctl .awoo-btn{flex:none}
+.rowctl .full{font-size:.68rem;color:var(--ink-mute)}
+
+/* The formula panel: a fold, headed like every panel. */
+details.notes > summary{cursor:pointer;list-style:none;margin:0}
 details.notes > summary::-webkit-details-marker{display:none}
-details.notes > summary::before{content:'▸';color:var(--brass);font-size:.8rem}
+details.notes > summary::before{content:'▸';color:var(--ink-mute);font-size:.7rem}
 details.notes[open] > summary::before{content:'▾'}
-.notebody{padding:0 16px 14px;font-size:.82rem;color:var(--ink-soft);max-width:82ch}
+details.notes:not([open]) > summary{margin:0}
+.notebody{font-size:.76rem;color:var(--ink-soft);max-width:82ch}
 .notebody p{margin:.5em 0}
 .notebody code, .formula{
-  font-family:var(--font-mono);font-size:.78rem;
-  background:var(--surface-3);padding:1px 5px;border-radius:3px;color:var(--ink);
+  font-family:var(--font-mono);font-size:.74rem;
+  background:var(--surface-2);padding:1px 5px;border-radius:var(--in-radius);color:var(--ink);
 }
-.formula{display:block;padding:8px 11px;margin:.6em 0;white-space:pre-wrap;line-height:1.55;border-left:2px solid var(--brass-fill)}
+.formula{display:block;padding:.45rem .6rem;margin:.2rem 0 .5rem;white-space:pre-wrap;line-height:1.55;border:1px solid var(--border)}
 .srcline{
   display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;padding-top:9px;
   border-top:1px dashed var(--border);
 }
-.srcline .pill{background:var(--surface-3);color:var(--ink-mute)}
 
-/* Tooltips are the shared kit's (tool-sync.js): one fixed element, never
-   clipped by the table's scroll box. .tip only marks what has one. */
-.tip{cursor:help;border-bottom:1px dotted var(--ink-mute)}
-.banner{
-  display:flex;gap:9px;align-items:flex-start;
-  padding:9px 12px;border-radius:5px;font-size:.78rem;line-height:1.45;
-  background:var(--bg-violet); color:var(--ink); border:1px solid var(--violet);
-}
-.banner.warn{background:var(--bg-ember);border-color:var(--ember)}
-.banner b{font-weight:700}
+/* Tooltips are the shared kit's (tool-sync.js); .tip only marks what has one. */
+.tip{cursor:help}
+.tip:hover{color:var(--accent)}
 .foot{
-  max-width:1400px;margin:0 auto;padding:0 20px 40px;
-  font-size:.74rem;color:var(--ink-mute);line-height:1.6;
+  max-width:calc(300px + 1.25rem + 54rem + 32px);margin:0 auto;padding:0 16px 40px;
+  font-size:.7rem;color:var(--ink-mute);line-height:1.6;
 }
-/* Standing default 5: one control that grows the table to the viewport,
-   not a drag handle and not incremental steps. */
-.expandbtn{margin-left:auto}
 
-/* v4 baseline: back-to-top, shown only once scrolled AND collapsed to one
-   column — on the wide sticky-sidebar layout the inputs never leave the
-   screen, so it would be redundant chrome. */
+/* Back to top: shown only once scrolled AND in one column, where the inputs
+   leave the screen. A plain square-ish button, like every other (§9). */
 #backTop{
-  position:fixed; right:18px; bottom:calc(18px + env(safe-area-inset-bottom,0px));
-  z-index:40; width:40px; height:40px; border-radius:50%;
-  background:var(--brass-fill); color:var(--on-brass);
-  border:1px solid var(--brass); box-shadow:var(--shadow);
-  font-size:1.05rem; line-height:1; cursor:pointer;
+  position:fixed; right:16px; bottom:calc(16px + env(safe-area-inset-bottom,0px));
+  z-index:40; width:34px; height:34px; border-radius:var(--in-radius);
+  background:var(--surface); color:var(--ink); border:1px solid var(--border-control);
+  box-shadow:var(--shadow); font-size:1rem; line-height:1; cursor:pointer;
 }
+#backTop:hover{border-color:var(--accent-fill);color:var(--accent)}
 #backTop[hidden]{display:none!important}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -2559,29 +2720,24 @@ window.AWOO_FACTS_META = {"sanctumNodeCost":{"file":"tables/sanctum-nodes.json",
 </script>
 
 <div class="shell">
-  <aside class="side" data-awoo-sidebar data-side-min="1041" data-side-top="20">
-    <div class="awoo-head">
-      <div id="gear"></div>
-      <div class="awoo-eyebrow">Upgrade pricing &middot; 15 systems</div>
-      <h1 class="awoo-title">Cost Tables</h1>
-      <p class="awoo-sub">What the next levels cost, from where you are to where you want to be.</p>
-    </div>
+  <div class="top awoo-head">
+    <div id="gear"></div>
+    <div class="awoo-eyebrow">Upgrade pricing &middot; 15 systems</div>
+    <h1 class="awoo-title">Cost Tables</h1>
+    <p class="awoo-sub">What the next levels cost, from where you are to where you want to be.</p>
+  </div>
+  <!-- The sidebar is the model (DESIGN.md §10d): the sync card, then the
+       subject list (the first thing you reach for, so it sits right under
+       sync), then the inputs the table is priced from. The old Legend card
+       is the tier mark's hover now (§9: marks are explained in a legend on
+       hover, not beside every row). -->
+  <aside class="side" data-awoo-sidebar data-side-min="1001" data-side-top="20">
     <div id="syncCard"></div>
-    <nav class="panel" id="nav" aria-label="Cost systems"></nav>
-    <button class="btn ghost sm" type="button" id="resetAllBtn" data-tip="Current levels, targets, steps and row counts back to their defaults, for every subject.">Reset every subject</button>
-
-    <div class="panel">
-      <div class="ph">Legend</div>
-      <div class="pb" style="display:flex;flex-direction:column;gap:6px;font-size:.76rem;color:var(--ink-soft)">
-        <div><span class="pill live">LIVE</span> checked against the real game</div>
-        <div><span class="pill code">CODE</span> read from the shipped bundle</div>
-        <div><span class="pill cross">CROSS</span> matches a known table, small drift</div>
-        <div><span class="pill open">OPEN</span> something here is unresolved</div>
-      </div>
-    </div>
+    <nav class="awoo-card" id="nav" aria-label="Cost systems"></nav>
+    <div class="awoo-card" id="inputs"></div>
   </aside>
 
-  <main class="panel" id="main"></main>
+  <main id="main"></main>
 </div>
 
 <button id="backTop" type="button" aria-label="Back to top" hidden>↑</button>
@@ -3213,13 +3369,16 @@ function activeCurrency(sys){
   return sys.cur[0];
 }
 
+// The subject list (house style, 2026-10-06): one section label, the game's
+// groups as sub-headings with a rule, one row per subject with your level
+// right-aligned. Reset every subject sits at its foot, since it acts on the
+// whole list; init() listens on #nav, so the rebuilt button needs no wiring.
 function renderNav(){
-  var html = '', lastGroup = null;
+  var html = '<div class="awoo-sec">Subjects</div>', lastGroup = null;
   SYSTEMS.forEach(function(s){
     if (s.group !== lastGroup){
-      if (lastGroup !== null) html += '</div>';
       var g = GROUPS.filter(function(x){ return x.id===s.group; })[0] || { label:s.group };
-      html += '<div class="navgroup"><h3>' + esc(g.label) + '</h3>';
+      html += '<div class="grp">' + esc(g.label) + '</div>';
       lastGroup = s.group;
     }
     var lv = currentLevel(s);
@@ -3227,14 +3386,27 @@ function renderNav(){
             (s.id===state.active ? ' aria-current="true"' : '') + '>' +
             esc(s.name) + '<span class="nlv">' + fmtInt(lv) + '</span></button>';
   });
-  html += '</div>';
+  html += '<div class="cardfoot"><button class="awoo-btn" type="button" id="resetAllBtn" data-tip="Current levels, targets, steps and row counts back to their defaults, for every subject.">Reset every subject</button></div>';
   document.getElementById('nav').innerHTML = html;
 }
 
-function costCell(amounts, cur){
+// What the evidence tiers mean: the old sidebar Legend card, now on the tier
+// mark's hover (§9: marks are explained by a legend, not beside every row).
+var TIER_TIP = {
+  LIVE:'LIVE: checked against the real game.',
+  CODE:'CODE: read from the shipped bundle.',
+  CROSS:'CROSS: matches a known table, small drift.',
+  OPEN:'OPEN: something here is unresolved.'
+};
+var TIER_MARK = { LIVE:'awoo-mark-ok', CODE:'awoo-mark-ok', CROSS:'awoo-mark-acc', OPEN:'awoo-mark-info' };
+function tierTip(tier){
+  return (TIER_TIP[tier] || tier) + '\n\nAll tiers:\n' + Object.keys(TIER_TIP).map(function(k){ return TIER_TIP[k]; }).join('\n');
+}
+
+function costCell(amounts, cur, cls){
   var v = amounts[cur];
-  if (v == null) return '<td class="dash">—</td>';
-  return '<td>' + fmtNum(v) + '</td>';
+  if (v == null) return '<td class="awoo-dash' + (cls || '') + '">—</td>';
+  return '<td' + (cls ? ' class="' + cls.trim() + '"' : '') + '>' + fmtNum(v) + '</td>';
 }
 
 function renderSystem(){
@@ -3251,55 +3423,54 @@ function renderSystem(){
   var from = Math.max(sys.min, lv - 3*step);
   var variant = state.variants[sys.id] || (sys.variants ? sys.variants.options[0].id : null);
 
-  var h = '';
-
-  /* header */
-  h += '<div class="syshead">';
-  h += '<h2>' + esc(sys.name) + '</h2>';
-  h += '<span class="pill ' + sys.tier.toLowerCase() + '">' + sys.tier + '</span>';
-  h += '<span class="pill cur">' + esc(sys.cur.map(function(c){return CUR[c].label;}).join(' · ')) + '</span>';
-  h += '<p class="desc">' + sys.desc + (sys.alias ? ' <span class="tip" data-tip="' + esc(sys.alias) + '">Naming note.</span>' : '') + '</p>';
-  h += '</div>';
-
-  /* controls */
-  h += '<div class="controls">';
-  h += '<div class="field"><span class="lab">' +
+  /* the inputs card (house style, DESIGN.md §10d): this subject's inputs in
+     the sidebar, on the field grid, with the sync light inside the level's
+     cell and the cell's look saying where the level came from. */
+  var CELL_KIND = { synced:' awoo-k-sync', stale:' awoo-k-sync', edited:' awoo-k-typed', unavailable:'' };
+  var f = '<div class="awoo-sec">' + esc(sys.name) + '</div><div class="awoo-fields">';
+  f += '<label for="lvInput">Current ' + esc(sys.unit) + '</label><span class="awoo-cell' + (PROFILE_READS[key] ? CELL_KIND[fstate] : '') + '">' +
        (PROFILE_READS[key]
          ? '<button class="awoo-light" type="button" id="stateLight" data-state="' + fstate + '" aria-label="Sync: ' + fstate + '" data-tip="' + esc(STATE_TEXT[fstate]) + '" data-tip-dev="' + esc('Profile: ' + (typeof PROFILE_READS[key][1] === 'string' ? PROFILE_READS[key][1] : PROFILE_READS[key][0])) + '"></button>'
          : '<span class="awoo-light" data-state="unavailable" data-tip="Not something the game sync reads. Type your own level."></span>') +
-       '<span>Current ' + esc(sys.unit) + '</span></span>' +
-       '<input type="text" data-num data-num-kind="int" id="lvInput" value="' + lv + '" min="' + sys.min + '" max="' + sys.max + '"></div>';
-  h += '<div class="field"><span class="lab"><span class="tip" data-tip="' +
-       esc('Where you want to get to. Sets the headline total, and grows the table to reach it.') +
-       '">Target</span></span>' +
-       '<input type="text" data-num data-num-kind="int" id="tgtInput" value="' + tgt + '" min="' + (lv+1) + '" max="' + sys.max + '"></div>';
+       '<input type="text" data-num data-num-kind="int" id="lvInput" value="' + lv + '" min="' + sys.min + '" max="' + sys.max + '"></span>';
   if (sys.id === 'partnerlevel'){
+    // Shown as calculated rows under the level they explain (§10d derivation).
     var pst = partnerSkillStats();
-    if (pst) h += '<div class="field"><span class="lab"><span class="tip" data-tip="' +
-      esc('Every partner’s four skills (Hunting, Mining, Woodcutting, Stonecarving). The table starts from the average.') +
-      '">Partners</span></span><span>Lowest ' + fmtInt(pst.lowest) + ' · Average ' + fmtInt(Math.round(pst.average)) +
-      ' · Highest ' + fmtInt(pst.highest) + '</span></div>';
+    if (pst){
+      var pTip = esc('Every partner’s four skills (Hunting, Mining, Woodcutting, Stonecarving). The table starts from the average.');
+      [['Lowest', pst.lowest], ['Average', Math.round(pst.average)], ['Highest', pst.highest]].forEach(function(r){
+        f += '<span class="awoo-lbl awoo-indent tip" data-tip="' + pTip + '">' + r[0] + ' skill</span>' +
+             '<span class="awoo-cell awoo-k-calc"><span class="ro">' + fmtInt(r[1]) + '</span></span>';
+      });
+    }
   }
+  f += '<label for="tgtInput"><span class="tip" data-tip="' +
+       esc('Where you want to get to. Sets the headline total, and grows the table to reach it.') +
+       '">Target</span></label><span class="awoo-cell">' +
+       '<input type="text" data-num data-num-kind="int" id="tgtInput" value="' + tgt + '" min="' + (lv+1) + '" max="' + sys.max + '"></span>';
   if (sys.variants){
-    h += '<div class="field"><span class="lab">' + esc(sys.variants.label) + '</span><select id="varSel">';
+    f += '<label for="varSel">' + esc(sys.variants.label) + '</label><span class="awoo-cell"><select id="varSel">';
     sys.variants.options.forEach(function(o){
-      h += '<option value="' + o.id + '"' + (o.id===variant?' selected':'') + '>' + esc(o.label) + '</option>';
+      f += '<option value="' + o.id + '"' + (o.id===variant?' selected':'') + '>' + esc(o.label) + '</option>';
     });
-    h += '</select></div>';
+    f += '</select></span>';
   }
   if (sys.cur.length > 1){
-    h += '<div class="field"><span class="lab">Show cost in</span><select id="curSel">';
+    f += '<label for="curSel">Show cost in</label><span class="awoo-cell"><select id="curSel">';
     sys.cur.forEach(function(c){
-      h += '<option value="' + c + '"' + (c===cur?' selected':'') + '>' + esc(CUR[c].label) + '</option>';
+      f += '<option value="' + c + '"' + (c===cur?' selected':'') + '>' + esc(CUR[c].label) + '</option>';
     });
-    h += '</select></div>';
+    f += '</select></span>';
   }
-  h += '<div class="field"><span class="lab"><span class="tip" data-tip="' +
+  f += '<label for="stepInput"><span class="tip" data-tip="' +
        esc('Rows advance by this many levels. A subject that runs to thousands is unreadable at 1.') +
-       '">Step</span></span>' +
-       '<input type="text" data-num data-num-kind="int" id="stepInput" value="' + step + '" min="1" max="' + Math.max(1, sys.max) + '"></div>';
-  h += '<button class="btn" type="button" id="resetSysBtn">Reset this subject</button>';
-  h += '</div>';
+       '">Step</span></label><span class="awoo-cell">' +
+       '<input type="text" data-num data-num-kind="int" id="stepInput" value="' + step + '" min="1" max="' + Math.max(1, sys.max) + '"></span>';
+  f += '</div><div class="cardfoot"><button class="awoo-btn" type="button" id="resetSysBtn">Reset this subject</button></div>';
+  var inputsEl = document.getElementById('inputs');
+  inputsEl.innerHTML = f;
+
+  var h = '';
 
   /* summary — the headline is the question this page exists to answer:
      what does it cost to get from where I am to where I want to be. */
@@ -3307,23 +3478,47 @@ function renderSystem(){
   var next1 = sys.range(lv, Math.min(lv+1, sys.max), variant);
   var next5 = sys.range(lv, Math.min(lv+5, sys.max), variant);
   var spent = sys.range(sys.min, lv, variant);
-  h += '<div class="summary">';
-  h += '<div class="stat"><span class="k">' + fmtInt(lv) + ' → ' + fmtInt(tgt) + '</span><span class="v accent">' +
-       fmtNum(toTarget[cur]||0) + '<span class="u">' + esc(CUR[cur].label.toLowerCase()) + '</span></span></div>';
-  h += '<div class="stat"><span class="k">Next level</span><span class="v">' + fmtNum(next1[cur]||0) + '</span></div>';
-  h += '<div class="stat"><span class="k">Next 5 → ' + fmtInt(Math.min(lv+5, sys.max)) + '</span><span class="v">' + fmtNum(next5[cur]||0) + '</span></div>';
-  h += '<div class="stat"><span class="k">Sunk to ' + fmtInt(lv) + '</span><span class="v">' + fmtNum(spent[cur]||0) + '</span></div>';
-  h += '</div>';
+  // Tiles (§10e): the cost to your target is the one hero; each tile's last
+  // line says which levels it covers.
+  var unit = esc(CUR[cur].label.toLowerCase());
+  var tile = function(k, v, w, extra){
+    return '<div class="awoo-tile' + (extra || '') + '"><div class="awoo-tile-k">' + k + '</div>' +
+           '<div class="awoo-tile-v">' + v + '</div><div class="awoo-tile-w">' + w + '</div></div>';
+  };
+  h += '<div class="awoo-tiles">';
+  h += tile('To target', fmtNum(toTarget[cur]||0) + '<span class="awoo-tile-u">' + unit + '</span>',
+            fmtInt(lv) + ' → ' + fmtInt(tgt), ' awoo-hero');
+  h += tile('Next level', fmtNum(next1[cur]||0), fmtInt(lv) + ' → ' + fmtInt(Math.min(lv+1, sys.max)));
+  h += tile('Next 5', fmtNum(next5[cur]||0), fmtInt(lv) + ' → ' + fmtInt(Math.min(lv+5, sys.max)));
+  h += tile('Sunk', fmtNum(spent[cur]||0), fmtInt(sys.min) + ' → ' + fmtInt(lv));
 
   // The full bill for the target, when a system charges in more than one
   // currency. The table can only show one column at a time; a village
-  // building upgrade you cannot actually afford in wood is not a detail.
-  var others = [];
-  for (var ck in toTarget){ if (ck !== cur && toTarget[ck]) others.push(CUR[ck].label + ' ' + fmtNum(toTarget[ck])); }
-  if (others.length){
-    h += '<div class="billstrip"><span class="bk">' + fmtInt(lv) + ' → ' + fmtInt(tgt) + ' also charges</span>' +
-         others.map(function(o){ return '<span class="bv">' + esc(o) + '</span>'; }).join('') + '</div>';
+  // building upgrade you cannot actually afford in wood is not a detail, so
+  // each other currency gets a tile of its own rather than a strip.
+  for (var ck in toTarget){
+    if (ck !== cur && toTarget[ck]) h += tile(esc(CUR[ck].label), fmtNum(toTarget[ck]), 'also, ' + fmtInt(lv) + ' → ' + fmtInt(tgt), ' other');
   }
+  h += '</div>';
+
+  /* The table panel: the subject's name as the one panel heading, its marks,
+     its controls on the right (§10e); the description under it. */
+  var curNames = sys.cur.map(function(c){ return CUR[c].label; }).join(' · ');
+  // A currency note is this page's one notice, above the panel it is about (§10g).
+  if (sys.curNote){
+    h += '<div class="awoo-notice"><span class="awoo-notice-g">i</span><span>' + sys.curNote + '</span></div>';
+  }
+  h += '<section class="awoo-panel">';
+  h += '<h2 class="awoo-panel-h">' + esc(sys.name) +
+       '<span class="awoo-mark ' + (TIER_MARK[sys.tier] || 'awoo-mark-mute') + ' tip" data-tip="' + esc(tierTip(sys.tier)) + '">' + sys.tier + '</span>' +
+       '<span class="awoo-mark awoo-mark-mute">' + esc(curNames) + '</span>' +
+       '<span class="awoo-panel-ctl">' +
+       '<button class="awoo-btn" type="button" id="expandBtn" aria-pressed="' + (state.expanded ? 'true' : 'false') + '">' +
+       (state.expanded ? 'Shrink table' : 'Expand table') + '</button>' +
+       (rowsTo < sys.max && sys.expandBy ? '<button class="awoo-btn" type="button" id="more30">+' + sys.expandBy + ' levels</button>' : '') +
+       '</span></h2>';
+  h += '<p class="sysdesc">' + sys.desc +
+       (sys.alias ? ' <span class="tip" data-tip="' + esc(sys.alias) + '">Naming note.</span>' : '') + '</p>';
 
   /* breakpoints: every one, whatever the step, with what changes there */
   var bps = breaksFor(sys, variant);
@@ -3339,17 +3534,13 @@ function renderSystem(){
   }
   h += '</div>';
 
-  if (sys.curNote){
-    h += '<div style="padding:10px 16px 0"><div class="banner"><span>' + sys.curNote + '</span></div></div>';
-  }
-
-  /* table */
-  h += '<div class="tablewrap"><table><thead><tr>' +
+  /* table: the kit's rules (§10f). What each head means is on its hover;
+     Cumulative is the optional column and goes first on a narrow page. */
+  h += '<div class="tablewrap"><table class="awoo-t"><thead><tr>' +
        '<th>' + esc(sys.unitShort) + '</th>' +
-       '<th>Cost<span class="hsub">' +
-       (step === 1 ? 'this level alone' : 'this ' + step + '-level step') + '</span></th>' +
-       '<th>Cumulative<span class="hsub">from ' + sys.min + '</span></th>' +
-       '<th>From level ' + fmtInt(lv) + '<span class="hsub">what you still owe</span></th>' +
+       '<th class="tip" data-tip="' + esc('The cost of ' + (step === 1 ? 'this level alone.' : 'this ' + step + '-level step.')) + '">Cost</th>' +
+       '<th class="tip awoo-o2" data-tip="' + esc('Everything from ' + sys.min + ' to this level.') + '">Cumulative</th>' +
+       '<th class="tip" data-tip="What you still owe from your level to this one.">From level ' + fmtInt(lv) + '</th>' +
        '</tr></thead><tbody>';
 
   // Rows advance by `step`, and always include the current and target levels
@@ -3369,7 +3560,8 @@ function renderSystem(){
   for (var ri = 0; ri < rowLevels.length; ri++){
     var n = rowLevels[ri];
     var prev = ri > 0 ? rowLevels[ri-1] : Math.max(sys.min, n - step);
-    var cls = n === lv ? 'current' : (n < lv ? 'past' : '');
+    // Current is treatment BC (.awoo-sel); bought levels fade (.awoo-done).
+    var cls = n === lv ? 'current awoo-sel' : (n < lv ? 'past awoo-done' : '');
     if (n === tgt && n !== lv) cls += ' target';
     var bp = bpAt[n] || null;
     if (bp) cls += ' bp';
@@ -3378,25 +3570,21 @@ function renderSystem(){
     h += '<tr class="' + cls + '"' + (n===lv ? ' id="curRow"' : '') + '>';
     h += '<td>' + fmtInt(n) + (bp ? '<span class="bpnote" data-tip="' + esc(bp.tip) + '">' + esc(bp.short) + '</span>' : '') + '</td>';
     h += costCell(stepCost, cur);
-    h += costCell(cum, cur);
-    if (n <= lv) h += '<td class="dash">—</td>';
+    h += costCell(cum, cur, ' awoo-o2');
+    if (n <= lv) h += '<td class="awoo-dash">—</td>';
     else h += costCell(sys.range(lv, n, variant), cur);
     h += '</tr>';
   }
   h += '</tbody></table></div>';
 
-  /* row controls */
+  /* the legend line under the table (§10g) */
   h += '<div class="rowctl">';
   h += '<span class="hint">Showing ' + Math.max(from, sys.min+1) + '–' + rowsTo +
        ' of ' + sys.min + '–' + fmtInt(sys.max) + ', every ' + step + '.' +
        (sys.maxNote ? ' ' + sys.maxNote : '') +
-       (bps.length ? ' Violet rows mark where the formula changes shape.' : '') + '</span>';
-  h += '<button class="btn sm expandbtn" type="button" id="expandBtn" aria-pressed="' +
-       (state.expanded ? 'true' : 'false') + '">' +
-       (state.expanded ? 'Shrink table' : 'Expand table') + '</button>';
-  if (rowsTo < sys.max && sys.expandBy) h += '<button class="btn sm" type="button" id="more30">+' + sys.expandBy + ' levels</button>';
-  else h += '<span style="font-size:.72rem;color:var(--ink-mute)">Showing the full range.</span>';
-  h += '</div>';
+       (bps.length ? ' Marked rows are where the formula changes shape.' : '') +
+       (rowsTo < sys.max && sys.expandBy ? '' : ' Showing the full range.') + '</span>';
+  h += '</div></section>';
 
   /* notes */
   // Two audiences, one panel. A player wants the formula and the sentence that
@@ -3404,7 +3592,7 @@ function renderSystem(){
   // last-checked date are for whoever maintains the numbers. The developer half
   // is hidden unless "Show developer info" is on, and tinted with --dev when
   // it is, so the two are never confused. DESIGN.md §7, register R67.
-  h += '<details class="notes"><summary>Formula' +
+  h += '<details class="notes awoo-panel"><summary class="awoo-panel-h">Formula' +
        '<span data-dev-only> &amp; source</span></summary><div class="notebody">';
   h += '<span class="formula">' + esc(sys.formula) + '</span>';
   h += '<p>' + sys.userNote + '</p>';
@@ -3416,6 +3604,7 @@ function renderSystem(){
   h += '</div></div></details>';
 
   document.getElementById('main').innerHTML = h;
+  NUM.enhance(inputsEl);
   NUM.enhance(document.getElementById('main'));
   wireSystem(sys);
 }
@@ -3575,17 +3764,19 @@ function scrollCurrentIntoView(){
 function init(){
   load();
 
+  // One listener for the whole subject list, Reset every subject included:
+  // renderNav() rebuilds the card, so its buttons carry no listeners of their own.
   document.getElementById('nav').addEventListener('click', function(e){
+    if (e.target.closest('#resetAllBtn')){
+      state.levels = {}; state.rows = {}; state.targets = {}; state.steps = {}; edited = {};
+      save(); renderAll();
+      return;
+    }
     var b = e.target.closest('.navbtn');
     if (!b) return;
     state.active = b.getAttribute('data-sys');
     save();
     renderAll(null, 0);
-  });
-
-  document.getElementById('resetAllBtn').addEventListener('click', function(){
-    state.levels = {}; state.rows = {}; state.targets = {}; state.steps = {}; edited = {};
-    save(); renderAll();
   });
 
   AWOO_TOOL_SETTINGS.mount(document.getElementById('gear'), {
@@ -3615,7 +3806,7 @@ function init(){
     if (held && !SYNC.syncing()) return;
     take();
     var a = document.activeElement;
-    if (a && a.closest && a.closest('#main') && /INPUT|SELECT/.test(a.tagName)){ pendingProfile = true; return; }
+    if (a && a.closest && a.closest('#main, #inputs') && /INPUT|SELECT/.test(a.tagName)){ pendingProfile = true; return; }
     renderAll();
   });
   document.addEventListener('focusout', function(){
@@ -3627,7 +3818,7 @@ function init(){
   // Cheap enough not to need rAF gating, and a plain handler is verifiable in
   // an automated browser where an rAF-gated one is not (style guide, Lessons).
   var updateBackTop = function(){
-    backTop.hidden = !(window.scrollY > 320 && window.innerWidth <= 1040);
+    backTop.hidden = !(window.scrollY > 320 && window.innerWidth <= 1000);
   };
   window.addEventListener('scroll', updateBackTop);
   window.addEventListener('resize', function(){ sizeTable(); scrollCurrentIntoView(); updateBackTop(); });
