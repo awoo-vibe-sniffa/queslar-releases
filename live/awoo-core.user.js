@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.15
+// @version      7.0.16
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -18,7 +18,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.15",
+    "version": "7.0.16",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -257,15 +257,17 @@
       updateEvery: 'auto',
       updateNotice: true,
       // The menu (a command palette): 'compact' or 'wide', and what a wide
-      // menu's second column shows: 'details' of the selected item, or an
-      // 'overview' (Profile Sync and what needs attention). The maintainer
-      // liked both and asked for the choice.
-      menuLayout: 'compact',
-      menuWidePanel: 'details',
-      // The menu's search bar: off unless asked for (R69 round 7, the
-      // maintainer: "disable search bar"). Off, the menu opens without taking
-      // the keyboard; the arrow keys and Enter still move and choose.
-      menuSearch: false,
+      // menu's second column shows: the 'tools' (the default since R238, the
+      // maintainer: "by default make it move the tools to the right"), the
+      // 'details' of the selected item, or an 'overview' (Profile Sync and
+      // what needs attention). The last two are chosen in Control Panel only.
+      // A new key (was menuWidePanel): a player who had 'details' stored from
+      // the old default would never have seen the tools column.
+      // Wide is the default since 2026-10-18 (the maintainer), for everyone:
+      // menuWideMigrated moves a saved 'compact' to it once, see the load below.
+      menuLayout: 'wide',
+      menuWideMigrated: false,
+      menuWideColumn: 'tools',
       // The Control Panel's sidebar width: a setting, not a drag handle, for
       // the same reason its size is (a panel laid out for known widths).
       cpSideWidth: 'default',
@@ -431,9 +433,21 @@
         // snapshot, which is the default anyway.
         if (stored && stored.theme == null && stored.liveAdaptTheme === true) settings.theme = 'matchGame';
         delete settings.liveAdaptTheme;
+        // The wide menu became the default for every player, saved choice or
+        // not (2026-10-18): once, move a stored 'compact' to 'wide' and record
+        // that it was done, so a later choice of Compact is kept.
+        if (stored && stored.menuWideMigrated !== true) {
+          settings.menuLayout = 'wide';
+          settings.menuWideMigrated = true;
+          try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(Object.assign({}, stored, { menuLayout: 'wide', menuWideMigrated: true }))); } catch (e) { /* kept for this page load */ }
+        }
         settingsBoot = 'stored';
       }
     } catch (e) { /* ignore, defaults stand */ }
+    // A fresh install has nothing to migrate: it is "done" from the start, and
+    // setSetting writes that with its first save, so a Compact picked before
+    // the next page load is not moved to wide by the migration above.
+    if (settingsBoot === 'empty') settings.menuWideMigrated = true;
     function getSetting(key) { return settings[key]; }
     // Set once the Control Panel is built (General's Setup row, the Profile
     // Sync page); until then a change has nothing drawn to repaint.
@@ -457,6 +471,7 @@
         let stored = {};
         try { stored = storedSettings(); } catch (e) { /* unreadable: this key still saves */ }
         stored[key] = value;
+        if (settings.menuWideMigrated === true) stored.menuWideMigrated = true;
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(stored));
       } catch (e) { reportCoreSaveFailure('settings', e); }
       applySetting(key, value);
@@ -959,6 +974,20 @@
           --awoo-s5: calc(12px * var(--awoo-ui-scale, 1)); --awoo-s6: calc(16px * var(--awoo-ui-scale, 1));
           /* radius: controls / containers / windows */
           --awoo-r-sm: 4px; --awoo-r-md: 6px; --awoo-r-lg: 8px;
+          /* edges: a box's outline is a crisp 1px line a touch lighter than the
+             border colour (--awoo-edge), a rule between rows or sections is
+             the border colour itself (--awoo-line); floating things get a layered shadow
+             and a faint inner highlight (--awoo-pop), which is what makes an
+             edge read as smooth rather than as a hard drawn line. */
+          --awoo-edge: color-mix(in srgb, var(--awoo-border), var(--awoo-ink, #fff) 14%);
+          --awoo-line: var(--awoo-border);
+          /* the village channel's colour: the theme's trusted blue turned
+             round the hue wheel, so it stays distinct from trusted blue and
+             dev teal in every theme. The plain value is for a browser
+             without relative colours. */
+          --awoo-village: #b48ead;
+          --awoo-village: oklch(from var(--awoo-trusted) l c calc(h + 70));
+          --awoo-pop: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.04);
           /* emphasis — four levels, because hierarchy carried by fourteen
              opacities is why the overlay read flat: everything was the same
              colour at a different strength, so nothing was ever foreground */
@@ -1013,7 +1042,7 @@
         .awoo-ui-rows > .wide { grid-column: 1 / -1; }
         .awoo-ui-rows input, .awoo-ui-rows select { font: inherit;
           font-size: var(--awoo-fs-control); background: var(--awoo-input);
-          color: var(--awoo-foreground); border: 1px solid var(--awoo-border);
+          color: var(--awoo-foreground); border: 1px solid var(--awoo-edge);
           border-radius: var(--awoo-r-sm); padding: var(--awoo-s1) var(--awoo-s2);
           width: 100%; box-sizing: border-box; font-variant-numeric: tabular-nums; }
         /* Any digits that sit in a column line up. Without this a countdown
@@ -2444,9 +2473,10 @@
            height. Under content-box each save-and-reapply grew a window by
            2px (after a drag and a reload, or a side panel opened and closed). */
         .awoo-window { position: fixed; z-index: 999000; display: flex; flex-direction: column; box-sizing: border-box;
-          background: var(--awoo-card); color: var(--awoo-popover-foreground); border: 1px solid var(--awoo-border);
-          border-radius: 8px;
-          box-shadow: 0 12px 32px rgba(0,0,0,.45), 0 0 0 1px color-mix(in srgb, var(--awoo-primary) 22%, transparent);
+          background: var(--awoo-card); color: var(--awoo-popover-foreground); border: 1px solid var(--awoo-edge);
+          border-radius: var(--awoo-r-lg);
+          box-shadow: 0 1px 2px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.4), 0 0 0 1px color-mix(in srgb, var(--awoo-primary) 18%, transparent);
+          -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
           font: calc(12px * var(--awoo-ui-scale, 1)) var(--awoo-font, ${CORE_FONT}); overflow: hidden; }
         .awoo-window[hidden] { display: none; }
         .awoo-window[data-resizable="true"] { resize: both; min-width: 260px; min-height: 160px; }
@@ -2488,21 +2518,21 @@
         /* Profile data (R98): tiles grouped as the game's navigation. */
         .awoo-pd { display: flex; flex-direction: column; gap: var(--awoo-s4); font-size: var(--awoo-fs-control); }
         .awoo-pd-bar { display: flex; align-items: center; gap: var(--awoo-s3); flex-wrap: wrap; position: sticky; top: 0;
-          background: var(--awoo-card); padding-bottom: var(--awoo-s3); border-bottom: 1px solid var(--awoo-border); z-index: 1; }
+          background: var(--awoo-card); padding-bottom: var(--awoo-s3); border-bottom: 1px solid var(--awoo-line); z-index: 1; }
         .awoo-pd-search { font: inherit; width: 200px; background: var(--awoo-input); color: var(--awoo-foreground);
-          border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm); padding: var(--awoo-s1) var(--awoo-s3); }
+          border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-sm); padding: var(--awoo-s1) var(--awoo-s3); }
         .awoo-pd-chips { display: inline-flex; gap: var(--awoo-s1); }
         .awoo-pd-chip, .awoo-pd-btn, .awoo-pd-raw { font: inherit; font-size: var(--awoo-fs-caption); background: none; color: inherit;
-          border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm); padding: 1px var(--awoo-s3); cursor: pointer; }
+          border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-sm); padding: 1px var(--awoo-s3); cursor: pointer; }
         .awoo-pd-chip:hover, .awoo-pd-btn:hover, .awoo-pd-raw:hover { background: var(--awoo-hover); }
         .awoo-pd-chip[aria-pressed="true"], .awoo-pd-raw[aria-pressed="true"] { border-color: var(--awoo-primary); color: var(--awoo-primary); background: var(--awoo-hover); }
         .awoo-pd-count { margin-left: auto; opacity: var(--awoo-em-muted); font-size: var(--awoo-fs-caption); }
         .awoo-pd-glabel { font-size: var(--awoo-fs-micro); font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
           opacity: var(--awoo-em-muted); margin-bottom: var(--awoo-s2); }
         .awoo-pd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: var(--awoo-s3); align-items: start; }
-        .awoo-pd-tile { border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm); background: var(--awoo-surface-2, var(--awoo-popover)); min-width: 0; }
+        .awoo-pd-tile { border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-sm); background: var(--awoo-surface-2, var(--awoo-popover)); min-width: 0; }
         .awoo-pd-tile.awoo-m-miss, .awoo-pd-tile.awoo-m-empty { border-style: dashed; background: transparent; }
-        .awoo-pd-head { display: flex; align-items: center; gap: var(--awoo-s2); padding: var(--awoo-s2) var(--awoo-s3); border-bottom: 1px solid var(--awoo-border); }
+        .awoo-pd-head { display: flex; align-items: center; gap: var(--awoo-s2); padding: var(--awoo-s2) var(--awoo-s3); border-bottom: 1px solid var(--awoo-line); }
         .awoo-pd-name { font-weight: 600; }
         .awoo-pd-kept { margin-left: auto; font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted); white-space: nowrap; cursor: help; }
         .awoo-pd-age { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted); white-space: nowrap; }
@@ -2518,7 +2548,7 @@
         .awoo-pd-tablewrap { overflow-x: auto; max-width: 100%; margin: 0 var(--awoo-s3) var(--awoo-s2); }
         .awoo-pd-table { width: 100%; border-collapse: collapse; font-size: var(--awoo-fs-caption); }
         .awoo-pd-table caption { text-align: left; opacity: var(--awoo-em-muted); padding-top: var(--awoo-s2); }
-        .awoo-pd-table th { font-weight: 500; opacity: var(--awoo-em-muted); text-align: right; border-bottom: 1px solid var(--awoo-border); padding: 0 var(--awoo-s1); }
+        .awoo-pd-table th { font-weight: 500; opacity: var(--awoo-em-muted); text-align: right; border-bottom: 1px solid var(--awoo-line); padding: 0 var(--awoo-s1); }
         .awoo-pd-table td { text-align: right; padding: 0 var(--awoo-s1); font-variant-numeric: tabular-nums; font-family: var(--awoo-font-num); }
         .awoo-pd-table th:first-child, .awoo-pd-table td:first-child { text-align: left; }
         .awoo-pd-pre { margin: 0; padding: var(--awoo-s2) var(--awoo-s3); font: 11px/1.4 ui-monospace, Consolas, monospace; white-space: pre-wrap;
@@ -2537,7 +2567,7 @@
           align-items: center; gap: 8px; margin: 5px 0; }
         .awoo-ui-input-row label { display: flex; align-items: center; gap: 4px; font-size: 11.5px; opacity: .85; }
         .awoo-ui-input-row input, .awoo-ui-input-row select { font: inherit; font-size: 12px;
-          background: var(--awoo-input); color: var(--awoo-foreground); border: 1px solid var(--awoo-border);
+          background: var(--awoo-input); color: var(--awoo-foreground); border: 1px solid var(--awoo-edge);
           border-radius: 4px; padding: 3px 6px; width: 100%; box-sizing: border-box; }
         /* An input row that toggles off (the Time zone row's zone picker, shown
            only in "Choose a zone") needs to actually disappear: the class above
@@ -2568,10 +2598,11 @@
         .awoo-aud-mark { display: inline-block; width: 5px; height: 5px; border-radius: 50%;
           margin-left: var(--awoo-s2); flex: none; vertical-align: middle; }
         .awoo-aud-mark.awoo-m-aud-trusted { background: var(--awoo-trusted); }
+        .awoo-aud-mark.awoo-m-aud-village { background: var(--awoo-village); }
         .awoo-aud-mark.awoo-m-aud-dev { background: var(--awoo-dev); }
         .awoo-ui-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
         .awoo-ui-table th { text-align: left; font-weight: 600; font-size: 10px; text-transform: uppercase;
-          letter-spacing: .03em; opacity: .55; padding: 4px 6px; border-bottom: 1px solid var(--awoo-border);
+          letter-spacing: .03em; opacity: .55; padding: 4px 6px; border-bottom: 1px solid var(--awoo-line);
           white-space: nowrap; }
         .awoo-ui-table td { padding: 5px 6px; vertical-align: middle;
           border-bottom: 1px solid color-mix(in srgb, var(--awoo-border) 60%, transparent); }
@@ -2584,7 +2615,7 @@
             inset 0 -1px 0 var(--awoo-accent-edge, var(--awoo-border)); }
         .awoo-ui-table tr.awoo-ui-row-current td:first-child { font-weight: 600; }
         .awoo-ui-actions { display: flex; gap: 4px; white-space: nowrap; }
-        .awoo-ui-btn { background: var(--awoo-input); border: 1px solid var(--awoo-border); border-radius: 4px;
+        .awoo-ui-btn { background: var(--awoo-input); border: 1px solid var(--awoo-edge); border-radius: 4px;
           color: var(--awoo-foreground); font: inherit; font-size: 11px; padding: 3px 8px; cursor: pointer; }
         .awoo-ui-btn:hover { background: var(--awoo-popover); }
         .awoo-ui-btn-danger { color: var(--awoo-danger); border-color: color-mix(in srgb, var(--awoo-danger) 55%, var(--awoo-border)); }
@@ -2595,7 +2626,7 @@
         /* Square icon-only button — a table row's rightmost action (share/
            export), or anywhere a full-width labelled button would be too
            heavy next to compact table text. */
-        .awoo-ui-icon-btn { background: var(--awoo-input); border: 1px solid var(--awoo-border);
+        .awoo-ui-icon-btn { background: var(--awoo-input); border: 1px solid var(--awoo-edge);
           border-radius: 4px; color: var(--awoo-foreground); width: 24px; height: 24px; padding: 0;
           display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none; }
         .awoo-ui-icon-btn svg { width: 13px; height: 13px; display: block; }
@@ -2606,7 +2637,7 @@
            the whole Core menu. */
         .awoo-ui-menu { position: fixed; z-index: 1000500; background: var(--awoo-solid-card);
           color: var(--awoo-solid-popover-foreground); border: 1px solid var(--awoo-solid-border);
-          border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,.45); padding: 4px; min-width: 170px;
+          border-radius: var(--awoo-r-md); box-shadow: var(--awoo-pop); padding: 4px; min-width: 170px;
           font: calc(12px * var(--awoo-ui-scale, 1)) var(--awoo-font, ${CORE_FONT}); }
         .awoo-ui-menu-item { display: block; width: 100%; text-align: left; background: none; border: none;
           color: inherit; font: inherit; font-size: 11.5px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
@@ -2614,7 +2645,7 @@
         .awoo-ui-modal-overlay { position: fixed; inset: 0; z-index: 1001000; background: rgba(0,0,0,.45);
           display: flex; align-items: center; justify-content: center; font: calc(12px * var(--awoo-ui-scale, 1)) var(--awoo-font, ${CORE_FONT}); }
         .awoo-ui-modal { background: var(--awoo-card); color: var(--awoo-popover-foreground);
-          border: 1px solid var(--awoo-border); border-radius: 8px; box-shadow: 0 16px 48px rgba(0,0,0,.5);
+          border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-lg); box-shadow: 0 2px 4px rgba(0,0,0,.3), 0 16px 48px rgba(0,0,0,.45), inset 0 0 0 1px rgba(255,255,255,.04);
           padding: 16px; max-width: 360px; }
         .awoo-ui-modal-title { font-weight: 700; font-size: 13px; margin-bottom: 8px; }
         .awoo-ui-modal-msg { opacity: .85; line-height: 1.4; margin-bottom: 14px; white-space: pre-wrap; }
@@ -2637,7 +2668,7 @@
         .awoo-window-body > .awoo-settings { position: absolute; inset: 0; }
         .awoo-settings-frame { flex: 1; display: flex; min-width: 0; min-height: 0; }
         .awoo-settings-side { flex: none; width: calc(var(--awoo-cp-side, 150px) * var(--awoo-ui-scale, 1)); padding: var(--awoo-s4) var(--awoo-s3);
-          border-right: 1px solid var(--awoo-border); display: flex; flex-direction: column;
+          border-right: 1px solid var(--awoo-line); display: flex; flex-direction: column;
           gap: var(--awoo-s1); background: var(--awoo-ground); box-sizing: border-box; overflow: hidden; }
         .awoo-cp-sidescroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--awoo-s1);
           scrollbar-width: thin; }
@@ -2651,7 +2682,7 @@
           text-transform: uppercase; letter-spacing: .09em; color: var(--awoo-ink-mute);
           padding: 0 3px; margin: var(--awoo-s5) 4px var(--awoo-s1);
           cursor: default; user-select: none; }
-        .awoo-settings-side-h::after { content: ""; flex: 1; border-top: 1px solid var(--awoo-border); }
+        .awoo-settings-side-h::after { content: ""; flex: 1; border-top: 1px solid var(--awoo-line); }
         .awoo-settings-side-h:first-child { margin-top: var(--awoo-s1); }
         .awoo-settings-side-i { background: none; border: 1px solid transparent; color: var(--awoo-ink); font: inherit;
           font-size: var(--awoo-fs-control); text-align: left; padding: var(--awoo-s1) 7px;
@@ -2675,7 +2706,7 @@
           font-size: var(--awoo-fs-micro); font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
           color: var(--awoo-ink-mute); opacity: 1; margin: var(--awoo-s5) 0 0; padding: 0; border: none; }
         .awoo-settings-cat::after, .awoo-settings .awoo-ui-group-label::after { content: ""; flex: 1; order: 1;
-          border-top: 1px solid var(--awoo-border); }
+          border-top: 1px solid var(--awoo-line); }
         .awoo-settings-cat > *, .awoo-settings .awoo-ui-group-label > * { order: 2; margin-left: 0; }
         .awoo-settings-cat > .awoo-core-info-icon, .awoo-settings .awoo-ui-group-label > .awoo-core-info-icon { order: 0; }
         .awoo-settings-pane > .awoo-settings-cat:first-child { margin-top: 0; }
@@ -2695,7 +2726,7 @@
            real Save. The rule follows the setting, not the window. */
         .awoo-settings-savebar { display: flex; align-items: center; gap: var(--awoo-s4);
           margin-top: var(--awoo-s4); padding-top: var(--awoo-s4);
-          border-top: 1px solid var(--awoo-border); font-size: var(--awoo-fs-control); }
+          border-top: 1px solid var(--awoo-line); font-size: var(--awoo-fs-control); }
         .awoo-settings-savebar-label { color: var(--awoo-warn); }
         .awoo-settings-applied { font-size: var(--awoo-fs-caption); color: var(--awoo-success);
           opacity: 0; transition: opacity .15s ease; }
@@ -2730,7 +2761,7 @@
            the tools' card tabs), with 10c's naming: one or two words, ink,
            the sub-line on hover, the accent under the selected one. They wrap
            rather than scroll when the panel is narrow. */
-        .awoo-cp-tabs { display: flex; flex-wrap: wrap; gap: 0 var(--awoo-s1); border-bottom: 1px solid var(--awoo-border);
+        .awoo-cp-tabs { display: flex; flex-wrap: wrap; gap: 0 var(--awoo-s1); border-bottom: 1px solid var(--awoo-line);
           margin: 0 0 var(--awoo-s4); }
         .awoo-cp-tab { background: none; border: none; border-bottom: 2px solid transparent; color: var(--awoo-ink);
           font: inherit; font-size: var(--awoo-fs-control); font-weight: 600; padding: var(--awoo-s2) var(--awoo-s4);
@@ -2777,15 +2808,15 @@
         /* TABLES (§10f): framed, never scrolled sideways. A column that does
            not fit is dropped by the container rules below (awoo-m-opt), and
            text cells wrap; the head is the tools' mono head on surface-2. */
-        .awoo-cp-tablewrap { border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md); overflow: hidden; }
+        .awoo-cp-tablewrap { border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-md); overflow: hidden; }
         .awoo-cp-table { width: 100%; border-collapse: collapse; font-size: var(--awoo-fs-control); }
         .awoo-cp-table th { font-family: var(--awoo-font-mono); font-size: var(--awoo-fs-micro); font-weight: 500;
           text-transform: uppercase; letter-spacing: .04em; line-height: 1.35; color: var(--awoo-ink-mute);
           background: var(--awoo-surface-2); text-align: left; vertical-align: bottom; white-space: normal;
-          padding: var(--awoo-s2) var(--awoo-row-x); border-bottom: 1px solid var(--awoo-border); }
-        .awoo-cp-table th.awoo-m-grp { border-bottom: 1px solid var(--awoo-border); text-align: center; }
+          padding: var(--awoo-s2) var(--awoo-row-x); border-bottom: 1px solid var(--awoo-line); }
+        .awoo-cp-table th.awoo-m-grp { border-bottom: 1px solid var(--awoo-line); text-align: center; }
         .awoo-cp-table td { padding: var(--awoo-s1) var(--awoo-row-x); vertical-align: middle; line-height: 1.45;
-          font-variant-numeric: tabular-nums; border-top: 1px solid var(--awoo-border); }
+          font-variant-numeric: tabular-nums; border-top: 1px solid var(--awoo-line); }
         .awoo-cp-table tr:first-child td { border-top: none; }
         .awoo-cp-table .awoo-m-c { text-align: center; width: 1%; white-space: nowrap; padding-inline: var(--awoo-s2); }
         .awoo-cp-table .awoo-m-n { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--awoo-font-num, inherit); white-space: nowrap; }
@@ -2809,6 +2840,7 @@
            trusted blue, dev-only in the dev colour, wherever a module or tool
            is named in a list. Never on the top bar, where colour is status. */
         .awoo-m-aud-trusted { color: var(--awoo-trusted); }
+        .awoo-m-aud-village { color: var(--awoo-village); }
         .awoo-m-aud-dev { color: var(--awoo-dev); }
         /* The category beside a name, as a mark (§10g). */
         .awoo-cp-cat { font-size: var(--awoo-fs-micro); text-transform: uppercase; letter-spacing: .05em; line-height: 1.3;
@@ -2896,7 +2928,7 @@
         .awoo-cp-posrow { display: flex; align-items: center; gap: var(--awoo-s4); flex-wrap: wrap; }
         .awoo-cp-posgrid { display: grid; grid-template-columns: repeat(3, 26px); grid-template-rows: repeat(2, 18px); gap: 3px;
           padding: 3px; border: 1px solid var(--awoo-border-strong, var(--awoo-border)); border-radius: var(--awoo-in-radius); }
-        .awoo-cp-pos { border: 1px solid var(--awoo-border); background: transparent; border-radius: var(--awoo-in-radius); cursor: pointer; padding: 0; }
+        .awoo-cp-pos { border: 1px solid var(--awoo-edge); background: transparent; border-radius: var(--awoo-in-radius); cursor: pointer; padding: 0; }
         .awoo-cp-pos:hover { border-color: var(--awoo-accent-fill); }
         .awoo-cp-pos[aria-pressed="true"] { background: var(--awoo-accent-fill); border-color: var(--awoo-accent-fill); }
         /* Notifications › History (R118): one line per notice, its colour on the edge. */
@@ -2918,10 +2950,10 @@
         .awoo-cp-notch { position: absolute; bottom: 0; width: 1px; height: 5px; pointer-events: none;
           left: calc(8px + (100% - 16px) * var(--awoo-notch, .5)); background: var(--awoo-ink-mute); }
         .awoo-cp-sliderval { min-width: 2ch; text-align: right; font-variant-numeric: tabular-nums; font-family: var(--awoo-font-num, inherit); }
-        .awoo-cp-card { border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md); }
+        .awoo-cp-card { border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-md); }
         .awoo-cp-cardhead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s4); padding: var(--awoo-s3) var(--awoo-s4); }
         .awoo-cp-cardhead > div:first-child { flex: 1; min-width: 0; }
-        .awoo-cp-cardbody { border-top: 1px solid var(--awoo-border); padding: var(--awoo-s3) var(--awoo-s4);
+        .awoo-cp-cardbody { border-top: 1px solid var(--awoo-line); padding: var(--awoo-s3) var(--awoo-s4);
           display: flex; flex-direction: column; gap: var(--awoo-s3); }
         /* ---- Features (R230-R232): the lists, their details, the key ---- */
         .awoo-cp-listbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s2) var(--awoo-s3); }
@@ -2930,7 +2962,7 @@
           color: var(--awoo-accent); cursor: pointer; }
         .awoo-cp-link:hover, .awoo-cp-link:focus-visible { text-decoration: underline; }
         .awoo-cp-legend { display: flex; flex-wrap: wrap; gap: var(--awoo-s2) var(--awoo-s5); padding: var(--awoo-s3) var(--awoo-s4);
-          border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md); background: var(--awoo-surface-2);
+          border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-md); background: var(--awoo-surface-2);
           font-size: var(--awoo-fs-caption); color: var(--awoo-ink-soft); }
         .awoo-cp-legend-i { display: inline-flex; align-items: center; gap: var(--awoo-s2); }
         .awoo-cp-gapmark, .awoo-cp-table td.awoo-cp-gap { color: var(--awoo-ink-mute); }
@@ -2968,7 +3000,7 @@
         .awoo-cp-listfoot { align-items: center; }
         /* A question asked in place, under the button that asked it. */
         .awoo-cp-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s3) var(--awoo-s4);
-          padding: var(--awoo-s3) var(--awoo-s4); border: 1px solid var(--awoo-border); border-left: 3px solid var(--awoo-warn);
+          padding: var(--awoo-s3) var(--awoo-s4); border: 1px solid var(--awoo-edge); border-left: 3px solid var(--awoo-warn);
           border-radius: var(--awoo-r-md); font-size: var(--awoo-fs-control); color: var(--awoo-ink); }
         .awoo-cp-confirm[hidden] { display: none; }
         .awoo-cp-confirm > span { flex: 1; min-width: 14em; }
@@ -2976,7 +3008,7 @@
            where it sits, its name and what it does, then its light, its
            switch and its window on the right. The body is the module's own. */
         .awoo-cp-fhead { display: flex; flex-wrap: wrap; align-items: flex-start; gap: var(--awoo-s4) var(--awoo-s6);
-          padding-bottom: var(--awoo-s4); border-bottom: 1px solid var(--awoo-border); }
+          padding-bottom: var(--awoo-s4); border-bottom: 1px solid var(--awoo-line); }
         .awoo-cp-fheadtext { flex: 1; min-width: 16em; display: flex; flex-direction: column; gap: var(--awoo-s2); }
         .awoo-cp-crumb { font-family: var(--awoo-font-mono); font-size: var(--awoo-fs-micro); font-weight: 500;
           text-transform: uppercase; letter-spacing: .06em; color: var(--awoo-ink-mute); }
@@ -3019,11 +3051,11 @@
         /* ---- Theme & size: the themes as swatches ---- */
         .awoo-cp-themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(calc(92px * var(--awoo-ui-scale, 1)), 1fr)); gap: var(--awoo-s4); }
         .awoo-cp-theme { display: flex; flex-direction: column; gap: var(--awoo-s2); padding: var(--awoo-s2); background: none; font: inherit;
-          border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md); cursor: pointer; color: var(--awoo-ink); text-align: left; }
+          border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-md); cursor: pointer; color: var(--awoo-ink); text-align: left; }
         .awoo-cp-theme:hover { border-color: var(--awoo-accent-edge, var(--awoo-accent)); }
         .awoo-cp-theme.awoo-m-on { border-color: var(--awoo-accent); box-shadow: inset 0 0 0 1px var(--awoo-accent); background: var(--awoo-bg-accent); }
         .awoo-cp-themepv { display: flex; height: calc(38px * var(--awoo-ui-scale, 1)); border-radius: var(--awoo-in-radius); overflow: hidden;
-          border: 1px solid var(--awoo-border); }
+          border: 1px solid var(--awoo-edge); }
         .awoo-cp-themepv.awoo-m-game { align-items: center; justify-content: center; font-size: var(--awoo-fs-caption);
           color: var(--awoo-ink-soft); border-style: dashed; }
         .awoo-cp-themehalf { flex: 1; display: flex; align-items: flex-end; padding: var(--awoo-s2) 0 0 var(--awoo-s2); min-width: 0; }
@@ -3034,7 +3066,7 @@
         /* A STATUS BANNER is the tools' sync card (§10d): a hairline frame and
            a 3px left edge in the state's colour; the words stay ink. */
         .awoo-cp-banner { display: flex; flex-wrap: wrap; align-items: center; gap: var(--awoo-s3) var(--awoo-s4); padding: var(--awoo-s3) var(--awoo-s4);
-          border: 1px solid var(--awoo-border); border-left: 3px solid var(--awoo-border-strong, var(--awoo-border));
+          border: 1px solid var(--awoo-edge); border-left: 3px solid var(--awoo-border-strong, var(--awoo-border));
           border-radius: var(--awoo-r-md); font-size: var(--awoo-fs-control); }
         .awoo-cp-banner.awoo-m-ok { border-left-color: var(--awoo-success-fill, var(--awoo-success)); }
         .awoo-cp-banner.awoo-m-warn { border-left-color: var(--awoo-warn); }
@@ -3049,7 +3081,7 @@
         .awoo-cp-notes { font-size: var(--awoo-fs-caption); white-space: pre-wrap; margin-top: var(--awoo-s1);
           color: var(--awoo-ink-soft); }
         .awoo-cp-log { margin: 0; font-size: var(--awoo-fs-caption); white-space: pre-wrap; max-height: 9em; overflow: auto;
-          padding: var(--awoo-s3); border: 1px solid var(--awoo-border); border-radius: var(--awoo-in-radius);
+          padding: var(--awoo-s3); border: 1px solid var(--awoo-edge); border-radius: var(--awoo-in-radius);
           background: var(--awoo-surface-2); color: var(--awoo-ink-soft); }
         /* Settings > Appearance > Fonts: label, preview, select. The select
            sits in the shared value column (the last one), so it lines up with
@@ -3070,7 +3102,7 @@
         .awoo-fonts-hint { font-size: var(--awoo-fs-caption); color: var(--awoo-ink-soft); }
         .awoo-fonts-chip { letter-spacing: .05em; color: var(--awoo-success); }
         .awoo-fonts-chip.dirty { color: var(--awoo-warn); }
-        .awoo-ui-group { border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md);
+        .awoo-ui-group { border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-md);
           padding: var(--awoo-s4) 10px; }
         .awoo-ui-group-label { font-size: var(--awoo-fs-micro); text-transform: uppercase;
           letter-spacing: .05em; opacity: var(--awoo-em-muted); margin-bottom: 7px;
@@ -3134,7 +3166,7 @@
         @container awoo-cp (max-width: 520px) {
           .awoo-settings-frame { flex-direction: column; }
           .awoo-settings-side { width: auto; flex-direction: row; flex-wrap: wrap; align-items: center;
-            border-right: none; border-bottom: 1px solid var(--awoo-border); max-height: 40%; overflow-y: auto; }
+            border-right: none; border-bottom: 1px solid var(--awoo-line); max-height: 40%; overflow-y: auto; }
           .awoo-cp-sidescroll { display: contents; }
           .awoo-settings-side-h { flex-basis: 100%; margin: var(--awoo-s2) 4px 0; }
           .awoo-settings-side-h:first-child { margin-top: 0; }
@@ -3227,7 +3259,7 @@
         .awoo-ui-companion-dim .awoo-ui-companion-body { opacity: var(--awoo-em-muted); }
 
         /* ---- activity strip ---- */
-        .awoo-ui-activity { margin: auto -11px -10px; border-top: 1px solid var(--awoo-border);
+        .awoo-ui-activity { margin: auto -11px -10px; border-top: 1px solid var(--awoo-line);
           background: color-mix(in srgb, var(--awoo-card) 94%, #000); flex: none; }
         .awoo-ui-activity-head { display: flex; align-items: center; gap: 7px; width: 100%;
           padding: var(--awoo-s3) 11px; background: none; border: none; color: inherit;
@@ -3238,7 +3270,7 @@
           white-space: nowrap; opacity: var(--awoo-em-normal); }
         .awoo-ui-activity-ago { flex: none; opacity: var(--awoo-em-faint); }
         .awoo-ui-activity-chev { flex: none; opacity: var(--awoo-em-faint); font-size: var(--awoo-fs-caption); }
-        .awoo-ui-activity-list { border-top: 1px solid var(--awoo-border);
+        .awoo-ui-activity-list { border-top: 1px solid var(--awoo-line);
           padding: var(--awoo-s1) 0; max-height: 132px; overflow-y: auto; }
         .awoo-ui-activity-row { display: flex; align-items: center; gap: 7px;
           padding: 3px 11px; font-size: var(--awoo-fs-body); }
@@ -3434,7 +3466,7 @@
       if (audienceClass(winAudience)) {
         const mark = document.createElement('span');
         mark.className = 'awoo-window-aud ' + audienceClass(winAudience);
-        mark.textContent = winAudience === 'dev' ? 'Dev' : 'Trusted';
+        mark.textContent = winAudience === 'dev' ? 'Dev' : winAudience === 'village' ? 'Village' : 'Trusted';
         mark.title = audienceNote(winAudience);
         header.appendChild(mark);
       }
@@ -4243,7 +4275,7 @@
         #awoo-core-group { display: inline-flex; align-items: center; gap: calc(2px * var(--awoo-ui-scale, 1)); vertical-align: middle;
           border-radius: 4px; font-family: var(--awoo-font, ${CORE_FONT}); line-height: 1;
           height: calc(22px * var(--awoo-bar-k, 1)); box-sizing: border-box; align-self: center; margin: 0 4px; padding: 1px;
-          border: 1px solid var(--awoo-border); background: transparent; }
+          border: 1px solid var(--awoo-edge); background: transparent; }
         /* Only when no nav bar could be found - see anchorGroup(). */
         #awoo-core-group.awoo-core-floating { position: fixed; top: 8px; right: 8px; z-index: 999500;
           background: var(--awoo-card); box-shadow: 0 4px 16px rgba(0,0,0,.4); }
@@ -4252,6 +4284,10 @@
           font-size: calc(11px * var(--awoo-bar-k, 1));
           height: 100%; -webkit-font-smoothing: antialiased; transition: border-color .1s ease; }
         #awoo-core-btn:hover { border-color: var(--awoo-border-strong); }
+        /* R238: an outline at rest, so it reads as a button, and the accent
+           outline while its menu is open (no fill: the maintainer, round 3). */
+        #awoo-core-btn { border-color: var(--awoo-border); }
+        #awoo-core-btn.awoo-core-btn-open { border-color: var(--awoo-primary); }
         .awoo-core-bar-sep { width: 1px; height: calc(12px * var(--awoo-bar-k, 1)); background: var(--awoo-border); flex: none; margin: 0 3px; }
         .awoo-core-bar-sep[hidden] { display: none; }
         #awoo-core-quick-row { display: flex; align-items: center; gap: calc(2px * var(--awoo-ui-scale, 1)); height: 100%; }
@@ -4295,8 +4331,8 @@
         .awoo-core-profile-dot.awoo-m-old { background: var(--awoo-warn); }
         .awoo-core-profile-dot.awoo-m-none { background: var(--awoo-solid-card, var(--awoo-card)); box-shadow: inset 0 0 0 1px currentColor, 0 0 0 1.5px var(--awoo-solid-card, var(--awoo-card)); }
         .awoo-core-profile-card { position: fixed; z-index: 1000500; width: 300px; box-sizing: border-box; background: var(--awoo-solid-card, var(--awoo-card));
-          color: var(--awoo-popover-foreground); border: 1px solid var(--awoo-border-strong); border-radius: 6px;
-          box-shadow: 0 10px 26px rgba(0,0,0,.45); padding: 8px 10px; pointer-events: none;
+          color: var(--awoo-popover-foreground); border: 1px solid var(--awoo-border-strong); border-radius: var(--awoo-r-md);
+          box-shadow: var(--awoo-pop); padding: 8px 10px; pointer-events: none;
           font: calc(12px * var(--awoo-ui-scale, 1)) var(--awoo-font, ${CORE_FONT}); }
         .awoo-core-profile-card[hidden] { display: none; }
         .awoo-core-pc-head { display: flex; align-items: center; gap: var(--awoo-s3); font-weight: 700; margin-bottom: 6px; }
@@ -4341,10 +4377,14 @@
         /* NO BLINK (the maintainer, 2026-09-25: "too distracting", and more so
            while Profile Sync is still imperfect). Colour and the glyph carry it. */
         #awoo-core-dropdown { position: fixed; z-index: 999501; background: var(--awoo-card);
-          color: var(--awoo-popover-foreground); border: 2px solid var(--awoo-border); border-radius: 6px;
-          box-shadow: 0 8px 24px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.04);
+          color: var(--awoo-popover-foreground); border: 1px solid var(--awoo-edge);
+          border-radius: var(--awoo-r-lg);
+          -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+          /* A hairline edge plus a soft inner highlight and layered shadows: the
+             smooth, anti-aliased edge of current UI kits, instead of a hard 2px line. */
+          box-shadow: var(--awoo-pop);
           padding: 0; font: calc(12px * var(--awoo-ui-scale, 1)) var(--awoo-font, ${CORE_FONT});
-          width: calc(300px * var(--awoo-ui-scale, 1)); height: calc(400px * var(--awoo-ui-scale, 1));
+          width: calc(340px * var(--awoo-ui-scale, 1)); max-height: calc(540px * var(--awoo-ui-scale, 1));
           flex-direction: column; overflow: hidden; }
         #awoo-core-dropdown.awoo-pal-wide { width: calc(600px * var(--awoo-ui-scale, 1)); }
         /* ui.infoIcon's icon. It lived beside the old menu's section labels, and
@@ -4356,34 +4396,88 @@
         .awoo-core-info-icon svg { width: 11px; height: 11px; display: block; }
         /* ---- the menu as a command palette (REGISTER.md R69; DESIGN.md §9) ----
            Tight rows, one entry per thing, a fixed height so nothing jumps. */
-        .awoo-pal-top { display: flex; align-items: center; gap: var(--awoo-s3); padding: var(--awoo-s2) var(--awoo-s2) var(--awoo-s2) var(--awoo-s4);
-          border-bottom: 1px solid var(--awoo-border); flex: none; }
-        .awoo-pal-top b { font-weight: 700; color: var(--awoo-primary); }
-        .awoo-pal-count { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted); flex: 1; }
+        .awoo-pal-top { display: flex; align-items: center; gap: var(--awoo-s2); padding: var(--awoo-s1) var(--awoo-s2) var(--awoo-s1) var(--awoo-s4);
+          border-bottom: 1px solid var(--awoo-line); flex: none; }
+        /* R238 round 4: a small title, no "4 of 4 loaded" beside it. */
+        .awoo-pal-top b { font-weight: 700; font-size: var(--awoo-fs-caption); letter-spacing: .02em; color: var(--awoo-primary); flex: 1; }
         .awoo-pal-ib { width: 24px; height: 24px; display: inline-grid; place-items: center; padding: 0; cursor: pointer;
           background: none; border: 1px solid transparent; border-radius: var(--awoo-r-sm); color: inherit; opacity: var(--awoo-em-muted); }
         .awoo-pal-ib:hover, .awoo-pal-ib:focus-visible { opacity: 1; background: var(--awoo-hover); border-color: var(--awoo-border); }
         .awoo-pal-ib svg { width: 14px; height: 14px; }
-        .awoo-pal-search { display: flex; align-items: center; gap: var(--awoo-s3); padding: var(--awoo-s3) var(--awoo-s4);
-          border-bottom: 1px solid var(--awoo-border); flex: none; }
+        /* R238: search lives in the header, behind its icon; open, the box
+           takes the place of the title. */
+        .awoo-pal-search { display: flex; align-items: center; gap: var(--awoo-s3); flex: 1; min-width: 0; }
+        .awoo-pal-top.awoo-m-searching > b { display: none; }
+        .awoo-pal-ib.awoo-m-on { opacity: 1; background: var(--awoo-hover); border-color: var(--awoo-border); }
         #awoo-core-dropdown:focus { outline: none; }
         .awoo-pal-search[hidden] { display: none; }
         .awoo-pal-search svg { width: 13px; height: 13px; opacity: var(--awoo-em-muted); flex: none; }
-        .awoo-pal-search input { flex: 1; min-width: 0; background: none; border: none; outline: none; color: inherit;
-          font: inherit; font-size: var(--awoo-fs-body); padding: 0; }
+        .awoo-pal-search input { flex: 1; min-width: 0; background: var(--awoo-hover); border: 1px solid var(--awoo-edge);
+          border-radius: var(--awoo-r-sm); outline: none; color: inherit; font: inherit; font-size: var(--awoo-fs-body);
+          padding: 1px var(--awoo-s3); }
+        .awoo-pal-search input:focus { border-color: color-mix(in srgb, var(--awoo-primary) 60%, transparent); }
         .awoo-pal-main { flex: 1; min-height: 0; display: flex; }
-        .awoo-pal-list { flex: 1; min-width: 0; overflow: auto; padding: var(--awoo-s1) var(--awoo-s2) var(--awoo-s2); }
-        .awoo-pal-side { flex: 1; min-width: 0; overflow: auto; border-left: 1px solid var(--awoo-border);
+        .awoo-pal-list { flex: 1; min-width: 0; overflow: auto; padding: var(--awoo-s3) var(--awoo-s3) var(--awoo-s4); }
+        .awoo-pal-side { flex: 1; min-width: 0; overflow: auto; border-left: 1px solid var(--awoo-line);
           padding: var(--awoo-s3) var(--awoo-s4); display: flex; flex-direction: column; gap: var(--awoo-s3); }
         .awoo-pal-group { font-size: var(--awoo-fs-micro); text-transform: uppercase; letter-spacing: .1em; font-weight: 700;
-          padding: var(--awoo-s3) var(--awoo-s3) var(--awoo-s1); display: flex; align-items: baseline; }
+          padding: var(--awoo-s3) var(--awoo-s3) var(--awoo-s1); display: flex; align-items: center; gap: var(--awoo-s3);
+          width: 100%; box-sizing: border-box; background: none; border: none; color: inherit; font-family: inherit;
+          text-align: left; border-radius: var(--awoo-r-sm); }
         .awoo-pal-glabel { opacity: var(--awoo-em-muted); }
-        .awoo-pal-manage { margin-left: auto; background: none; border: none; color: inherit; font: inherit;
-          text-transform: none; letter-spacing: 0; font-weight: 400; padding: 0; cursor: pointer; opacity: var(--awoo-em-faint); }
-        .awoo-pal-manage:hover, .awoo-pal-manage:focus-visible { opacity: 1; color: var(--awoo-primary); }
-        .awoo-pal-gear { margin-left: 0; }
+        /* R238 round 4: Modules, Tweaks and Tools each sit on their own faint
+           card (one shared background groups them; space, not a line, keeps
+           them apart). The heading is plain words in sentence case, never a
+           hover target; its Manage button is always there. */
+        .awoo-pal-sect { background: color-mix(in oklab, var(--awoo-accent) 5%, var(--awoo-card)); border-radius: var(--awoo-r-md);
+          box-shadow: inset 0 0 0 1px var(--awoo-border);
+          padding: var(--awoo-s1) var(--awoo-s2) var(--awoo-s3); }
+        .awoo-pal-sect + .awoo-pal-sect { margin-top: var(--awoo-s4); }
+        .awoo-pal-sect > .awoo-pal-group { font-size: var(--awoo-fs-caption); text-transform: none; letter-spacing: 0; font-weight: 600;
+          padding: var(--awoo-s3) var(--awoo-s2) var(--awoo-s2) var(--awoo-s3); }
+        .awoo-pal-sect > .awoo-pal-group .awoo-pal-glabel { opacity: var(--awoo-em-normal); flex: 1; }
+        .awoo-pal-gman { background: none; border: none; padding: 1px var(--awoo-s2); border-radius: var(--awoo-r-sm); cursor: pointer;
+          font: inherit; font-size: var(--awoo-fs-micro); font-weight: 500; color: var(--awoo-primary); }
+        .awoo-pal-gman:hover, .awoo-pal-gman:focus-visible { background: color-mix(in srgb, var(--awoo-primary) 12%, transparent); }
+        /* R238 round 3: the DOT carries the audience colour (grey public,
+           trusted blue, dev teal) and the name stays plain ink; an empty ring
+           is off. What needs you is a ! or ✕ after the name, only then. */
+        .awoo-pal-adot { --awoo-dotc: var(--awoo-ink-soft); width: 7px; height: 7px; border-radius: 50%; flex: none;
+          background: var(--awoo-dotc); margin: 0 1px; }
+        .awoo-pal-adot.awoo-m-aud-trusted { --awoo-dotc: var(--awoo-trusted); }
+        .awoo-pal-adot.awoo-m-aud-village { --awoo-dotc: var(--awoo-village); }
+        .awoo-pal-adot.awoo-m-aud-dev { --awoo-dotc: var(--awoo-dev); }
+        .awoo-pal-adot.awoo-m-off { background: none; box-shadow: inset 0 0 0 1.5px var(--awoo-dotc); opacity: .75; }
+        .awoo-pal-tooldot { width: 5px; height: 5px; margin: 0 2px; }
+        .awoo-pal-flag { font-weight: 700; font-size: var(--awoo-fs-caption); line-height: 1; }
+        .awoo-pal-flag:empty { display: none; }
+        .awoo-pal-flag.awoo-m-warn { color: var(--awoo-warn); }
+        .awoo-pal-flag.awoo-m-bad { color: var(--awoo-danger); }
+        .awoo-pal-ext { width: 10px; height: 10px; flex: none; opacity: var(--awoo-em-muted); margin-left: calc(-1 * var(--awoo-s2)); }
+        .awoo-pal-ext svg { width: 10px; height: 10px; display: block; }
+        .awoo-pal-row.awoo-m-tight .awoo-pal-name { flex: 0 1 auto; }
+        .awoo-pal-row.awoo-m-sub { padding-left: calc(var(--awoo-s3) + 14px); }
+        .awoo-pal-side.awoo-m-tools { padding: var(--awoo-s3) var(--awoo-s3) var(--awoo-s4); gap: 0; }
+        /* The key: what each light means, from the ? in the header. */
+        .awoo-pal-legend { position: absolute; top: calc(34px * var(--awoo-ui-scale, 1)); right: var(--awoo-s2); z-index: 2;
+          background: var(--awoo-card); border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-sm);
+          box-shadow: 0 6px 18px rgba(0,0,0,.35); padding: var(--awoo-s3) var(--awoo-s4); font-size: var(--awoo-fs-caption);
+          display: grid; grid-template-columns: 14px auto; gap: var(--awoo-s2) var(--awoo-s3); align-items: center; max-width: 260px; }
+        .awoo-pal-legend[hidden] { display: none; }
+        .awoo-pal-legend > .awoo-pal-label { grid-column: 1 / -1; margin: 0; }
+        .awoo-pal-legend > :nth-child(even):not(.awoo-pal-label) { justify-self: center; }
+        /* Footer icons stay grey; each takes its own colour when pointed at, and
+           the update icon is green with a dot while an update waits (R238). */
+        .awoo-pal-foot .awoo-pal-ib[data-tone="bug"]:hover { color: var(--awoo-warn); }
+        .awoo-pal-foot .awoo-pal-ib[data-tone="update"]:hover { color: var(--awoo-success); }
+        .awoo-pal-foot .awoo-pal-ib[data-tone="dev"]:hover { color: var(--awoo-dev); }
+        .awoo-pal-foot .awoo-pal-ib[data-tone="key"]:hover { color: var(--awoo-danger); }
+        .awoo-pal-foot .awoo-pal-ib.awoo-m-has { color: var(--awoo-success); opacity: 1; position: relative; }
+        .awoo-pal-foot .awoo-pal-ib.awoo-m-has::after { content: ""; position: absolute; top: 3px; right: 3px; width: 5px; height: 5px;
+          border-radius: 50%; background: var(--awoo-success); }
         .awoo-pal-row { display: flex; align-items: center; gap: var(--awoo-s3); padding: 0 var(--awoo-s3);
-          min-height: 22px; border-radius: var(--awoo-r-sm); cursor: pointer; }
+          min-height: 24px; border-radius: var(--awoo-r-md); cursor: pointer;
+          transition: background-color .12s ease; }
         .awoo-pal-row.awoo-m-sel { background: var(--awoo-hover); }
         .awoo-pal-row .awoo-core-sd { margin: 0 1px; }
         .awoo-pal-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -4402,6 +4496,7 @@
         .awoo-aud-mark { display: inline-block; width: 5px; height: 5px; border-radius: 50%;
           margin-left: var(--awoo-s2); flex: none; vertical-align: middle; }
         .awoo-aud-mark.awoo-m-aud-trusted { background: var(--awoo-trusted); }
+        .awoo-aud-mark.awoo-m-aud-village { background: var(--awoo-village); }
         .awoo-aud-mark.awoo-m-aud-dev { background: var(--awoo-dev); }
         .awoo-pal-right { font-size: var(--awoo-fs-caption); opacity: var(--awoo-em-muted); font-variant-numeric: tabular-nums;
           white-space: nowrap; }
@@ -4428,7 +4523,7 @@
           opacity: var(--awoo-em-muted); margin-top: var(--awoo-s2); }
         .awoo-pal-warn { font-size: var(--awoo-fs-caption); color: var(--awoo-warn); }
         .awoo-pal-meta { margin-top: auto; }
-        .awoo-pal-card { border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-sm); padding: var(--awoo-s3) var(--awoo-s4);
+        .awoo-pal-card { border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-sm); padding: var(--awoo-s3) var(--awoo-s4);
           display: flex; flex-direction: column; gap: var(--awoo-s3); }
         .awoo-pal-secgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--awoo-s5); font-size: var(--awoo-fs-caption); }
         .awoo-pal-sec { display: flex; justify-content: space-between; gap: var(--awoo-s2); opacity: var(--awoo-em-muted); white-space: nowrap; }
@@ -4446,18 +4541,17 @@
         .awoo-pal-att:hover { background: var(--awoo-hover); }
         .awoo-pal-psl { display: flex; align-items: center; gap: var(--awoo-s3); background: none; border: none; color: inherit;
           font: inherit; font-size: var(--awoo-fs-caption); text-align: left; cursor: pointer; flex: none;
-          border-top: 1px solid var(--awoo-border); padding: var(--awoo-s2) var(--awoo-s4); opacity: var(--awoo-em-normal);
+          border-top: 1px solid var(--awoo-line); padding: var(--awoo-s2) var(--awoo-s4); opacity: var(--awoo-em-normal);
           font-variant-numeric: tabular-nums; }
         .awoo-pal-psl:hover { background: var(--awoo-hover); }
-        .awoo-pal-foot { display: flex; align-items: center; gap: var(--awoo-s1); border-top: 1px solid var(--awoo-border);
+        .awoo-pal-foot { display: flex; align-items: center; gap: var(--awoo-s1); border-top: 1px solid var(--awoo-line);
           padding: var(--awoo-s2) var(--awoo-s3); flex: none; }
         .awoo-pal-cp { display: inline-flex; align-items: center; gap: var(--awoo-s2); cursor: pointer; font: inherit;
-          font-size: var(--awoo-fs-control); font-weight: 600; color: var(--awoo-primary);
-          background: color-mix(in srgb, var(--awoo-primary) 12%, transparent);
-          border: 1px solid color-mix(in srgb, var(--awoo-primary) 40%, transparent);
+          font-size: var(--awoo-fs-control); font-weight: 600; color: inherit;
+          background: color-mix(in srgb, var(--awoo-primary) 7%, transparent);
+          border: 1px solid color-mix(in srgb, var(--awoo-primary) 45%, transparent);
           border-radius: var(--awoo-r-sm); padding: var(--awoo-s1) var(--awoo-s4); margin-right: var(--awoo-s1); }
-        .awoo-pal-cp svg { width: 13px; height: 13px; }
-        .awoo-pal-cp:hover { background: color-mix(in srgb, var(--awoo-primary) 20%, transparent); }
+        .awoo-pal-cp:hover { background: color-mix(in srgb, var(--awoo-primary) 16%, transparent); color: var(--awoo-primary); }
         .awoo-pal-ver { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end;
           font-size: var(--awoo-fs-micro); opacity: var(--awoo-em-normal); font-variant-numeric: tabular-nums; line-height: 1.25; }
         /* A hover tint and the pointer, no underline: the colour already says it
@@ -4563,7 +4657,7 @@
           background: color-mix(in oklab, var(--awoo-danger) 12%, var(--awoo-card)); }
         .awoo-core-toast { pointer-events: auto; display: flex; align-items: center; gap: 8px;
           max-width: 320px; background: var(--awoo-card); color: var(--awoo-popover-foreground);
-          border: 1px solid var(--awoo-border); border-left-width: 3px; border-radius: 6px;
+          border: 1px solid var(--awoo-edge); border-left-width: 3px; border-radius: 6px;
           padding: 8px 10px; box-shadow: 0 8px 24px rgba(0,0,0,.45);
           opacity: 0; transform: translateY(6px); transition: opacity .18s, transform .18s; }
         .awoo-core-toast.awoo-core-toast-in { opacity: 1; transform: none; }
@@ -4691,15 +4785,18 @@
       const dropdown = document.createElement('div');
       dropdown.id = 'awoo-core-dropdown';
       dropdown.style.display = 'none';
-      // ---- THE MENU IS A COMMAND PALETTE (REGISTER.md R69; DESIGN.md §9) ----
+      // ---- THE MENU IS A COMMAND PALETTE (REGISTER.md R69, R238; DESIGN.md §9) ----
       //
       // Chosen over a plain list and a tile grid in the R69 rounds: one entry
-      // per thing (status dot, name, its live reading), search that also finds
-      // hidden items and every Control Panel page, the arrow keys and Enter,
-      // and a right-click menu for everything else. Two widths, both a fixed
-      // height so the menu never jumps as rows change: compact, and wide with
-      // a second column that is the player's choice (the selected item's
-      // details, or an overview of Profile Sync and what needs attention).
+      // per thing (status light and name), search that also finds hidden
+      // items and every Control Panel page, the arrow keys and Enter, and a
+      // right-click menu for everything else. R238 (round 2, approved
+      // 2026-10-17) kept that and simplified it: no reading or gear on a row,
+      // headings that open their Features tab, search and a key of the lights
+      // behind icons in the header, and a height that follows the list up to
+      // a limit. Two widths: compact, and wide with a second column that is
+      // the tools by default, or (chosen in the Control Panel) the selected
+      // item's details or an overview of Profile Sync.
       const pal = {};
       const mk = (tag, cls, text) => {
         const e = document.createElement(tag);
@@ -4709,13 +4806,24 @@
       };
       pal.top = mk('div', 'awoo-pal-top');
       pal.top.appendChild(mk('b', null, 'AWOO+'));
-      pal.count = mk('span', 'awoo-pal-count');
-      pal.top.appendChild(pal.count);
+      pal.search = mk('div', 'awoo-pal-search');
+      pal.top.appendChild(pal.search);
+      const SEARCH_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="7" cy="7" r="4.2"/><path d="m10.2 10.2 3.3 3.3"/></svg>';
+      pal.searchBtn = mk('button', 'awoo-pal-ib');
+      pal.searchBtn.type = 'button';
+      pal.searchBtn.innerHTML = SEARCH_ICON;
+      pal.top.appendChild(pal.searchBtn);
+      pal.keyBtn = mk('button', 'awoo-pal-ib');
+      pal.keyBtn.type = 'button';
+      pal.keyBtn.setAttribute('data-tooltip', 'What do the lights mean?');
+      pal.keyBtn.setAttribute('aria-label', 'What do the lights mean?');
+      pal.keyBtn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M6.3 6.2a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.4"/><circle cx="8" cy="11.3" r=".5" fill="currentColor"/></svg>';
+      pal.top.appendChild(pal.keyBtn);
       pal.layoutBtn = mk('button', 'awoo-pal-ib');
       pal.layoutBtn.type = 'button';
       pal.top.appendChild(pal.layoutBtn);
-      pal.search = mk('div', 'awoo-pal-search');
-      pal.search.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="7" cy="7" r="4.2"/><path d="m10.2 10.2 3.3 3.3"/></svg>';
+      pal.legend = mk('div', 'awoo-pal-legend');
+      pal.legend.hidden = true;
       pal.input = mk('input');
       pal.input.type = 'text';
       pal.input.placeholder = 'Search modules, tools, settings…';
@@ -4724,6 +4832,13 @@
       pal.input.spellcheck = false;
       pal.search.appendChild(pal.input);
       pal.main = mk('div', 'awoo-pal-main');
+      // The highlight follows the pointer and leaves with it (R238 round 3:
+      // it stayed on a row after the mouse had left the menu). The arrow keys
+      // bring it back; Enter still picks the remembered row.
+      pal.main.addEventListener('mouseleave', () => {
+        palState.shown = false;
+        for (const r of pal.rows || []) r.classList.remove('awoo-m-sel');
+      });
       pal.list = mk('div', 'awoo-pal-list');
       pal.list.setAttribute('role', 'listbox');
       pal.side = mk('div', 'awoo-pal-side');
@@ -4734,10 +4849,13 @@
       pal.foot = mk('div', 'awoo-pal-foot');
       pal.cpBtn = mk('button', 'awoo-pal-cp');
       pal.cpBtn.type = 'button';
-      pal.cpBtn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.8M8 12.4v1.8M1.8 8h1.8M12.4 8h1.8M3.6 3.6l1.3 1.3M11.1 11.1l1.3 1.3M3.6 12.4l1.3-1.3M11.1 4.9l1.3-1.3"/></svg><span>Control Panel</span>';
+      // Words only since R238 (the icon left a gap before them); its tint
+      // stays, as the menu's most important button.
+      pal.cpBtn.textContent = 'Control Panel';
       pal.updBtn = mk('button', 'awoo-pal-ib');
       pal.updBtn.type = 'button';
       pal.updBtn.setAttribute('data-tooltip', 'Check for updates');
+      pal.updBtn.dataset.tone = 'update';
       // An arrow rising out of a circle: "a newer version", not "download a
       // file" (the old tray-and-arrow read as a download, R69 round 7). It sits
       // last, beside the version it checks.
@@ -4748,6 +4866,7 @@
       pal.bugBtn = mk('button', 'awoo-pal-ib');
       pal.bugBtn.type = 'button';
       pal.bugBtn.setAttribute('data-tooltip', 'Copy debug info to share');
+      pal.bugBtn.dataset.tone = 'bug';
       pal.bugBtn.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><rect x="5" y="5.2" width="6" height="8" rx="3"/><path d="M6.2 5.4a1.8 1.8 0 0 1 3.6 0"/><path d="M8 8v5M2.6 9h2.4M11 9h2.4M3.2 5.6l1.9 1.2M12.8 5.6l-1.9 1.2M3.2 12.6l1.9-1.3M12.8 12.6l-1.9-1.3"/></svg>';
       pal.ver = mk('span', 'awoo-pal-ver');
       pal.updLink = mk('button', 'awoo-pal-updlink');
@@ -4763,17 +4882,18 @@
         b.type = 'button';
         b.setAttribute('data-tooltip', l.tip);
         b.setAttribute('aria-label', l.tip);
+        b.dataset.tone = /gate|key/i.test(l.tip) ? 'key' : 'dev';
         b.innerHTML = l.icon;
         b.addEventListener('click', (e) => { e.stopPropagation(); closeDropdown(); window.open(l.url, '_blank', 'noopener'); });
         return b;
       });
       for (const e of [pal.cpBtn, pal.bugBtn, pal.updBtn, ...pal.devBtns, pal.ver]) pal.foot.appendChild(e);
-      for (const e of [pal.top, pal.search, pal.main, pal.psl, pal.foot]) dropdown.appendChild(e);
+      for (const e of [pal.top, pal.legend, pal.main, pal.psl, pal.foot]) dropdown.appendChild(e);
       document.body.appendChild(dropdown);
 
-      pal.input.addEventListener('input', () => { palState.q = pal.input.value; palState.sel = 0; renderPalette(); });
+      pal.input.addEventListener('input', () => { palState.searching = true; palState.shown = true; palState.q = pal.input.value; palState.sel = 0; renderPalette(); });
       // One key handler, on the search box and on the menu itself: with the
-      // search bar off (the default) the menu takes focus instead.
+      // search closed (always, on opening) the menu takes focus instead.
       const palKeys = (e) => {
         const n = palState.items.length;
         if (e.key === 'ArrowDown') { e.preventDefault(); if (n) selectPaletteRow(Math.min(n - 1, palState.sel + 1)); }
@@ -4788,7 +4908,36 @@
       };
       pal.input.addEventListener('keydown', palKeys);
       dropdown.tabIndex = -1;
-      dropdown.addEventListener('keydown', (e) => { if (e.target === dropdown) palKeys(e); });
+      dropdown.addEventListener('keydown', (e) => {
+        if (e.target !== dropdown) return;
+        // Typing with the search closed opens it with that letter (R238).
+        if (e.key && e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+          e.preventDefault();
+          setSearchOpen(true, e.key);
+          return;
+        }
+        palKeys(e);
+      });
+      // Search is an icon until pressed, or until you type a letter into the
+      // open menu (R238). It never opens by itself.
+      function setSearchOpen(open, text) {
+        palState.searching = !!open;
+        pal.input.value = open ? (text || '') : '';
+        palState.q = pal.input.value;
+        palState.sel = 0;
+        pal.sig = null;
+        renderPalette();
+        placeDropdown();
+        focusPalette();
+      }
+      pal.searchBtn.addEventListener('click', (e) => { e.stopPropagation(); setSearchOpen(!palState.searching); });
+      pal.keyBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (pal.legend.hidden) renderPaletteLegend();
+        pal.legend.hidden = !pal.legend.hidden;
+        pal.keyBtn.classList.toggle('awoo-m-on', !pal.legend.hidden);
+      });
+      pal.legend.addEventListener('click', (e) => { e.stopPropagation(); pal.legend.hidden = true; pal.keyBtn.classList.remove('awoo-m-on'); });
       pal.layoutBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         setSetting('menuLayout', getSetting('menuLayout') === 'wide' ? 'compact' : 'wide');
@@ -4866,8 +5015,13 @@
         dropAlreadyInstalled();
         palState.q = '';
         palState.sel = 0;
+        palState.searching = false;
+        palState.shown = false;
         pal.input.value = '';
         pal.sig = null;
+        pal.legend.hidden = true;
+        pal.keyBtn.classList.remove('awoo-m-on');
+        coreBtn.classList.add('awoo-core-btn-open');
         dropdown.style.display = 'flex';
         renderPalette();
         placeDropdown();
@@ -4876,10 +5030,15 @@
       // With search on, typing searches straight away. With it off, the menu
       // itself takes focus, so the arrow keys and Enter work without a box.
       function focusPalette() {
-        try { (getSetting('menuSearch') === true ? pal.input : dropdown).focus({ preventScroll: true }); } catch (e) { /* not focusable yet */ }
+        try { (palState.searching ? pal.input : dropdown).focus({ preventScroll: true }); } catch (e) { /* not focusable yet */ }
       }
       function closeDropdown() {
         dropdown.style.display = 'none';
+        coreBtn.classList.remove('awoo-core-btn-open');
+        // Search closes with the menu (R238 round 3).
+        palState.searching = false;
+        palState.q = '';
+        pal.input.value = '';
       }
       // Exposed so the shared browser-resize listener (below) can keep an
       // OPEN dropdown correctly placed too — a resize while it's open is
@@ -9278,23 +9437,21 @@
         info: 'Wide adds a second column beside the list. The menu\'s own header has the same switch.',
         onChange: (v) => setSetting('menuLayout', v === 'wide' ? 'wide' : 'compact'),
       });
+      const panelValue = () => { const v = getSetting('menuWideColumn'); return v === 'details' || v === 'overview' ? v : 'tools'; };
       const menuPanelRow = ui.inputRow({
-        label: 'Second column', type: 'select', value: getSetting('menuWidePanel') === 'overview' ? 'overview' : 'details',
-        options: [{ value: 'details', label: 'Details of the selected item' }, { value: 'overview', label: 'Profile Sync and what needs attention' }],
-        info: 'What the wide menu shows beside the list.',
-        onChange: (v) => setSetting('menuWidePanel', v === 'overview' ? 'overview' : 'details'),
+        label: 'Second column', type: 'select', value: panelValue(),
+        options: [{ value: 'tools', label: 'The tools' }, { value: 'details', label: 'Details of the selected item' },
+          { value: 'overview', label: 'Profile Sync and what needs attention' }],
+        info: 'What the wide menu shows beside the modules and Tweaks.',
+        onChange: (v) => setSetting('menuWideColumn', v === 'details' || v === 'overview' ? v : 'tools'),
       });
       onReset(() => {
         if (menuSizeRow._input) menuSizeRow._input.value = getSetting('menuLayout') === 'wide' ? 'wide' : 'compact';
-        if (menuPanelRow._input) menuPanelRow._input.value = getSetting('menuWidePanel') === 'overview' ? 'overview' : 'details';
+        if (menuPanelRow._input) menuPanelRow._input.value = panelValue();
       });
       paneLayout.appendChild(menuSizeRow);
-      // The second column and the search bar are Advanced (R159).
+      // The second column is Advanced (R159).
       paneLayout.appendChild(adv(menuPanelRow));
-      const menuSearchRow = labelledTick('Search bar', getSetting('menuSearch') === true, (v) => setSetting('menuSearch', !!v));
-      menuSearchRow.title = 'A search box at the top of the menu that also finds hidden modules and Control Panel pages.';
-      paneLayout.appendChild(adv(menuSearchRow));
-      onReset(() => { const i = menuSearchRow.querySelector('input[type="checkbox"]'); if (i) i.checked = getSetting('menuSearch') === true; });
       // The sidebar style sits with the panel's other options (Advanced).
       cpHost.appendChild(navRow);
       // What a click on a module in the menu does: beside the menu's other
@@ -9729,7 +9886,7 @@
     // a tool or the registry already calls it, so the palette redraws from
     // the same triggers the old list did. It draws only while the menu is
     // open; opening it always draws.
-    const palState = { q: '', sel: 0, items: [] };
+    const palState = { q: '', sel: 0, items: [], searching: false };
     const palOpen = () => !!(coreUi && coreUi.dropdown && coreUi.dropdown.style.display !== 'none');
 
     function renderDropdown() {
@@ -9763,7 +9920,7 @@
       ['Window resizing', 'theme', 'resize resizing drag corner window'],
       ['Control Panel sidebar and on top', 'theme', 'control panel sidebar width style tree on top keep'],
       ['Reopen windows on reload', 'theme', 'reload reopen restore windows'],
-      ['Menu second column, search bar and click', 'menu', 'menu second column details overview search bar click load window'],
+      ['Menu second column and click', 'menu', 'menu second column tools details overview click load window'],
       ['Sync dot and top bar scale', 'menu', 'sync dot top bar scale size'],
       ['Notification timing and size', 'notify', 'notice notices pop-up how long seconds size click close keep'],
       ['Update checking', 'updates', 'update checks how often schedule notice'],
@@ -9865,21 +10022,25 @@
       const P = palEls();
       if (!P) return;
       const wide = getSetting('menuLayout') === 'wide';
+      const toolsSide = wide && widePanel() === 'tools';
       coreUi.dropdown.classList.toggle('awoo-pal-wide', wide);
-      P.search.hidden = getSetting('menuSearch') !== true;
+      P.search.hidden = !palState.searching;
+      P.top.classList.toggle('awoo-m-searching', palState.searching);
+      P.searchBtn.classList.toggle('awoo-m-on', palState.searching);
+      P.searchBtn.setAttribute('data-tooltip', palState.searching ? 'Close search' : 'Search modules, tools and settings');
+      P.searchBtn.setAttribute('aria-label', palState.searching ? 'Close search' : 'Search');
       if (P.search.hidden && palState.q) { palState.q = ''; P.input.value = ''; }
       P.layoutBtn.setAttribute('data-tooltip', wide ? 'Compact layout' : 'Wide layout');
       P.layoutBtn.innerHTML = wide
         ? '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><rect x="4.5" y="3" width="7" height="10" rx="1.5"/></svg>'
         : '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"><rect x="2" y="3" width="12" height="10" rx="1.5"/><path d="M8.5 3v10"/></svg>';
       const mods = Object.values(modules).filter((m) => m.kind !== 'tweak');
-      P.count.textContent = `${mods.filter((m) => m.enabled).length} of ${mods.length} loaded`;
 
       const items = paletteItems();
       // THE SAME LIST AS LAST TIME: patch the readings in place. A module
       // reporting a countdown calls this every second, and rebuilding the
       // rows would replace the one under the pointer mid-click.
-      const sig = JSON.stringify([items.map((x) => x.kind + ':' + x.id), wide, getSetting('menuWidePanel'),
+      const sig = JSON.stringify([items.map((x) => x.kind + ':' + x.id), wide, widePanel(),
         registry.menuHidden, registry.tweakMenuHidden, registry.toolMenuHidden, registry.profileOnBar,
         items.filter((x) => x.kind === 'module').map((x) => [modules[x.id].enabled, !!modules[x.id].open])]);
       if (sig === P.sig && P.rows) {
@@ -9892,30 +10053,27 @@
       palState.items = items;
       if (palState.sel >= palState.items.length) palState.sel = Math.max(0, palState.items.length - 1);
       P.list.innerHTML = '';
+      P.side.innerHTML = '';
+      P.side.classList.toggle('awoo-m-tools', toolsSide);
       P.rows = [];
       // AWOO+ with no module at all (R24): the menu still opens, and says so
       // rather than showing an empty box or only a list of tools.
       const noModules = !palState.q && !mods.length;
       if (noModules) P.list.appendChild(pmk('div', 'awoo-pal-empty', 'No modules installed.'));
       let group = null;
+      let sect = null;
       palState.items.forEach((it, i) => {
+        // Wide, the tools take the second column (R238).
+        const into = toolsSide && it.group === 'Tools' ? P.side : P.list;
         if (it.group !== group) {
           group = it.group;
-          const gh = pmk('div', 'awoo-pal-group');
-          gh.appendChild(pmk('span', 'awoo-pal-glabel', group));
-          // Faint until pointed at: a way into Control Panel > Modules from
-          // where the modules are, without competing with them.
-          if (group === 'Modules') {
-            const manage = pmk('button', 'awoo-pal-manage', 'manage');
-            manage.type = 'button';
-            manage.addEventListener('click', (e) => { e.stopPropagation(); closePalette(); openSettingsWindow('modules'); });
-            gh.appendChild(manage);
-          }
-          P.list.appendChild(gh);
+          sect = pmk('div', 'awoo-pal-sect');
+          sect.appendChild(paletteGroup(group));
+          into.appendChild(sect);
         }
         const row = paletteRow(it, i);
         P.rows.push(row);
-        P.list.appendChild(row);
+        sect.appendChild(row);
       });
       if (!palState.items.length && !noModules) {
         P.list.appendChild(pmk('div', 'awoo-pal-empty', palState.q
@@ -9923,7 +10081,8 @@
           : 'Nothing is in the menu. Control Panel › Features chooses what shows here.'));
       }
       P.side.hidden = !wide;
-      if (wide) renderPaletteSide();
+      if (wide && !toolsSide) renderPaletteSide();
+      if (toolsSide && !P.side.children.length) P.side.appendChild(pmk('div', 'awoo-pal-empty', 'No tools in the menu.'));
       const showPsl = !wide && registry.profileOnBar === false;
       P.psl.hidden = !showPsl;
       if (showPsl) {
@@ -9944,25 +10103,89 @@
         const m = modules[it.id];
         if (!row || !m) return;
         const st = paletteStatus(m);
-        const dot = row.children[0];
-        const cls = 'awoo-core-sd awoo-core-sd-' + st.slot;
-        if (dot && dot.className !== cls) { dot.className = cls; dot.textContent = STATE_GLYPH[st.slot] || ''; }
-        const right = row.children[row.children.length - 1];
-        if (right && right.textContent !== st.text) right.textContent = st.text;
-        const rcls = awooCls('awoo-pal-right' + (st.tone ? ' ' + st.tone : ''));
-        if (right && right.className !== rcls) right.className = rcls;
+        const fl = flagFor(st);
+        const flag = row.children[2];
+        const fcls = awooCls(fl.cls);
+        if (flag && flag.className !== fcls) flag.className = fcls;
+        if (flag && flag.textContent !== fl.text) flag.textContent = fl.text;
+        // The reading is no longer on the row (R238); it stays in the hover text.
+        const tip = paletteRowTitle(m);
+        if (row.title !== tip) row.title = tip;
       });
       // The details column redraws only when what it describes changed.
       const it = palState.items[palState.sel];
-      const wide = getSetting('menuLayout') === 'wide';
-      const sideSig = !wide ? '' : getSetting('menuWidePanel') === 'overview'
+      const wide = getSetting('menuLayout') === 'wide' && widePanel() !== 'tools';
+      const sideSig = !wide ? '' : widePanel() === 'overview'
         ? JSON.stringify([Object.values(modules).map((m) => paletteStatus(m).tone + m.id), updateState.available.length, profileSummary().counts])
         : JSON.stringify(it && it.kind === 'module' ? [it.id, paletteStatus(modules[it.id]), !!modules[it.id].open] : [it && it.id]);
       if (wide && sideSig !== P.sideSig) { P.sideSig = sideSig; renderPaletteSide(); }
     }
 
+    // The wide menu's second column: 'tools' (the default since R238),
+    // 'details' or 'overview'. Anything else stored reads as the default.
+    function widePanel() {
+      const v = getSetting('menuWideColumn');
+      return v === 'details' || v === 'overview' ? v : 'tools';
+    }
+    // The dot before a name: its audience's colour, an empty ring when off
+    // (R238 round 3). The name itself stays plain.
+    function audDot(audience, off, extra) {
+      const cls = audienceClass(audience);
+      const d = pmk('span', 'awoo-pal-adot' + (cls ? ' ' + cls : '') + (off ? ' off' : '') + (extra ? ' ' + extra : ''));
+      if (cls) d.title = audienceNote(audience);
+      return d;
+    }
+    // ! for "needs you", ✕ for a problem, nothing otherwise.
+    function flagFor(st) {
+      return { text: st.tone === 'warn' ? '!' : st.tone === 'bad' ? '✕' : '', cls: 'awoo-pal-flag' + (st.tone ? ' ' + st.tone : '') };
+    }
+    function paletteRowTitle(m) {
+      const st = paletteStatus(m);
+      const now = m.enabled && st.text ? ` Now: ${st.text}.` : '';
+      if (m.kind === 'tweak') return `Click to switch ${m.label} ${m.enabled ? 'off' : 'on'}.${now}`;
+      if (!m.enabled) return `${m.label} is off. Click to load it and open it.`;
+      return (getSetting('menuClick') === 'window' ? 'Click to open or close its window; right-click for more.'
+        : 'Click to unload it; right-click for more.') + now;
+    }
+    // A group heading. Modules, Tweaks and Tools carry a Manage button to
+    // their Features tab in the Control Panel (R238 round 4: always shown,
+    // the heading itself is not clickable).
+    function paletteGroup(group) {
+      const target = group === 'Modules' || group === 'Tweaks' ? 'modules' : group === 'Tools' ? 'tools' : null;
+      const gh = pmk('div', 'awoo-pal-group');
+      gh.appendChild(pmk('span', 'awoo-pal-glabel', group));
+      if (!target) return gh;
+      const btn = pmk('button', 'awoo-pal-gman', 'Manage');
+      btn.type = 'button';
+      btn.title = `Open ${target === 'tools' ? 'Tools' : 'Modules & Tweaks'} in the Control Panel`;
+      btn.addEventListener('click', (e) => { e.stopPropagation(); closePalette(); openSettingsWindow(target); });
+      gh.appendChild(btn);
+      return gh;
+    }
+    // The key behind the ? in the header: the lights and the coloured names.
+    function renderPaletteLegend() {
+      const P = palEls();
+      if (!P) return;
+      P.legend.innerHTML = '';
+      P.legend.appendChild(pmk('div', 'awoo-pal-label', 'What the marks mean'));
+      const pairs = [[audDot('public'), 'Public'], [audDot('trusted'), 'Trusted: a shared build, not public'],
+        [audDot('dev'), 'Dev only'], [audDot('trusted', true), 'Off: not loaded (an empty ring)'],
+        [pmk('span', 'awoo-pal-flag warn', '!'), 'Needs you'], [pmk('span', 'awoo-pal-flag bad', '✕'), 'A problem: see Diagnostics']];
+      for (const [mark, what] of pairs) {
+        P.legend.appendChild(mark);
+        P.legend.appendChild(pmk('span', null, what));
+      }
+      P.legend.appendChild(pmk('span', null, '↗'));
+      P.legend.appendChild(pmk('span', null, 'A tool: opens in a new tab'));
+      const open = pmk('span', null, 'Aa');
+      open.style.color = 'var(--awoo-primary)';
+      open.style.fontWeight = '600';
+      P.legend.appendChild(open);
+      P.legend.appendChild(pmk('span', null, 'Its window is open'));
+    }
+
     function paletteRow(it, i) {
-      const row = pmk('div', 'awoo-pal-row' + (i === palState.sel ? ' sel' : ''));
+      const row = pmk('div', 'awoo-pal-row' + (i === palState.sel && palState.shown ? ' sel' : ''));
       row.setAttribute('role', 'option');
       row.dataset.kind = it.kind;
       row.dataset.id = it.id;
@@ -9970,34 +10193,34 @@
       if (it.kind === 'module') {
         const m = modules[it.id];
         const st = paletteStatus(m);
-        row.appendChild(dotEl(st.slot));
-        row.appendChild(audLabel(pmk, 'awoo-pal-name', m.label, m.audience));
+        // A light and a name, the same for a module and a Tweak (R238): no
+        // reading on the right and no gear (right-click › Settings… stays).
+        row.appendChild(audDot(m.audience, !m.enabled));
+        row.appendChild(pmk('span', 'awoo-pal-name', m.label));
+        const fl = flagFor(st);
+        row.appendChild(pmk('span', fl.cls, fl.text));
+        row.classList.add('awoo-m-tight');
+        // A sub-module (Pet Slot Alarm under Party) sits indented under its
+        // parent, as in the Control Panel's list.
+        if (SUB_MODULES[it.id] && modules[SUB_MODULES[it.id]]) row.classList.add('awoo-m-sub');
         if (m.open) row.classList.add('awoo-m-open');
         if (!m.enabled) row.classList.add('awoo-m-off');
-        if (m.kind === 'tweak' && m.settings && typeof m.settings.render === 'function') {
-          const gear = pmk('button', 'awoo-pal-manage awoo-pal-gear', '⚙');
-          gear.type = 'button';
-          gear.title = `${m.label} settings`;
-          gear.setAttribute('aria-label', `${m.label} settings`);
-          gear.addEventListener('click', (e) => { e.stopPropagation(); closePalette(); openSettingsWindow(it.id); });
-          row.appendChild(gear);
-        }
         if (isIn(menuKey(it.id), it.id)) row.appendChild(pmk('span', 'awoo-pal-tag', 'hidden'));
-        right = pmk('span', 'awoo-pal-right' + (st.tone ? ' ' + st.tone : ''), st.text);
-        if (m.kind === 'tweak') row.title = `Click to switch ${m.label} ${m.enabled ? 'off' : 'on'}.`;
-        else row.title = !m.enabled ? `${m.label} is off. ${getSetting('menuClick') === 'window' ? 'Click' : 'Click'} to load it and open it.`
-          : getSetting('menuClick') === 'window' ? 'Click to open or close its window; right-click for more.'
-            : 'Click to unload it; right-click for more.';
+        row.title = paletteRowTitle(m);
       } else if (it.kind === 'tool') {
         const t = tools[it.id];
         // A page with a folded corner: a tool is a page that opens in a new
         // tab. The old outlined square "looked weird" (R69 round 7).
-        const mark = pmk('span', 'awoo-pal-toolmark awoo-pal-doc');
-        mark.innerHTML = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1" stroke-linejoin="round"><path d="M2.5 1.5h4.5l2.5 2.5v6.5h-7z"/><path d="M7 1.5V4h2.5"/></svg>';
-        row.appendChild(mark);
-        row.appendChild(audLabel(pmk, 'awoo-pal-name', t.label, t.audience));
+        // R238: a plain dot where the page icon was, and an "opens a new
+        // tab" mark right after the name.
+        row.appendChild(audDot(t.audience, false, 'awoo-pal-tooldot'));
+        row.appendChild(pmk('span', 'awoo-pal-name', t.label));
+        const ext = pmk('span', 'awoo-pal-ext');
+        ext.innerHTML = '<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2.5H2.5v7h7V7"/><path d="M7 2.5h2.5V5M9.5 2.5 5.5 6.5"/></svg>';
+        row.appendChild(ext);
+        row.classList.add('awoo-m-tight');
+        row.title = `Opens ${t.label} in a new tab.`;
         if (isIn('toolMenuHidden', it.id)) row.appendChild(pmk('span', 'awoo-pal-tag', 'hidden'));
-        right = pmk('span', 'awoo-pal-right go', 'Open ↗');
       } else if (it.kind === 'page' || it.kind === 'action') {
         row.appendChild(pmk('span', 'awoo-pal-toolmark awoo-pal-chev', '›'));
         row.appendChild(pmk('span', 'awoo-pal-name', it.label));
@@ -10008,7 +10231,14 @@
         if (it.reload) right = pmk('span', 'awoo-pal-right go', '· Reload');
       }
       if (right) row.appendChild(right);
-      row.addEventListener('mouseenter', () => { if (palState.sel !== i) selectPaletteRow(i); });
+      row.addEventListener('mouseenter', () => { if (palState.sel !== i || !palState.shown) selectPaletteRow(i); });
+      // R238 round 5: the highlight leaves with the pointer, also onto a
+      // heading or the gap between groups, not only out of the menu.
+      row.addEventListener('mouseleave', () => {
+        if (palState.sel !== i) return;
+        palState.shown = false;
+        row.classList.remove('awoo-m-sel');
+      });
       row.addEventListener('click', (e) => { e.stopPropagation(); activatePaletteItem(it); });
       row.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); selectPaletteRow(i); openItemMenu(row, it); });
       return row;
@@ -10022,12 +10252,13 @@
       const prev = P.rows[palState.sel];
       if (prev) prev.classList.remove('awoo-m-sel');
       palState.sel = i;
+      palState.shown = true;
       const row = P.rows[i];
       if (row) {
         row.classList.add('awoo-m-sel');
         if (row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
       }
-      if (getSetting('menuLayout') === 'wide' && getSetting('menuWidePanel') !== 'overview') renderPaletteSide();
+      if (getSetting('menuLayout') === 'wide' && widePanel() === 'details') renderPaletteSide();
     }
 
     function activatePaletteItem(it) {
@@ -10086,8 +10317,9 @@
     function renderPaletteSide() {
       const P = palEls();
       if (!P) return;
+      if (widePanel() === 'tools') return;
       P.side.innerHTML = '';
-      if (getSetting('menuWidePanel') === 'overview') { renderPaletteOverview(P.side); return; }
+      if (widePanel() === 'overview') { renderPaletteOverview(P.side); return; }
       const it = palState.items[palState.sel];
       if (!it) { P.side.appendChild(pmk('div', 'awoo-pal-muted', 'Nothing selected.')); return; }
       const box = P.side;
@@ -10250,6 +10482,7 @@
       const n = updateState.available.length;
       P.updLink.hidden = !n;
       P.updLink.textContent = n ? `${n} update${n === 1 ? '' : 's'} available` : '';
+      P.updBtn.classList.toggle('awoo-m-has', n > 0);
       P.verText.textContent = 'AWOO+ ' + RELEASE.version;
     }
 
@@ -10786,11 +11019,13 @@
     // dev only ever runs on a developer's machine. Public: nothing.
     function audienceClass(audience) {
       if (audience === 'dev') return 'awoo-m-aud-dev';
-      return audience === 'trusted' || audience === 'village' ? 'awoo-m-aud-trusted' : '';
+      if (audience === 'village') return 'awoo-m-aud-village';
+      return audience === 'trusted' ? 'awoo-m-aud-trusted' : '';
     }
     function audienceNote(audience) {
       if (audience === 'dev') return 'Dev only: not in any build players get.';
-      return audience === 'trusted' || audience === 'village' ? 'Not in the public AWOO+: a build shared with you.' : '';
+      if (audience === 'village') return 'Village channel: not in the public AWOO+, shared with your village.';
+      return audience === 'trusted' ? 'Not in the public AWOO+: a build shared with you.' : '';
     }
     // A SEPARATE element from the name, not a colour ON it (R97 follow-up,
     // 2026-09-27, the maintainer: "blue colour is overridden by yellow of
@@ -15577,7 +15812,6 @@
       fontNum: aw.num || 'public',
       uiScale: Number(Core.getSetting('uiScale')) || 100,
       menuLayout: Core.getSetting('menuLayout') === 'wide' ? 'wide' : 'compact',
-      menuSearch: Core.getSetting('menuSearch') === true,
       barSyncDot: Core.getSetting('barSyncDot') !== false,
       notifyPos: Core.getSetting('notifyPos') || 'br',
       notifyStyle: Core.getSetting('notifyStyle') === 'quiet' ? 'quiet' : 'bold',
@@ -15653,7 +15887,7 @@
       /* THE PROGRESS BAR, at the bottom (the maintainer, 2026-10-13): one
          segment per numbered step, named under it, the current one bold. */
       .awoo-setup-prog { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px;
-        padding: 10px 14px 0; border-top: 1px solid var(--awoo-border); flex: none; }
+        padding: 10px 14px 0; border-top: 1px solid var(--awoo-line); flex: none; }
       .awoo-setup-prog > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
       .awoo-setup-prog i { display: block; height: 5px; border-radius: 2px; background: var(--awoo-surface-3, var(--awoo-border)); }
       .awoo-setup-prog .awoo-m-on i { background: var(--awoo-accent-fill, var(--awoo-accent)); }
@@ -15728,7 +15962,7 @@
       .awoo-setup-pvh { font-family: var(--awoo-font-mono, ui-monospace, monospace); font-size: .72em; letter-spacing: .09em; text-transform: uppercase;
         color: var(--awoo-ink-mute); margin-bottom: 6px; }
       .awoo-setup-pvgrid { display: grid; grid-template-columns: minmax(0,1fr) 9em; gap: 4px 12px; align-items: center; max-width: 24em;
-        padding: 7px 9px; background: var(--awoo-surface, var(--awoo-card)); border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md, 6px); margin-bottom: 8px; }
+        padding: 7px 9px; background: var(--awoo-surface, var(--awoo-card)); border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-md, 6px); margin-bottom: 8px; }
       .awoo-setup-pvgrid > span { font-size: .96em; color: var(--awoo-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .awoo-setup-cell { display: grid; grid-template-columns: .7em minmax(0,1fr); align-items: center; gap: 4px; height: 1.6em; padding: 0 6px;
         border-radius: var(--awoo-in-radius, 3px); border: 1px solid color-mix(in oklab, var(--awoo-success-fill, var(--awoo-success)) 35%, var(--awoo-border));
@@ -15737,10 +15971,10 @@
       .awoo-setup-cell i { width: 7px; height: 7px; border-radius: 50%; background: var(--awoo-success-fill, var(--awoo-success)); justify-self: center; }
       .awoo-setup-cell.awoo-m-typed i { background: var(--awoo-info); }
       .awoo-setup-num { font-family: var(--awoo-font-num, inherit); font-variant-numeric: tabular-nums; text-align: right; }
-      .awoo-setup-pvt { border-collapse: collapse; font-size: .92em; background: var(--awoo-surface, var(--awoo-card)); border: 1px solid var(--awoo-border); }
+      .awoo-setup-pvt { border-collapse: collapse; font-size: .92em; background: var(--awoo-surface, var(--awoo-card)); border: 1px solid var(--awoo-edge); }
       .awoo-setup-pvt th { font-family: var(--awoo-font-mono, ui-monospace, monospace); font-size: .78em; font-weight: 500; text-transform: uppercase; letter-spacing: .04em;
-        color: var(--awoo-ink-mute); background: var(--awoo-surface-2); text-align: left; padding: 2px 10px; border-bottom: 1px solid var(--awoo-border); }
-      .awoo-setup-pvt td { padding: 2px 10px; border-top: 1px solid var(--awoo-border); white-space: nowrap; color: var(--awoo-ink); }
+        color: var(--awoo-ink-mute); background: var(--awoo-surface-2); text-align: left; padding: 2px 10px; border-bottom: 1px solid var(--awoo-line); }
+      .awoo-setup-pvt td { padding: 2px 10px; border-top: 1px solid var(--awoo-line); white-space: nowrap; color: var(--awoo-ink); }
       .awoo-setup-pvt .awoo-m-n { text-align: right; font-family: var(--awoo-font-num, inherit); font-variant-numeric: tabular-nums; }
       .awoo-setup-pvt tr.awoo-m-sel td { background: var(--awoo-bg-accent, transparent); border-top-color: var(--awoo-accent-edge, var(--awoo-border)); border-bottom: 1px solid var(--awoo-accent-edge, var(--awoo-border)); }
       .awoo-setup-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; background: var(--awoo-success-fill, var(--awoo-success)); }
@@ -15765,13 +15999,11 @@
         border-radius: 5px; overflow: hidden; font-size: .88em; }
       .awoo-setup-smenu.awoo-m-wide { width: 100%; max-width: 22em; }
       .awoo-setup-smenu > div { flex: 1; min-width: 0; }
-      .awoo-setup-smenu .awoo-setup-sside { flex: .9; border-left: 1px solid var(--awoo-border); padding: 4px 7px; color: var(--awoo-ink-soft); background: var(--awoo-surface-2); }
-      .awoo-setup-ssearch { margin: 4px 5px 2px; padding: 1px 5px; border: 1px solid var(--awoo-border-control, var(--awoo-border)); border-radius: 3px; color: var(--awoo-ink-mute);
-        background: var(--awoo-surface-2); }
+      .awoo-setup-smenu .awoo-setup-sside { flex: .9; border-left: 1px solid var(--awoo-line); padding: 4px 7px; color: var(--awoo-ink-soft); background: var(--awoo-surface-2); }
       .awoo-setup-mr { height: 1.75em; padding: 0 8px; display: flex; align-items: center; gap: 5px; color: var(--awoo-ink); white-space: nowrap; overflow: hidden; }
       .awoo-setup-mr.awoo-m-sel { background: var(--awoo-hover, transparent); }
       .awoo-setup-screen { position: relative; height: 128px; border: 1px solid var(--awoo-border-strong); border-radius: 5px; background: var(--awoo-surface, var(--awoo-card)); overflow: hidden; }
-      .awoo-setup-screen::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 14px; background: var(--awoo-surface-2); border-bottom: 1px solid var(--awoo-border); }
+      .awoo-setup-screen::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 14px; background: var(--awoo-surface-2); border-bottom: 1px solid var(--awoo-line); }
       .awoo-setup-screen > em { position: absolute; left: 6px; top: 1px; font-style: normal; font-weight: 700; font-size: .7em; color: var(--awoo-primary, var(--awoo-accent)); }
       .awoo-setup-toast { position: absolute; max-width: 62%; padding: 3px 7px; font-size: .78em; line-height: 1.3; border-radius: 4px; color: var(--awoo-ink);
         background: var(--awoo-solid-card, var(--awoo-card)); border: 1px solid var(--awoo-border-strong); border-left: 3px solid var(--awoo-info); box-shadow: 0 2px 6px rgba(0,0,0,.18); }
@@ -15783,17 +16015,17 @@
       /* THE PICTURE on Get started: the bar and the menu at about 1.25x,
          drawn, not a screenshot, so it wears the player's own theme. */
       .awoo-setup-ill { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 18px; align-items: center; margin: 14px 0 10px;
-        padding: 14px 16px; border: 1px solid var(--awoo-border); border-radius: var(--awoo-r-md, 6px); background: var(--awoo-surface-2); }
+        padding: 14px 16px; border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-md, 6px); background: var(--awoo-surface-2); }
       .awoo-setup-draw { display: grid; grid-template-columns: auto 18px; grid-template-rows: auto auto; column-gap: 6px; row-gap: 7px; align-items: center; }
       .awoo-setup-draw > .awoo-setup-n:last-child { align-self: end; margin-bottom: 7px; }
       .awoo-setup-n { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 3px; border: 1px solid var(--awoo-accent-edge, var(--awoo-border));
         background: var(--awoo-bg-accent, transparent); color: var(--awoo-accent); font-weight: 700; font-size: .8em; flex: none; }
       .awoo-setup-bar { display: inline-flex; align-items: center; gap: 2px; height: 28px; padding: 1px; border: 1px solid var(--awoo-border-strong); border-radius: 5px;
         background: var(--awoo-solid-card, var(--awoo-card)); }
-      .awoo-setup-menu { width: 200px; background: var(--awoo-solid-card, var(--awoo-card)); border: 2px solid var(--awoo-border); border-radius: 6px; font-size: .96em; overflow: hidden; }
-      .awoo-setup-mt { display: flex; gap: 6px; padding: 5px 8px; border-bottom: 1px solid var(--awoo-border); }
+      .awoo-setup-menu { width: 200px; background: var(--awoo-solid-card, var(--awoo-card)); border: 1px solid var(--awoo-edge); border-radius: var(--awoo-r-md); font-size: .96em; overflow: hidden; }
+      .awoo-setup-mt { display: flex; gap: 6px; padding: 5px 8px; border-bottom: 1px solid var(--awoo-line); }
       .awoo-setup-mt b { color: var(--awoo-primary, var(--awoo-accent)); }
-      .awoo-setup-mf { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-top: 1px solid var(--awoo-border); margin-top: 3px; }
+      .awoo-setup-mf { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-top: 1px solid var(--awoo-line); margin-top: 3px; }
       .awoo-setup-cp { display: inline-flex; align-items: center; gap: 5px; padding: 2px 6px; border: 1px solid transparent; border-radius: 4px; }
       .awoo-setup-cp svg { width: 13px; height: 13px; }
       .awoo-setup-key { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; font-size: .96em; color: var(--awoo-ink-soft); }
@@ -16091,10 +16323,8 @@
     body.appendChild(el('div', 'awoo-setup-h', 'Top bar & notifications'));
     body.appendChild(el('p', 'awoo-setup-sub', 'How the menu opens and where notifications appear. The samples below follow each choice.'));
     const f = el('div', 'awoo-setup-frm');
-    f.appendChild(label('Menu width', 'Wide adds a second column: the selected item\'s details.'));
+    f.appendChild(label('Menu width', 'Wide puts the tools in a second column.'));
     f.appendChild(ctl(seg([['compact', 'Compact'], ['wide', 'Wide']], d.menuLayout, (v) => { d.menuLayout = v; }, 'Menu width')));
-    f.appendChild(label('Search bar', 'A search box at the top of the menu.'));
-    f.appendChild(ctl(seg([['off', 'Off'], ['on', 'On']], d.menuSearch ? 'on' : 'off', (v) => { d.menuSearch = v === 'on'; }, 'Search bar')));
     f.appendChild(label('Sync dot', 'The dot on the Profile Sync icon. Amber means data a module uses is old.'));
     f.appendChild(ctl(seg([['on', 'On'], ['off', 'Off']], d.barSyncDot ? 'on' : 'off', (v) => { d.barSyncDot = v === 'on'; }, 'Sync dot')));
     f.appendChild(label('Notifications', 'AWOO+\'s own notifications: where they appear and how they look.'));
@@ -16119,12 +16349,11 @@
     a.appendChild(bar);
     const menu = el('div', 'awoo-setup-smenu' + (d.menuLayout === 'wide' ? ' awoo-m-wide' : ''));
     const listCol = el('div');
-    if (d.menuSearch) listCol.appendChild(el('div', 'awoo-setup-ssearch', 'Search…'));
     listCol.appendChild(el('div', 'awoo-setup-mr awoo-m-sel', 'Fighter Allocator'));
     listCol.appendChild(el('div', 'awoo-setup-mr', 'Party'));
-    listCol.appendChild(el('div', 'awoo-setup-mr', 'Cost Tables ↗'));
+    if (d.menuLayout !== 'wide') listCol.appendChild(el('div', 'awoo-setup-mr', 'Cost Tables ↗'));
     menu.appendChild(listCol);
-    if (d.menuLayout === 'wide') menu.appendChild(el('div', 'awoo-setup-sside', 'Fighter Allocator: plan ready. Details of the selected item.'));
+    if (d.menuLayout === 'wide') menu.appendChild(el('div', 'awoo-setup-sside', 'Cost Tables ↗'));
     a.appendChild(menu);
     samples.appendChild(a);
     // A notice, where it will appear and in its style.
@@ -16354,7 +16583,6 @@
       }
       set('uiScale', d.uiScale, now.uiScale);
       set('menuLayout', d.menuLayout, now.menuLayout);
-      set('menuSearch', d.menuSearch, now.menuSearch);
       set('barSyncDot', d.barSyncDot, now.barSyncDot);
       set('notifyPos', d.notifyPos, now.notifyPos);
       set('notifyStyle', d.notifyStyle, now.notifyStyle);
@@ -18194,7 +18422,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.15", function (Core) {
+  })("awoo-tools-public", "7.0.16", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
