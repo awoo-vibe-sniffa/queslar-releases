@@ -15,7 +15,7 @@
    every tool page by userscripts/build.mjs at the <!-- @AWOO_THEME_TOKENS@ -->
    marker, so one palette correction reaches every tool on the next build.
 
-   EIGHT THEMES, FIVE FAMILIES. A family name carries no mode; the variant
+   THE THEMES, BY FAMILY. A family name carries no mode; the variant
    does, and only where more than one exists — which is why Slate and Claude
    Code have no suffix.
 
@@ -27,6 +27,8 @@
      Slate        (was "war room" before the merge)
      Claude       light · medium · dark
      Claude Code  (RECONSTRUCTED from the brand register, not sampled)
+     Sanzo Wada   Tyrian · Slate Green · Indigo (dark; one plate each,
+                  2026-10-18, see their block at the end)
 
    ONE CONTRACT. Every theme defines the same tokens and no component ever
    names a colour, which is what makes an eighth theme a block of properties
@@ -495,6 +497,122 @@
   padding:1px 6px;border-radius:3px;background:var(--bg-dev);color:var(--dev);
 }
 
+
+/* ===========================================================================
+   THE SANZO WADA THEMES (design pass, 2026-10-18; the maintainer asked for
+   theme colours and accents from Sanzo Wada's A Dictionary of Color
+   Combinations, vol. 1). Each is built from the book's plates, so ground,
+   accent and state colours were chosen to sit together: the plate's dark
+   colour leads as the ground (lightness lifted for the surfaces, its hue
+   kept, so the greys are tinted rather than flat), the plate's bright colour
+   is the accent, and the rest of the plate gives the states. A tinted row
+   (bg-accent) is the surface mixed 13% toward the accent, so it is a warm
+   lift and never a brown fill (§9). Contrast-checked: every text pair AA,
+   muted text AA-large, controls 3:1. Dark only for now.
+   =========================================================================== */
+
+/* plates 2, 60 and 245: Dark Tyrian Blue leads, Yellow Orange is the accent, Pale Lemon Yellow the ink, Oil Green and Carmine Red the states. */
+/* Tyrian */
+:root[data-theme="wada-tyrian"]{
+  --ground:#08141E;
+  --surface:#0E1D28;
+  --surface-2:#15232F;
+  --surface-3:#1C2C39;
+  --border:#233441;
+  --border-strong:#364756;
+  --border-control:#667582;
+  --ink:#F0EDE3;
+  --ink-soft:#B3C2BC;
+  --ink-mute:#8996A0;
+  --accent:#FAAA49;
+  --accent-fill:#E09538;
+  --accent-edge:#60503D;
+  --bg-accent:#292E30;
+  --on-accent:#221202;
+  --success:#AFC981;
+  --success-fill:#78914B;
+  --bg-success:#222A13;
+  --danger:#F28788;
+  --danger-fill:#CE5057;
+  --bg-danger:#3B1C1C;
+  --info:#BEB1E9;
+  --bg-info:#28223A;
+  --neutral:#98A7B3;
+  --bg-neutral:#192834;
+  --dev:#7DD0C0;
+  --bg-dev:#0B2D27;
+  --trusted:#8ACAF1;
+  --shadow:0 1px 2px rgba(0,0,0,.45),0 8px 24px rgba(0,0,0,.36);
+}
+
+/* plates 149, 166 and 271: Deep Slate Green leads, Olive Ocher is the accent, Grenadine Pink the danger, Cobalt Green the dev mark. */
+/* Slate Green */
+:root[data-theme="wada-green"]{
+  --ground:#031715;
+  --surface:#08201D;
+  --surface-2:#0F2624;
+  --surface-3:#162F2D;
+  --border:#1D3734;
+  --border-strong:#304B48;
+  --border-control:#627876;
+  --ink:#F0EDE3;
+  --ink-soft:#B8C1B6;
+  --ink-mute:#859896;
+  --accent:#DCBB4A;
+  --accent-fill:#C3A539;
+  --accent-edge:#535733;
+  --bg-accent:#223225;
+  --on-accent:#1C1500;
+  --success:#8ED09C;
+  --success-fill:#579766;
+  --bg-success:#172C1C;
+  --danger:#F28979;
+  --danger-fill:#CE5342;
+  --bg-danger:#3B1C17;
+  --info:#A6B9EF;
+  --bg-info:#1E253D;
+  --neutral:#94AAA7;
+  --bg-neutral:#142B29;
+  --dev:#8DCFAB;
+  --bg-dev:#132C20;
+  --trusted:#8EC9F3;
+  --shadow:0 1px 2px rgba(0,0,0,.45),0 8px 24px rgba(0,0,0,.36);
+}
+
+/* plates 6, 139 and 232: Deep Indigo leads, Grenadine Pink is the accent, Salvia Blue the notes, Carmine (pushed redder) the danger. */
+/* Indigo */
+:root[data-theme="wada-indigo"]{
+  --ground:#0B1223;
+  --surface:#121A2E;
+  --surface-2:#192135;
+  --surface-3:#202A3F;
+  --border:#273148;
+  --border-strong:#3A455D;
+  --border-control:#697389;
+  --ink:#F2ECE3;
+  --ink-soft:#B8BECA;
+  --ink-mute:#8D94A2;
+  --accent:#F3896F;
+  --accent-fill:#D8765D;
+  --accent-edge:#604349;
+  --bg-accent:#2C2838;
+  --on-accent:#250F09;
+  --success:#82D2A8;
+  --success-fill:#499971;
+  --bg-success:#132C20;
+  --danger:#F46A82;
+  --danger-fill:#CE3E5D;
+  --bg-danger:#3F181F;
+  --info:#BEB1E9;
+  --bg-info:#28223A;
+  --neutral:#9DA5B5;
+  --bg-neutral:#1D263A;
+  --dev:#7AD0C5;
+  --bg-dev:#0A2D29;
+  --trusted:#87CBEF;
+  --shadow:0 1px 2px rgba(0,0,0,.45),0 8px 24px rgba(0,0,0,.36);
+}
+
 </style>
 <style>
 /* ===========================================================================
@@ -585,6 +703,7 @@
 .awoo-head .awoo-gear{position:absolute;top:0;right:0}
 .awoo-eyebrow{font-family:var(--font-mono);font-size:.63rem;letter-spacing:.11em;text-transform:uppercase;color:var(--accent);margin:0 0 .3rem}
 .awoo-title{font-family:var(--font-display);font-weight:700;font-size:1.7rem;line-height:1.05;margin:0 0 .3rem;text-wrap:balance;letter-spacing:normal;text-transform:none;color:var(--ink)}
+.awoo-title .awoo-wip{display:inline-block;margin-left:.5rem;padding:0 .3rem;border:1px solid currentColor;border-radius:3px;color:var(--dev);font-family:var(--font-body);font-size:.75rem;font-weight:700;letter-spacing:.05em;line-height:1.4;vertical-align:middle;cursor:help}
 .awoo-sub{color:var(--ink-soft);font-size:.78rem;line-height:1.45;margin:0}
 
 /* Buttons the kit renders. Tools keep their own .btn; these do not collide.
@@ -902,9 +1021,24 @@ input[type=checkbox]:disabled:hover{border-color:var(--border-control)}
   border-radius:var(--in-radius); color:var(--ink); text-align:left; cursor:pointer;
   box-shadow:var(--shadow); font:inherit}
 .awoo-tab:hover{border-color:var(--accent-fill)}
-.awoo-tab[aria-selected="true"]{background:var(--bg-accent);border-color:var(--accent-edge)}
+.awoo-tab[aria-selected="true"]{background:var(--bg-accent);border-color:var(--accent-fill);box-shadow:inset 0 -3px 0 var(--accent-fill),var(--shadow)}
 .awoo-tab-name{font-weight:700;font-size:1rem;line-height:1.2}
 .awoo-tab-sub{font-size:.7rem;color:var(--ink-soft);line-height:1.35}
+/* A channel-only tab (tool-settings.js markTabs): its ring's colour on the
+   edge and the name; selected, a brighter edge, a bar and a wash, and a small (i) in the top right corner,
+   inside the button so nothing around it moves. */
+.awoo-tab[data-ring]{--ring:var(--trusted);position:relative;border-color:color-mix(in srgb,var(--ring) 32%,var(--border));
+  background:var(--surface)}
+.awoo-tab[data-ring="village"]{--ring:#a58bd6;--ring:oklch(from var(--trusted) l c calc(h + 55))}
+.awoo-tab[data-ring="public"]{--ring:#d1a54a;--ring:oklch(from var(--trusted) l c calc(h - 175))}
+.awoo-tab[data-ring="dev"]{--ring:var(--dev)}
+.awoo-tab[data-ring]:hover{border-color:var(--ring)}
+.awoo-tab[data-ring][aria-selected="true"]{background:color-mix(in srgb,var(--ring) 14%,var(--surface));border-color:var(--ring);box-shadow:inset 0 -3px 0 var(--ring),var(--shadow)}
+.awoo-tab[data-ring] .awoo-tab-name{color:var(--ring)}
+.awoo-tab-ring{position:absolute;top:3px;right:3px;display:inline-flex;align-items:center;justify-content:center;width:11px;height:11px;
+  border:1px solid currentColor;border-radius:2px;color:var(--ring);font-size:.5rem;font-weight:700;font-style:normal;line-height:1;
+  opacity:.75;cursor:help}
+.awoo-tab-ring:hover{opacity:1}
 @media (max-width:560px){
   .awoo-tab{min-width:0;flex:1 1 30%;padding:.4rem .5rem}
   .awoo-tab-name{font-size:.86rem}
@@ -995,7 +1129,9 @@ var THEMES = [
   ['partners','Default'], // named Partners until 2026-10-07; the id is what saved settings hold
   ['beach','Beach (light)'], ['beach-dim','Beach (dimmed)'], ['slate','Slate'],
   ['claude','Claude (light)'], ['claude-med','Claude (medium)'], ['claude-dark','Claude (dark)'],
-  ['claude-code','Claude Code']
+  ['claude-code','Claude Code'],
+  // The Sanzo Wada themes (design pass, 2026-10-18): one plate each.
+  ['wada-tyrian','Tyrian'], ['wada-green','Slate Green'], ['wada-indigo','Indigo']
 ];
 var THEME_IDS = THEMES.map(function(t){ return t[0]; });
 // Core's two themes that are defined by the GAME's variables rather than by
@@ -1456,12 +1592,22 @@ function el(tag, attrs, text){
   return n;
 }
 
+/* WIP: AWOO+ hands window.AWOO_TOOL_WIP to a tool whose .release.json says
+   about.wip (built, not fully tested). Tag the page title once. */
+function markWip(){
+  if (!window.AWOO_TOOL_WIP) return;
+  var t = document.querySelector('.awoo-title');
+  if (!t || t.querySelector('.awoo-wip')) return;
+  t.appendChild(el('span', { 'class':'awoo-wip', title:'Work in progress: available to try, not fully tested yet.' }, 'WIP'));
+}
+
 /* The gear menu. `host` is an empty element in the page's top bar; `opts.extra`
    is an optional node of page-specific rows (Cost Tables' number format),
    placed between Theme and Show developer info. `opts.up` opens it upward. */
 function mount(host, opts){
   opts = opts || {};
   if (!host) return;
+  markWip();
   host.classList.add('awoo-gear');
   host.textContent = '';
 
@@ -1629,8 +1775,38 @@ function sources(names){
   }).join('');
 }
 
+/* CHANNEL-ONLY TABS (2026-10-20). A tab a page holds back from its wider
+   audiences (its .release.json `tabs`) is marked in that ring's colour, with
+   a small (i) saying who has it. build.mjs writes the tabs this copy kept,
+   and their rings, as window.AWOO_TOOL_TABS; a copy built for a wider ring
+   has no such tab at all, so nothing here hides anything. The maintainer:
+   "That tabs button in the tool will be blue-ish like the 'trusted' channel,
+   and have a small pop-up saying it's only for trusted members upon hover,
+   with a very small (i) icon in the top right of the tab button." */
+var RING_WHO = { dev:'developers', trusted:'trusted members', village:'village members' };
+function markTabs(root){
+  var tabs = window.AWOO_TOOL_TABS;
+  if (!tabs || typeof document === 'undefined') return;
+  var btns = (root || document).querySelectorAll('.awoo-tab[data-tab]');
+  for (var i = 0; i < btns.length; i++){
+    var b = btns[i], t = tabs[b.getAttribute('data-tab')];
+    if (!t || !RING_WHO[t.audience] || b.hasAttribute('data-ring')) continue;
+    b.setAttribute('data-ring', t.audience);
+    var mark = document.createElement('span');
+    mark.className = 'awoo-tab-ring';
+    mark.textContent = 'i';
+    mark.setAttribute('data-tip', 'Only ' + RING_WHO[t.audience] + ' have and see this tab');
+    b.appendChild(mark);
+  }
+}
+if (typeof document !== 'undefined' && document.addEventListener){
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function(){ markTabs(); });
+  else markTabs();
+}
+
 window.AWOO_TOOL_SETTINGS = {
   mount: mount,
+  markTabs: markTabs,
   // Number presentation, the same for every tool (see NUMBER PRESENTATION).
   num: { mode:numMode, localeKey:numLocaleKey, localeTag:numLocaleTag,
          fmt:fmtNum, int:fmtInt, dec:fmtDec, pct:fmtPct, parse:parseNum,
@@ -3233,7 +3409,11 @@ var PROFILE_READS = {
   // sanctum.skillTreePoints: skill-tree points bought with gold (BUNDLE,
   // PROFILE.md) — priced on the total bought tree-wide, matching this
   // system's own "priced on the TOTAL number of nodes" description.
-  'sanctum':              ['sanctum', 'sanctum.skillTreePoints']
+  'sanctum':              ['sanctum', 'sanctum.skillTreePoints'],
+  // The repeater is one tool, so its level is one reading (caveTools, the
+  // game's own tools page name). "Any tool except repeater" is eleven tools
+  // at eleven levels: no single one is yours, so that row stays typed.
+  'cavetool:repeater':    ['caveTools', 'caveTools.repeater']
 };
 ['head','body','legs','hands','feet','leftHand','rightHand'].forEach(function(k){ PROFILE_READS['equipslot:' + k] = ['equipment', 'equipment.slots.' + k + 'Level']; });
 ['market','stable','tavern','well','mill','granary','shrine','treasury','warehouse'].forEach(function(k){ PROFILE_READS['villagebuilding:' + k] = ['village', 'village.buildings.' + k]; });
