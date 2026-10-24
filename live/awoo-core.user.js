@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.17
+// @version      7.0.18
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -19,7 +19,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.17",
+    "version": "7.0.18",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -4894,6 +4894,7 @@
         .awoo-core-update-btn:hover { color: var(--awoo-success); border-color: var(--awoo-success);
           box-shadow: 0 0 0 1px color-mix(in srgb, var(--awoo-success) 45%, transparent); }
         .awoo-core-update-btn .awoo-core-setup-spark { background: var(--awoo-success); }
+        /* THE OLD EXTRAS BUTTON: the Welcome button's own amber and swell. */
         @keyframes awoo-core-update-swell {
           0%, 4.5%, 100% { box-shadow: 0 0 0 0 transparent; }
           2% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--awoo-success) 40%, transparent),
@@ -5387,11 +5388,32 @@
       const openUpdateMenu = (e) => { e.preventDefault(); e.stopPropagation(); ui.menu(updateBarBtn, updateMenuItems()); };
       updateBarBtn.addEventListener('click', openUpdateMenu);
       updateBarBtn.addEventListener('contextmenu', openUpdateMenu);
+      // THE OLD EXTRAS BUTTON (the maintainer, 2026-10-23: the delete reminder
+      // was a toast that was missed). The one script carries the extras, so an
+      // AWOO+ Extras still installed beside it only duplicates them. Shown in
+      // the Welcome button's amber and swell while one is installed, until it
+      // is deleted (or put off for a day); a click opens how to remove it.
+      const leftoverBarBtn = document.createElement('button');
+      leftoverBarBtn.type = 'button';
+      leftoverBarBtn.id = 'awoo-core-leftover-btn';
+      leftoverBarBtn.className = 'awoo-core-quick-btn awoo-core-setup-btn awoo-core-leftover-btn';
+      leftoverBarBtn.hidden = true;
+      leftoverBarBtn.title = 'AWOO+ now carries your extras, so the old AWOO+ Extras script can be deleted.';
+      const leftoverSpark = document.createElement('i');
+      leftoverSpark.className = 'awoo-core-setup-spark';
+      const leftoverText = document.createElement('span');
+      leftoverText.textContent = 'Delete old script';
+      leftoverBarBtn.appendChild(leftoverSpark);
+      leftoverBarBtn.appendChild(leftoverText);
+      const openLeftoverMenu = (e) => { e.preventDefault(); e.stopPropagation(); ui.menu(leftoverBarBtn, leftoverMenuItems()); };
+      leftoverBarBtn.addEventListener('click', openLeftoverMenu);
+      leftoverBarBtn.addEventListener('contextmenu', openLeftoverMenu);
       group.appendChild(coreBtn);
       group.appendChild(sepCore);
       group.appendChild(profileBtn);
       group.appendChild(sepProfile);
       group.appendChild(updateBarBtn);
+      group.appendChild(leftoverBarBtn);
       // THE MINIMISED CONTROL PANEL (R218): the panel's "_" button parks it
       // here; a click brings it back on the page it was on.
       const cpMinBtn = document.createElement('button');
@@ -5685,7 +5707,7 @@
 
       coreUi = {
         menuSpot, openProfileData,
-        group, coreBtn, quickRow, profileBtn, profileDot, sepCore, sepProfile, setupBtn, updateBarBtn, cpMinBtn, dropdown, pal,
+        group, coreBtn, quickRow, profileBtn, profileDot, sepCore, sepProfile, setupBtn, updateBarBtn, leftoverBarBtn, cpMinBtn, dropdown, pal,
         // reachable from outside buildUi()'s closure: the shared browser-resize
         // listener, and the palette's own actions (which close the menu).
         repositionDropdownIfOpen, closeDropdown,
@@ -10664,6 +10686,28 @@
       if (!b) return;
       const show = updateState.available.length > 0 && !updatePutOff();
       if (b.hidden === show) b.hidden = !show;
+      const l = coreUi.leftoverBarBtn;
+      if (l) {
+        const showOld = !!window.__awooExtrasLeftover && !leftoverPutOff();
+        if (l.hidden === showOld) l.hidden = !showOld;
+      }
+    }
+    // The old AWOO+ Extras, put off for a day by "Remind me tomorrow".
+    const LEFTOVER_LATER_KEY = 'awoo:core:leftover-later';
+    function leftoverPutOff(now = Date.now()) {
+      try { return Number(localStorage.getItem(LEFTOVER_LATER_KEY)) > now; } catch (e) { return false; }
+    }
+    function leftoverMenuItems() {
+      return [
+        { label: 'AWOO+ now carries your extras, so AWOO+ Extras is no longer needed', onClick: () => {} },
+        { label: 'Delete it: Tampermonkey > Dashboard > AWOO+ Extras > trash can', onClick: () => {} },
+        { label: 'Then reload this tab', onClick: reloadTab },
+        { separator: true },
+        { label: 'Remind me tomorrow', onClick: () => {
+          try { localStorage.setItem(LEFTOVER_LATER_KEY, String(Date.now() + UPDATE_LATER_MS)); } catch (e) { /* storage blocked */ }
+          renderUpdateButton();
+        } },
+      ];
     }
     // Install first (R150: Reload led before Install was pressed, which read
     // as the main step); the reload is for a Tampermonkey that already took it.
@@ -10833,14 +10877,14 @@
         if (hit(m.label, m.shortLabel, m.category, m.description)) out.push({ kind: 'module', id, group: 'Modules' });
       }
       for (const id of Object.keys(incompatible)) {
-        if (hit(incompatible[id].label)) out.push({ kind: 'notice', id, group: 'Modules', text: `${incompatible[id].label}: needs AWOO+ v${incompatible[id].needsCore}`, page: 'updates' });
+        if (hit(incompatible[id].label)) out.push({ kind: 'notice', id, group: 'Attention', text: `${incompatible[id].label}: needs AWOO+ v${incompatible[id].needsCore}`, page: 'updates' });
       }
       for (const c of otherTabChanges()) {
-        if (hit(c.label)) out.push({ kind: 'notice', id: c.id + ':tab', group: 'Modules', text: `${c.label} was ${c.loaded ? 'loaded' : 'unloaded'} in another tab`, reload: true });
+        if (hit(c.label)) out.push({ kind: 'notice', id: c.id + ':tab', group: 'Attention', text: `${c.label} was ${c.loaded ? 'loaded' : 'unloaded'} in another tab`, reload: true });
       }
       for (const id of Object.keys(duplicates)) {
         const label = (modules[id] && modules[id].label) || id;
-        if (hit(label)) out.push({ kind: 'notice', id: id + ':dup', group: 'Modules', text: `${label}: installed twice`, page: 'diag' });
+        if (hit(label)) out.push({ kind: 'notice', id: id + ':dup', group: 'Attention', text: `${label}: installed twice`, page: 'diag' });
       }
       for (const id of orderedIds(Object.keys(tools))) {
         const t = tools[id];
@@ -13021,6 +13065,8 @@
     // Deliberately NOT every page load: an idle game gets reloaded often, and
     // a request per load is a request per load whatever its size.
     const UPDATE_INTERVAL_MS = 2 * 60 * 60 * 1000;
+    // Which script is running, for "has this copy been updated since it last checked".
+    const runningSignature = () => `${RELEASE.version}|${oneScriptVersion() || ''}`;
     let checkedThisLoad = false;
     let updateState = { checkedAt: 0, available: [], error: null, checking: false };
 
@@ -13055,6 +13101,11 @@
         if (savedUpd && savedUpd.v === 2 && typeof savedUpd.checkedAt === 'number') {
           updateState.checkedAt = savedUpd.checkedAt;
           updateState.available = Array.isArray(savedUpd.available) ? savedUpd.available : [];
+          // JUST UPDATED (2026-10-23): a copy running a different version
+          // than the one that last checked checks again at once, not up to
+          // two hours later. Updating Core is exactly when the next step
+          // (the move to one script, a module bundled with it) is waiting.
+          if (savedUpd.ranAs !== runningSignature()) updateState.checkedAt = 0;
         }
       } catch (e) { /* first run, or storage blocked */ }
     }
@@ -13130,7 +13181,7 @@
     function persistUpdateState() {
       try {
         localStorage.setItem(UPDATE_KEY, JSON.stringify({
-          v: 2, checkedAt: updateState.checkedAt, available: updateState.available,
+          v: 2, checkedAt: updateState.checkedAt, available: updateState.available, ranAs: runningSignature(),
         }));
       } catch (e) { /* ignore */ }
     }
@@ -13527,11 +13578,7 @@
     // THE OLD EXTRAS STILL INSTALLED (R244): it runs harmlessly beside the
     // one script (its modules are the same or older, and the newer copy of a
     // module wins), but it is a second script to keep updated, the very thing
-    // the one script ends. Said once a load, about 30 s in.
-    function noticeLeftoverExtras() {
-      if (!window.__awooExtrasLeftover) return;
-      toast('AWOO+ now carries your extras: delete AWOO+ Extras in Tampermonkey.', { type: 'info', duration: 15000 });
-    }
+    // the one script ends. The top bar says so with a button (leftoverBarBtn).
 
     // SLOW TICKS ride the same heartbeat, every tenth beat (~30s, about once a
     // minute in a hidden tab), for Core parts whose work is "check whether
@@ -13547,7 +13594,6 @@
       // First update check after ~30s, then whenever checkForUpdates decides
       // its own 6h interval has passed.
       if (++heartbeats >= 10) checkForUpdates(false);
-      if (heartbeats === 10) noticeLeftoverExtras();
       // The Update button's day off can run out with no check in between
       // (updateEvery 'load' or 'manual', a tab open for days): re-read it.
       renderUpdateButton();
@@ -19643,7 +19689,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.17", function (Core) {
+  })("awoo-tools-public", "7.0.18", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
