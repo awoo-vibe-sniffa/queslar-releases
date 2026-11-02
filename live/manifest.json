@@ -1,10 +1,10 @@
 {
   "channel": "live",
-  "generated": "2026-10-24T00:24:31.839Z",
+  "generated": "2026-11-02T06:44:42.455Z",
   "core": {
-    "version": "7.0.18",
+    "version": "7.0.19",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
-    "notes": "The menu lists \"installed twice\" and \"needs a newer AWOO+\" warnings under their own Attention heading, apart from your modules\nRight after AWOO+ updates, it checks for updates straight away instead of waiting up to two hours, so the next step (like the move to one script) is offered at once\nWhile your old second script (the extras one) is still installed beside the single AWOO+ script, a glowing amber Delete old script button sits in the top bar until you delete it; click it for how, or to be reminded tomorrow"
+    "notes": "A kept pop-up shows the move cursor only while you drag it\nHover pop-ups no longer close by themselves when the page redraws under a still mouse\nA pop-up opened from another pop-up (or shown last) is always on top of it, and tooltips stay above both\nAppearance › Tooltips: a new \"Open after\" setting for pop-ups, beside \"Close after\"; a kept pop-up now stays until you press its × or Escape\nProfile Sync also reads your personal village tax rates\nProfile Sync also reads the game's own multipliers inside your running sanctum\nPartners tool: the What you gather now bars are much narrower, so the panel screenshots well\nThe menu's All Tweaks hover is sized to its text: a short line of names on top, then each Tweak's whole description\nThe daily check-in now also says on which of the last 14 days the game tab was open (days only, no times), so the maintainer can see how active a copy is without any extra request\nPartners tool: the Pet modifiers table writes every set the same way (\"1x Partner AS\" first, then Speed, then Intelligence, with Speed and Intelligence tinted); a Partner invest box on the left (the gold in your partners' Intelligence and Speed, worked out from your levels); a Breakpoint panel that says when one more partner beats more levels on the partners you have; and a Compare panel that puts the same gold (100t to start) into pet slot levels and into partners\nAfter AWOO+ updates, its daily diagnostics check-in goes at once instead of waiting up to 11 hours, and says whether your old second script (the extras one) is still running. Still only versions, nothing about your account"
   },
   "modules": [
     {

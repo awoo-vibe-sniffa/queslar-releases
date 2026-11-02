@@ -889,7 +889,7 @@ input[type=checkbox]:disabled:hover{border-color:var(--border-control)}
    inside a page: the title is the only large text apart from tile values. */
 .awoo-panel-h{
   margin:0 0 .5rem; font-family:var(--font-body); font-size:.62rem; font-weight:600; line-height:1.45;
-  text-transform:uppercase; letter-spacing:.08em; color:var(--ink-mute);
+  text-transform:uppercase; letter-spacing:.08em; color:var(--accent);
   display:flex; align-items:center; gap:.45rem; flex-wrap:wrap}
 .awoo-panel-ctl{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400;display:flex;gap:.4rem;align-items:center;flex-wrap:wrap}
 
@@ -1020,9 +1020,11 @@ input[type=checkbox]:disabled:hover{border-color:var(--border-control)}
   padding:.5rem .85rem; background:var(--surface); border:1px solid var(--border);
   border-radius:var(--in-radius); color:var(--ink); text-align:left; cursor:pointer;
   box-shadow:var(--shadow); font:inherit}
-.awoo-tab:hover{border-color:var(--accent-fill)}
+.awoo-tab{transition:background .12s,border-color .12s}
+.awoo-tab:hover{border-color:var(--accent-fill);background:color-mix(in srgb,var(--accent-fill) 7%,var(--surface))}
 .awoo-tab[aria-selected="true"]{background:var(--bg-accent);border-color:var(--accent-fill);box-shadow:inset 0 -3px 0 var(--accent-fill),var(--shadow)}
-.awoo-tab-name{font-weight:700;font-size:1rem;line-height:1.2}
+.awoo-tab-name{font-weight:700;font-size:.95rem;line-height:1.2;color:var(--ink)}
+.awoo-tab[aria-selected="true"] .awoo-tab-name{color:var(--accent)}
 .awoo-tab-sub{font-size:.7rem;color:var(--ink-soft);line-height:1.35}
 /* A channel-only tab (tool-settings.js markTabs): its ring's colour on the
    edge and the name; selected, a brighter edge, a bar and a wash, and a small (i) in the top right corner,
@@ -1047,12 +1049,13 @@ input[type=checkbox]:disabled:hover{border-color:var(--border-control)}
 
 /* Tiles (§10e): a tab's headline figures. One hero per tab has its value in
    the accent; the rest are ink. */
-.awoo-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.6rem;margin:0 0 .9rem}
-.awoo-tile{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:.55rem .75rem;box-shadow:var(--shadow);min-width:0}
+.awoo-tiles{display:flex;flex-wrap:wrap;margin:0 0 .9rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+.awoo-tile{flex:1 1 9.5rem;min-width:0;padding:.45rem .85rem;border-left:1px solid var(--border);margin-left:-1px}
+.awoo-tile:first-child{border-left:0;margin-left:0}
 .awoo-tile-k{font-size:.6rem;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-mute);display:flex;gap:.3rem;align-items:center;line-height:1.45}
-.awoo-tile-v{font-family:var(--font-display);font-weight:700;font-size:1.35rem;line-height:1.15;font-variant-numeric:tabular-nums;color:var(--ink);overflow-wrap:anywhere}
-.awoo-tile-u{font-size:.7rem;font-weight:400;color:var(--ink-mute);margin-left:.2rem}
-.awoo-tile-w{font-size:.7rem;color:var(--ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.45}
+.awoo-tile-v{font-family:var(--font-display);font-weight:700;font-size:1.05rem;line-height:1.25;font-variant-numeric:tabular-nums;color:var(--ink);overflow-wrap:anywhere}
+.awoo-tile-u{font-size:.68rem;font-weight:400;color:var(--ink-mute);margin-left:.25rem}
+.awoo-tile-w{display:none}
 .awoo-tile.awoo-hero .awoo-tile-v{color:var(--accent)}
 
 /* TABLES (§10f): as wide as the content, never a sideways scrollbar.
@@ -1064,7 +1067,7 @@ table.awoo-t{border-collapse:collapse;font-size:.75rem}
 table.awoo-t.awoo-wide{width:100%}
 table.awoo-t th{
   text-align:right; font-family:var(--font-mono); font-weight:500; font-size:.6rem; line-height:1.35;
-  letter-spacing:.04em; text-transform:uppercase; color:var(--ink-mute);
+  letter-spacing:.04em; text-transform:uppercase; color:var(--ink-soft);
   padding:.3rem var(--row-x); background:var(--surface-2); border-bottom:1px solid var(--border);
   vertical-align:bottom; white-space:normal}
 table.awoo-t td{
@@ -1091,6 +1094,69 @@ table.awoo-t tr.awoo-done td{opacity:.6}
 /* A legend under a table or chart (§10g). */
 .awoo-legend{display:flex;gap:.9rem;flex-wrap:wrap;font-size:.68rem;color:var(--ink-soft);margin-top:.45rem}
 .awoo-legend > span{display:inline-flex;align-items:center;gap:.3rem}
+
+/* LEVEL TABLES (§10f-bis): the bar with breakpoints and size buttons, the
+   table in a box, the edge bars, the jump buttons, the footer. */
+.awoo-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.awoo-lt{min-width:min(100%,30rem);width:fit-content;max-width:100%}
+.awoo-ibtn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:.8rem;line-height:1;color:var(--ink-soft);background:var(--surface-2);border:1px solid var(--border-control);border-radius:var(--in-radius);cursor:pointer;padding:0}
+.awoo-ibtn:hover,.awoo-ibtn:focus-visible{border-color:var(--accent-fill);color:var(--accent)}
+.awoo-lt :focus-visible{outline:2px solid var(--accent-fill);outline-offset:1px}
+.awoo-lt-bar{display:flex;align-items:center;gap:.9rem;margin:0 0 .35rem}
+.awoo-lt-ctl{margin-left:auto;display:inline-flex;gap:.25rem;flex:none}
+.awoo-bps{display:flex;align-items:center;gap:.7rem;font-size:.68rem;min-width:0;flex:1}
+.awoo-bps-k{font-family:var(--font-mono);font-size:.55rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-mute);margin-right:.15rem}
+.awoo-bps-none{font-size:.7rem;color:var(--ink-mute)}
+/* The breakpoint timeline: one line, dots spaced by value and evenly, your level marked on it. */
+.awoo-bpl{position:relative;flex:1;height:2.1rem;margin:0 .9rem;min-width:8rem}
+.awoo-bpl-line,.awoo-bpl-done{position:absolute;left:0;top:.62rem;height:2px;border-radius:1px;background:var(--border-strong)}
+.awoo-bpl-line{right:0}
+.awoo-bpl-done{background:var(--accent-fill);opacity:.7}
+.awoo-bp{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:.12rem;font:inherit;background:none;border:0;padding:0 .2rem;cursor:pointer;color:var(--ink-soft)}
+.awoo-bp i{display:block;width:9px;height:9px;margin-top:.33rem;border-radius:50%;background:var(--surface);border:2px solid var(--ink-mute);box-sizing:border-box}
+.awoo-bp b{font-size:.62rem;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink-soft)}
+.awoo-bp:hover i,.awoo-bp:focus-visible i{border-color:var(--accent);background:var(--accent-fill)}
+.awoo-bp:hover b,.awoo-bp:focus-visible b{color:var(--accent)}
+.awoo-bp.awoo-passed i{background:var(--accent-fill);border-color:var(--accent-fill)}
+.awoo-bp.awoo-passed b{opacity:.6}
+.awoo-bpl-you{position:absolute;top:.3rem;width:0;height:0;transform:translateX(-50%);border-left:5px solid transparent;border-right:5px solid transparent;border-top:7px solid var(--accent);margin-top:-.18rem;pointer-events:auto}
+.awoo-lt-wrap{position:relative;width:100%}
+.awoo-lt-box{overflow-y:auto;overflow-x:auto;border:1px solid var(--border);border-radius:var(--in-radius)}
+.awoo-lt-box.awoo-lt-full{overflow:visible}
+table.awoo-lt-t{width:100%}
+table.awoo-lt-t thead th{position:sticky;top:0;z-index:2}
+table.awoo-lt-t tbody tr.awoo-lv:not(.awoo-sel):hover td{background:color-mix(in srgb,var(--ink) 4%,transparent)}
+table.awoo-lt-t tbody tr.awoo-sel td:first-child{font-weight:700}
+table.awoo-lt-t tr.awoo-bpr td{border-top:1px dashed var(--border-strong)}
+table.awoo-lt-t tr.awoo-bpr td:first-child::after{content:"";display:inline-block;width:5px;height:5px;border:1px solid var(--ink-mute);transform:rotate(45deg);margin-left:.4rem;vertical-align:1px}
+table.awoo-lt-t tr.awoo-flash td{animation:awoo-lt-flash .9s ease-out}
+@keyframes awoo-lt-flash{0%{background:var(--bg-accent)}100%{background:transparent}}
+table.awoo-lt-t th.awoo-sep,table.awoo-lt-t td.awoo-sep{border-left:1px solid var(--border)}
+table.awoo-lt-t tr.awoo-edge td{padding:0;border-top:1px solid var(--border);text-align:left}
+table.awoo-lt-t tr.awoo-edge button{display:block;width:100%;min-height:24px;text-align:left;font:inherit;font-family:var(--font-body);font-size:.68rem;color:var(--ink-soft);background:var(--surface-2);border:1px solid transparent;padding:.18rem var(--row-x);cursor:pointer}
+table.awoo-lt-t tr.awoo-edge button:hover,table.awoo-lt-t tr.awoo-edge button:focus-visible{color:var(--accent);border-color:var(--accent-fill);outline:none}
+table.awoo-lt-t tr.awoo-edge span{display:block;font-family:var(--font-body);font-size:.68rem;color:var(--ink-mute);background:var(--surface-2);padding:.18rem var(--row-x)}
+.awoo-lt-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem .9rem;margin-top:.5rem;font-size:.7rem;color:var(--ink-soft)}
+.awoo-lt-right{margin-left:auto;display:inline-flex;flex-wrap:wrap;align-items:center;gap:.35rem .9rem}
+.awoo-lt-rng{color:var(--ink-mute);font-variant-numeric:tabular-nums;min-width:7.5rem}
+.awoo-lt-grp{display:inline-flex;align-items:center;gap:.3rem}
+.awoo-lt-foot .awoo-btn{flex:none;padding:0 .5rem;height:1.5rem;font-size:.7rem}
+.awoo-lt-foot input[type=text],.awoo-lt-foot select{font:inherit;font-size:.7rem;height:1.5rem;box-sizing:border-box;color:var(--ink);background:var(--surface-2);border:1px solid var(--border-control);border-radius:var(--in-radius);padding:0 .3rem;font-variant-numeric:tabular-nums}
+.awoo-lt-foot input[type=text]{width:4.6rem;text-align:right}
+.awoo-lt-foot input:focus,.awoo-lt-foot select:focus{outline:none;border-color:var(--accent-fill)}
+.awoo-chk{display:inline-flex;align-items:center;gap:.3rem;cursor:pointer}
+.awoo-chk input{appearance:none;width:12px;height:12px;padding:0;margin:0;border:1px solid var(--accent-fill);border-radius:2px;background:transparent;display:grid;place-content:center;cursor:pointer}
+.awoo-chk input:checked::after{content:"\2713";font-size:10px;line-height:1;color:var(--accent)}
+.awoo-lt-steppop{position:fixed;z-index:60;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius);box-shadow:var(--shadow);padding:.45rem .55rem;font-size:.72rem;display:flex;gap:.35rem;align-items:center}
+.awoo-lt-steppop input{width:5rem;font:inherit;font-size:.72rem;text-align:right;height:1.35rem;border:1px solid var(--info);border-radius:var(--in-radius);background:var(--surface);color:var(--ink);padding:0 .3rem}
+.awoo-lt-hint{color:var(--ink-mute);font-size:.66rem}
+/* pop-out: the same panel, 80% of the window wide and high, the page dimmed behind it */
+.awoo-lt.awoo-lt-pop{position:fixed;z-index:40;left:10vw;top:10vh;width:80vw;height:80vh;box-sizing:border-box;padding:.7rem .85rem;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 0 0 100vmax rgba(0,0,0,.45);display:flex;flex-direction:column}
+.awoo-lt-pop .awoo-lt-wrap{width:100%;max-width:none;flex:1;min-height:0}.awoo-lt-pop .awoo-lt-foot,.awoo-lt-pop .awoo-lt-bar{max-width:none}
+@media (prefers-reduced-motion:reduce){table.awoo-lt-t tr.awoo-flash td{animation:none}}
+
+/* A note that folded itself into its heading's (i) (tool-settings.js foldNotes). */
+.awoo-folded{display:none!important}
 
 </style>
 <script>
@@ -1804,8 +1870,370 @@ if (typeof document !== 'undefined' && document.addEventListener){
   else markTabs();
 }
 
+
+/* =========================================================================
+   NOTES IN (i) (DESIGN.md 10e, batch 2026-10-31)
+   A descriptive line under a heading never sits in the page: it folds into
+   the (i) beside the heading, and a stat tile's second line becomes the
+   tile's hover. A page just writes the line (p.note, p.gsubt, p.sysdesc,
+   .awoo-tile-w) and may rewrite it any time; this keeps the (i) in step.
+   NO-PROVENANCE: layout only. */
+var FOLD_SEL = 'p.note:not(.warn),p.gsubt,p.sysdesc', foldQueued = false;
+function foldNotes(){
+  foldQueued = false;
+  var tiles = document.querySelectorAll('.awoo-tile'), i, j;
+  for (i = 0; i < tiles.length; i++){
+    var w = tiles[i].querySelector('.awoo-tile-w'), tx = w ? w.textContent.trim() : '';
+    if (tx && tiles[i].getAttribute('data-tip') !== tx) tiles[i].setAttribute('data-tip', tx);
+  }
+  var notes = document.querySelectorAll(FOLD_SEL), groups = [];
+  for (i = 0; i < notes.length; i++){
+    var box = notes[i].closest('.awoo-panel,.panel,section');
+    var head = box && (box.querySelector(':scope > h2.awoo-panel-h, :scope > h5, :scope > .ghead') || box.querySelector('h2.awoo-panel-h, h5, .ghead'));
+    if (!head || notes[i].closest('.awoo-card')) continue;
+    notes[i].classList.add('awoo-folded');
+    var g = null;
+    for (j = 0; j < groups.length; j++) if (groups[j].head === head) g = groups[j];
+    if (!g) groups.push(g = { head:head, text:[] });
+    var t = notes[i].textContent.trim();
+    if (t) g.text.push(t);
+  }
+  for (i = 0; i < groups.length; i++){
+    var h = groups[i].head, mark = h.querySelector(':scope > .awoo-i[data-fold]'), own = h.querySelector(':scope > .awoo-i:not([data-fold])');
+    if (!groups[i].text.length){ if (mark) mark.remove(); continue; }
+    if (own){
+      // The heading already has its (i): the notes join its text.
+      if (!own.hasAttribute('data-base')) own.setAttribute('data-base', own.getAttribute('data-tip') || '');
+      var joined = (own.getAttribute('data-base') + ' ' + groups[i].text.join(' ')).trim();
+      if (own.getAttribute('data-tip') !== joined) own.setAttribute('data-tip', joined);
+      continue;
+    }
+    if (!mark){
+      mark = document.createElement('span');
+      mark.className = 'awoo-i'; mark.setAttribute('data-fold', '1'); mark.tabIndex = 0; mark.textContent = 'i';
+      var ctl = h.querySelector(':scope > .awoo-panel-ctl, :scope > .gctl');
+      h.insertBefore(mark, ctl || null);
+    }
+    var tip = groups[i].text.join(' ');
+    if (mark.getAttribute('data-tip') !== tip) mark.setAttribute('data-tip', tip);
+  }
+}
+function foldSoon(){ if (!foldQueued){ foldQueued = true; (window.requestAnimationFrame || setTimeout)(foldNotes); } }
+if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined'){
+  var startFold = function(){ foldSoon(); new MutationObserver(foldSoon).observe(document.body, { childList:true, subtree:true, characterData:true }); };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', startFold); else startFold();
+}
+
+
+/* =========================================================================
+   LEVEL TABLES (DESIGN.md 10f-bis, batch 2026-10-30 part 6)
+   One window, one footer, one breakpoint strip and one size button for every
+   table whose rows are the levels of one thing. A page draws its own cells and
+   never counts a window or builds a footer itself:
+
+     AWOO_TOOL_SETTINGS.levelTables.init({ store:'petSlotROI', rerender:fn })
+     html = AWOO_TOOL_SETTINGS.levelTables.html({ id, caption, min, max, now,
+              step, steps, onStep, unit, head, row, label, bps, main, popout,
+              earlier, prepare, tableClass })
+     ... put html in the page, then AWOO_TOOL_SETTINGS.levelTables.after()
+
+   row(L, prev, isNow) returns the cells after the level cell. The kit keeps
+   what a click changes (rows added, earlier on/off, size) and asks the page
+   to draw again through rerender(id). NO-PROVENANCE: layout only. */
+/* @LT_WINDOW */
+function ltRange(cfg, s){
+  var step = Math.max(1, cfg.step || 1), min = cfg.min, max = cfg.max;
+  var now = Math.min(max, Math.max(min, cfg.now));
+  if (max - min <= 20) return { first:min, last:max, all:true, step:step, now:now };
+  var first = s.earlier ? Math.max(min, now - s.before * step) : now;
+  var last = Math.min(max, now + s.after * step);
+  return { first:first, last:last, all:false, step:step, now:now };
+}
+function ltLevels(cfg, r){
+  var set = {}, L, i;
+  for (L = r.first; L <= r.last; L += r.step) set[L] = 1;
+  set[r.last] = 1;
+  if (r.now >= r.first && r.now <= r.last) set[r.now] = 1;
+  var bps = cfg.bps || [];
+  // A step never jumps over a breakpoint: it gets its own row.
+  for (i = 0; i < bps.length; i++) if (bps[i].at > r.first && bps[i].at < r.last) set[bps[i].at] = 1;
+  return Object.keys(set).map(Number).sort(function(a, b){ return a - b; });
+}
+/* @LT_WINDOW_END */
+// A table shows every row it has until it passes this many; only then does it scroll, inside its own box.
+var LT_CAP = 24;
+var LT_PRESET = [1, 5, 10, 50, 100];
+var lt = { store:'tool', rerender:null, cfg:{}, st:{}, saved:null, bound:false, pop:null, anchor:null };
+function ltLoad(){
+  if (lt.saved) return;
+  lt.saved = {};
+  try { var o = JSON.parse(localStorage.getItem('awoo.lt.' + lt.store) || 'null'); if (o && typeof o === 'object') lt.saved = o; } catch(e){ /* unreadable: defaults */ }
+}
+function ltPersist(id){
+  var s = lt.st[id]; lt.saved[id] = { earlier:s.earlier };
+  try { localStorage.setItem('awoo.lt.' + lt.store, JSON.stringify(lt.saved)); } catch(e){ /* not durable */ }
+}
+function ltState(id){
+  ltLoad();
+  var s = lt.st[id];
+  if (!s){
+    var sv = lt.saved[id] || {};
+    s = lt.st[id] = { earlier:sv.earlier, now:null, step:null, after:10, before:0, open:true, flash:null, top:0 };
+  }
+  return s;
+}
+function ltBefore(cfg){ return cfg.before != null ? cfg.before : 3; }
+function ltLabel(cfg, L){ return cfg.label ? cfg.label(L) : fmtInt(L); }
+function ltBox(id){ return document.querySelector('[data-lt="' + id + '"] .awoo-lt-box'); }
+function ltReduced(){ return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+
+function ltHtml(cfg){
+  lt.cfg[cfg.id] = cfg;
+  var id = cfg.id, s = ltState(id), step = Math.max(1, cfg.step || 1), unit = cfg.unit || 'levels';
+  cfg.step = step;
+  if (cfg.earlier === false) s.earlier = false; else if (s.earlier == null) s.earlier = true;
+  // Your level or the step changed: back to the default window, scrolled to your row.
+  if (s.now !== cfg.now || s.step !== step){ s.now = cfg.now; s.step = step; s.after = 10; s.before = ltBefore(cfg); s.open = true; }
+  var old = ltBox(id);
+  if (old && !s.open) s.top = old.scrollTop;
+  var r = ltRange(cfg, s), levels = ltLevels(cfg, r), now = r.now, i;
+  if (cfg.prepare) cfg.prepare(levels, r);
+  var bps = cfg.bps || [], bpAt = {};
+  for (i = 0; i < bps.length; i++) bpAt[bps[i].at] = bps[i];
+  var headCells = (String(cfg.head || '').match(/<tr[\s\S]*?<\/tr>/g) || ['']).pop().match(/<th(?=[ >])/g);
+  var cols = Math.max(3, (headCells ? headCells.length : 4));
+  var unitWord = step > 1 && !cfg.gold ? 'steps' : unit;
+  var h = '<div class="awoo-lt' + (lt.pop === id ? ' awoo-lt-pop' : '') + '" data-lt="' + id + '" style="--lt-cols:' + cols + '"' + (cfg.main ? ' data-main="1"' : '') + '>';
+  /* the bar: the breakpoint strip, the size button and pop-out at the right */
+  h += '<div class="awoo-lt-bar"><div class="awoo-bps">';
+  if (bps.length){
+    // One line: the dots sit in order, spaced a third by value and two thirds evenly, so close ones never overlap.
+    var lo = cfg.min, hi = Math.max(cfg.max, bps[bps.length - 1].at), kx = [lo], kp = [0], q;
+    for (i = 0; i < bps.length; i++){
+      var lin = hi > lo ? (bps[i].at - lo) / (hi - lo) : 0;
+      q = 0.35 * lin + 0.65 * (i + 0.5) / bps.length;
+      kx.push(bps[i].at); kp.push(q);
+    }
+    kx.push(hi); kp.push(1);
+    var at = function(v){
+      for (var k = 1; k < kx.length; k++) if (v <= kx[k]) return kp[k - 1] + (kp[k] - kp[k - 1]) * (kx[k] > kx[k - 1] ? (v - kx[k - 1]) / (kx[k] - kx[k - 1]) : 0);
+      return 1;
+    };
+    h += '<span class="awoo-bps-k">Breakpoints</span><div class="awoo-bpl"><i class="awoo-bpl-line"></i>' +
+         '<i class="awoo-bpl-done" style="width:' + (at(now) * 100).toFixed(2) + '%"></i>';
+    for (i = 0; i < bps.length; i++){
+      var b = bps[i];
+      h += '<button type="button" class="awoo-bp' + (b.at <= now ? ' awoo-passed' : '') + '" style="left:' + (kp[i + 1] * 100).toFixed(2) + '%" data-lt-bp="' + b.at + '" data-tip="' +
+           ltEsc(b.short + '. ' + b.tip + (b.at <= now ? ' (Behind you.) ' : ' ') + 'Click to show the table up to here.') + '"' +
+           (b.dev ? ' data-tip-dev="' + ltEsc(b.dev) + '"' : '') + '><i></i><b>' + fmtInt(b.show != null ? b.show : b.at) + '</b></button>';
+    }
+    h += '<span class="awoo-bpl-you" style="left:' + (at(now) * 100).toFixed(2) + '%" data-tip="You are here"></span></div>';
+  } else if (cfg.noBreaks){
+    h += '<span class="awoo-bps-k">Breakpoints</span><span class="awoo-bps-none">' + ltEsc(cfg.noBreaks) + '</span>';
+  }
+  h += '</div><span class="awoo-lt-ctl">' +
+              (cfg.popout ? (lt.pop === id
+         ? '<button type="button" class="awoo-ibtn" data-lt-a="close" data-tip="Close (Esc)" aria-label="Close">✕</button>'
+         : '<button type="button" class="awoo-ibtn" data-lt-a="pop" data-tip="Open this table at 80% of the window." aria-label="Pop out">⤢</button>') : '') +
+       '</span></div>';
+  /* the table */
+  h += '<div class="awoo-lt-wrap"><div class="awoo-lt-box"><table class="' + (cfg.tableClass || 'awoo-t') + ' awoo-lt-t"' + (cfg.tableAttrs ? ' ' + cfg.tableAttrs : '') + '><caption class="awoo-sr">' + ltEsc(cfg.caption || '') + '</caption>' +
+       String(cfg.head || '').replace(/<th(?=[ >])/g, '<th scope="col"') + '<tbody>';
+  var colspan = 99;
+  if (cfg.earlier !== false && !r.all){
+    if (!s.earlier) h += '<tr class="awoo-edge"><td colspan="' + colspan + '"><button type="button" data-lt-a="show">▴ ' + s.before + ' earlier ' + unitWord + '</button></td></tr>';
+    else if (r.first > cfg.min) h += '<tr class="awoo-edge"><td colspan="' + colspan + '"><button type="button" data-lt-a="earlier">▴ 10 more earlier</button></td></tr>';
+    else h += '<tr class="awoo-edge"><td colspan="' + colspan + '"><span>From ' + (cfg.minText || 'level ' + fmtInt(cfg.min)) + '</span></td></tr>';
+  }
+  var prev = null;
+  for (i = 0; i < levels.length; i++){
+    var L = levels[i], me = L === now, bp = bpAt[L];
+    var cls = 'awoo-lv' + (me ? ' awoo-sel' : L < now ? ' awoo-done' : '') + (bp ? ' awoo-bpr' : '') + (cfg.rowClass ? ' ' + (cfg.rowClass(L) || '') : '');
+    h += '<tr class="' + cls + '" data-l="' + L + '"><td' + (me || bp ? ' data-tip="' + ltEsc(me ? 'Your level now' : 'Breakpoint: ' + bp.tip) + '"' : '') + '>' + (cfg.cellLabel ? cfg.cellLabel(L) : ltLabel(cfg, L)) + '</td>' + cfg.row(L, prev, me) + '</tr>';
+    prev = L;
+  }
+  if (r.last >= cfg.max) h += '<tr class="awoo-edge"><td colspan="' + colspan + '"><span>' + (cfg.maxText || 'Max level ' + fmtInt(cfg.max)) + '</span></td></tr>';
+  else h += '<tr class="awoo-edge"><td colspan="' + colspan + '"><button type="button" data-lt-a="more">▾ 10 more ' + unitWord + '</button></td></tr>';
+  h += '</tbody></table></div>' +
+       '</div>';
+  /* the footer: as wide as the table; range and Earlier left, controls right under the last column */
+  var opts = (cfg.steps || []).slice();
+  if (cfg.steps && opts.indexOf(step) < 0) opts.push(step);
+  opts.sort(function(a, b){ return a - b; });
+  var rng = (cfg.gold ? 'Gold ' : cfg.rangeWord || 'Levels ') + ltLabel(cfg, r.first) + '–' + ltLabel(cfg, r.last);
+  h += '<div class="awoo-lt-foot"><span class="awoo-lt-rng">' + rng + '</span>' +
+       (cfg.earlier === false || r.all ? '' : '<label class="awoo-chk" data-tip="Show earlier rows on this table. Remembered for this table."><input type="checkbox" data-lt-a="earl"' + (s.earlier ? ' checked' : '') + '>Earlier</label>') +
+       '<span class="awoo-lt-right">' + (r.all ? '' : '<span class="awoo-lt-grp">' +
+       (cfg.earlier === false ? '' : '<button type="button" class="awoo-btn" data-lt-a="from0" data-tip="Every row from ' + (cfg.minText || 'level ' + fmtInt(cfg.min)) + '.">From ' + ltLabel(cfg, cfg.min) + '</button>') +
+       '<button type="button" class="awoo-btn" data-lt-a="p10">+10</button><button type="button" class="awoo-btn" data-lt-a="p50">+50</button></span>' +
+       (cfg.gold ? '' : '<label class="awoo-lt-grp">To level <input type="text" inputmode="numeric" data-lt-a="to" aria-label="Show up to level" data-tip="Type a level and press Enter."></label>')) +
+       (cfg.steps ? '<label class="awoo-lt-grp">Step <select data-lt-a="step" aria-label="Step">' + opts.map(function(v){
+         return '<option value="' + v + '"' + (v === step ? ' selected' : '') + '>' + (cfg.stepLabel ? cfg.stepLabel(v) : v) + '</option>'; }).join('') + '<option value="custom">Custom…</option></select></label>' : '') +
+       '</span></div></div>';
+  return h;
+}
+function ltEsc(v){ return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+function ltRowPx(box){ var tr = box.querySelector('tr.awoo-lv'); return tr ? tr.offsetHeight || 22 : 22; }
+// Box height: LT_CAP rows and the head; a table with fewer rows is never clipped.
+function ltBoxPx(box){
+  var th = box.querySelector('thead');
+  return LT_CAP * ltRowPx(box) + (th ? th.offsetHeight : 34);
+}
+function ltFlash(row){ if (!row) return; row.classList.remove('awoo-flash'); void row.offsetWidth; row.classList.add('awoo-flash'); }
+function ltScroll(id, row, where){
+  var box = ltBox(id); if (!box || !row) return;
+  var scrolls = box.scrollHeight > box.clientHeight + 1 && getComputedStyle(box).overflowY !== 'visible';
+  if (scrolls){
+    var y = where === 'top' ? 0 : where === 'end' ? box.scrollHeight : row.offsetTop - box.clientHeight / 2;
+    box.scrollTo({ top:y, behavior:ltReduced() ? 'auto' : 'smooth' });
+  } else row.scrollIntoView({ block:where === 'top' ? 'start' : where === 'end' ? 'end' : 'center', behavior:ltReduced() ? 'auto' : 'smooth' });
+  ltFlash(row);
+}
+function ltAfter(){
+  var els = document.querySelectorAll('.awoo-lt'), i;
+  for (i = 0; i < els.length; i++){
+    var el = els[i], id = el.getAttribute('data-lt'), s = lt.st[id], cfg = lt.cfg[id];
+    if (!s || !cfg) continue;
+    var box = el.querySelector('.awoo-lt-box');
+    // On a tab that is not showing nothing can be measured: wait until it is.
+    if (!el.offsetParent && !el.classList.contains('awoo-lt-pop')){
+      s.pending = true;
+      if (typeof IntersectionObserver !== 'undefined'){
+        if (!lt.io) lt.io = new IntersectionObserver(function(entries){
+          for (var k = 0; k < entries.length; k++){
+            var sid = entries[k].target.getAttribute('data-lt');
+            if (entries[k].isIntersecting && lt.st[sid] && lt.st[sid].pending){ lt.st[sid].pending = false; lt.io.unobserve(entries[k].target); ltAfter(); }
+          }
+        });
+        lt.io.observe(el);
+      }
+      continue;
+    }
+    var popped = el.classList.contains('awoo-lt-pop');
+    if (popped){
+      // Always 80% of the window high: the box takes what the panel leaves.
+      var ctlH = el.querySelector('.awoo-lt-bar').offsetHeight + el.querySelector('.awoo-lt-foot').offsetHeight;
+      box.style.maxHeight = box.style.height = Math.max(120, Math.round(window.innerHeight * 0.8) - ctlH - 40) + 'px';
+    } else {
+      box.style.height = ''; box.style.maxHeight = '';
+      var boxPx = ltBoxPx(box);
+      if (box.scrollHeight > boxPx + 1){ box.style.maxHeight = boxPx + 'px'; box.classList.remove('awoo-lt-full'); }
+      else box.classList.add('awoo-lt-full');
+    }
+    var sel = el.querySelector('tr.awoo-sel'), scrolling = !box.classList.contains('awoo-lt-full');
+    if (s.toEnd || s.toStart){
+      if (scrolling) box.scrollTop = s.toEnd ? box.scrollHeight : 0;
+      s.toEnd = s.toStart = false;
+    } else if (s.open){
+      s.open = false;
+      if (sel && scrolling) box.scrollTop = Math.max(0, sel.offsetTop - box.querySelector('thead').offsetHeight - 2 * sel.offsetHeight);
+    } else if (lt.anchor && lt.anchor.id === id && sel){
+      var dy = sel.getBoundingClientRect().top - lt.anchor.y;
+      if (scrolling) box.scrollTop += dy; else window.scrollBy(0, dy);
+    } else if (scrolling) box.scrollTop = s.top;
+    if (lt.anchor && lt.anchor.id === id) lt.anchor = null;
+    if (s.flash != null){
+      var fl = el.querySelector('tr[data-l="' + s.flash + '"]');
+      if (fl) ltScroll(id, fl, 'cur');
+      s.flash = null;
+    }
+  }
+}
+function ltAgain(id, keepRow){
+  var box = ltBox(id), sel = box && box.querySelector('tr.awoo-sel');
+  lt.anchor = keepRow && sel ? { id:id, y:sel.getBoundingClientRect().top } : null;
+  var live = document.getElementById('awooLtLive');
+  if (lt.rerender) lt.rerender(id);
+  var cfg = lt.cfg[id];
+  if (live && cfg){
+    var r = ltRange(cfg, lt.st[id]);
+    live.textContent = '';
+    setTimeout(function(){ live.textContent = 'Showing ' + ltLabel(cfg, r.first) + ' to ' + ltLabel(cfg, r.last); }, 30);
+  }
+}
+function ltJump(id, L){
+  var cfg = lt.cfg[id], s = lt.st[id], step = Math.max(1, cfg.step || 1);
+  if (L > cfg.now) s.after = Math.max(s.after, Math.ceil((Math.min(L, cfg.max) - cfg.now) / step));
+  else if (L < cfg.now){ s.earlier = true; s.before = Math.max(s.before, Math.ceil((cfg.now - L) / step)); ltPersist(id); }
+  s.flash = L;
+  ltAgain(id, true);
+}
+function ltPopIn(){ if (!lt.pop) return; var id = lt.pop; lt.pop = null; lt.st[id].open = true; ltAgain(id, false); }
+function ltCustom(id, sel){
+  var old = document.getElementById('awooLtStepPop'); if (old) old.remove();
+  var cfg = lt.cfg[id], r = sel.getBoundingClientRect(), pop = document.createElement('div');
+  pop.id = 'awooLtStepPop'; pop.className = 'awoo-lt-steppop';
+  pop.innerHTML = 'Step <input type="text" inputmode="numeric" aria-label="Custom step"><span class="awoo-lt-hint">' + ltEsc((cfg.stepHint || 'Enter to apply') + ' · Esc to cancel') + '</span>';
+  pop.style.left = Math.max(8, r.left) + 'px'; pop.style.top = (r.bottom + 6) + 'px';
+  document.body.appendChild(pop);
+  var inp = pop.querySelector('input'); inp.focus();
+  sel.value = String(cfg.step);
+  inp.addEventListener('keydown', function(e){
+    if (e.key === 'Enter'){
+      var v = cfg.parseStep ? cfg.parseStep(inp.value) : parseInt(inp.value.replace(/\D/g, ''), 10);
+      pop.remove();
+      if (v > 0 && cfg.onStep) cfg.onStep(v, id);
+      e.stopPropagation();
+    } else if (e.key === 'Escape'){ pop.remove(); e.stopPropagation(); }
+  });
+}
+function ltBind(){
+  if (lt.bound) return;
+  lt.bound = true;
+  var live = document.createElement('div');
+  live.id = 'awooLtLive'; live.className = 'awoo-sr'; live.setAttribute('aria-live', 'polite');
+  document.body.appendChild(live);
+  document.addEventListener('click', function(e){
+    var t = e.target, panel = t.closest && t.closest('.awoo-lt');
+    if (lt.pop && !(panel && panel.getAttribute('data-lt') === lt.pop) && !(t.closest && t.closest('#awooLtStepPop'))) return ltPopIn();
+    if (!panel) return;
+    var id = panel.getAttribute('data-lt'), cfg = lt.cfg[id], s = lt.st[id];
+    if (!cfg || !s) return;
+    var bp = t.closest('[data-lt-bp]');
+    if (bp) return ltJump(id, parseInt(bp.getAttribute('data-lt-bp'), 10));
+    var a = t.closest('[data-lt-a]'); if (!a) return;
+    var act = a.getAttribute('data-lt-a');
+    if (act === 'show'){ s.earlier = true; s.before = ltBefore(cfg); ltPersist(id); }
+    else if (act === 'earlier'){ s.before += 10; s.toStart = true; }
+    else if (act === 'from0'){ s.earlier = true; s.before = Math.ceil((cfg.now - cfg.min) / Math.max(1, cfg.step || 1)); ltPersist(id); }
+    else if (act === 'more' || act === 'p10'){ s.after += 10; s.toEnd = true; }
+    else if (act === 'p50'){ s.after += 50; s.toEnd = true; }
+    else if (act === 'pop'){ lt.pop = id; s.open = true; return ltAgain(id, false); }
+    else if (act === 'close') return ltPopIn();
+    else return;
+    ltAgain(id, true);
+  });
+  document.addEventListener('change', function(e){
+    var el = e.target, a = el.getAttribute && el.getAttribute('data-lt-a'); if (!a) return;
+    var id = el.closest('.awoo-lt').getAttribute('data-lt'), cfg = lt.cfg[id], s = lt.st[id];
+    if (a === 'earl'){ s.earlier = el.checked; s.before = ltBefore(cfg); ltPersist(id); ltAgain(id, true); }
+    else if (a === 'step'){
+      if (el.value === 'custom') return ltCustom(id, el);
+      if (cfg.onStep) cfg.onStep(parseInt(el.value, 10), id);
+    }
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape'){ var sp = document.getElementById('awooLtStepPop'); if (sp) sp.remove(); else ltPopIn(); return; }
+    if (e.key !== 'Enter') return;
+    var el = e.target;
+    if (!el.getAttribute || el.getAttribute('data-lt-a') !== 'to') return;
+    var id = el.closest('.awoo-lt').getAttribute('data-lt'), cfg = lt.cfg[id];
+    var v = parseInt(el.value.replace(/\D/g, ''), 10);
+    if (v >= cfg.min) ltJump(id, Math.min(v, cfg.max));
+  });
+}
+var levelTables = {
+  init: function(o){ lt.store = o.store; lt.rerender = o.rerender; ltBind(); },
+  html: ltHtml,
+  after: ltAfter,
+  // Test seam: the window rule without a DOM.
+  _range: ltRange, _levels: ltLevels
+};
+
 window.AWOO_TOOL_SETTINGS = {
   mount: mount,
+  levelTables: levelTables,
   markTabs: markTabs,
   // Number presentation, the same for every tool (see NUMBER PRESENTATION).
   num: { mode:numMode, localeKey:numLocaleKey, localeTag:numLocaleTag,
@@ -2744,49 +3172,10 @@ button,input,select{font-family:inherit;font-size:inherit;color:inherit}
 .awoo-panel-h .awoo-mark{letter-spacing:.05em}
 .sysdesc{margin:0 0 .55rem;font-size:.74rem;color:var(--ink-soft);line-height:1.45;max-width:80ch}
 
-/* Breakpoints: every place the formula changes shape (2026-09-23), above the
-   table whatever the step. Click one to make it the target. */
-.bpstrip{display:flex;align-items:center;gap:.35rem;flex-wrap:wrap;margin:0 0 .55rem}
-.bpstrip .bk{font-family:var(--font-mono);font-size:.55rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-mute);margin-right:.15rem}
-.bpchip{
-  display:inline-flex; align-items:baseline; gap:.3rem; cursor:pointer;
-  font-size:.7rem; color:var(--ink-soft); background:var(--surface-2);
-  border:1px solid var(--border-control); border-radius:var(--in-radius); padding:.1rem .45rem;
-}
-.bpchip b{font-family:var(--font-num);font-variant-numeric:tabular-nums;color:var(--ink);font-weight:700}
-.bpchip:hover{border-color:var(--accent-fill);color:var(--accent)}
-.bpchip.passed{opacity:.55}
-.bpnone{font-size:.7rem;color:var(--ink-mute)}
-
-/* The table: the kit's rules (§10f), in a box that scrolls DOWN only, so the
-   current row can be brought into view. Nothing in it is wider than the
-   box: Cumulative is the optional column and goes first (.awoo-o2). */
-.tablewrap{overflow-y:auto;overflow-x:hidden}
-.tablewrap table{width:100%}
-.tablewrap thead th{position:sticky;top:0;z-index:2}
-.tablewrap tbody tr:first-child td{border-top:0}
-/* Only the level is bold (§7, §10f: bold marks one thing per row). */
-.tablewrap tbody td:first-child{font-weight:600}
-/* You and your target are marks on the level (§10g); the current row is
-   treatment BC (the kit's .awoo-sel); levels already bought fade (.awoo-done). */
-tbody tr.current td:first-child::after,
-tbody tr.target td:first-child::after{
-  display:inline-block; margin-left:.45rem; font-family:var(--font-body); font-size:.55rem; font-weight:600;
-  letter-spacing:.05em; line-height:1.35; text-transform:uppercase; border:1px solid currentColor;
-  border-radius:var(--in-radius); padding:0 .22rem; vertical-align:1px;
-}
-tbody tr.current td:first-child::after{content:'You';color:var(--accent)}
-tbody tr.target td:first-child::after{content:'Target';color:var(--success)}
-tbody td .bpnote{
-  display:inline-block; margin-left:.45rem; font-family:var(--font-body); font-size:.55rem; font-weight:600;
-  letter-spacing:.05em; line-height:1.35; text-transform:uppercase; color:var(--info);
-  border:1px solid currentColor; border-radius:var(--in-radius); padding:0 .22rem; cursor:help; vertical-align:1px;
-}
-
-.rowctl{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin-top:.45rem}
-.rowctl .hint{margin-right:auto;font-size:.68rem;color:var(--ink-soft);min-width:0}
-.rowctl .awoo-btn{flex:none}
-.rowctl .full{font-size:.68rem;color:var(--ink-mute)}
+/* The table, its breakpoint chips, size buttons and footer are the kit's level
+   table (tool-settings.css, DESIGN.md 10f-bis). Only the level cell is bold
+   (§7, §10f: bold marks one thing per row). */
+.awoo-lt-t tbody td:first-child{font-weight:600}
 
 /* The formula panel: a fold, headed like every panel. */
 details.notes > summary{cursor:pointer;list-style:none;margin:0}
@@ -3022,6 +3411,7 @@ var CUR = {
 var VILLAGE_STRENGTH_CUR = (F && F.villageStrengthCurrency) || 'strength';
 CUR[VILLAGE_STRENGTH_CUR] = { label:'Village Strength' };
 
+var DUNGEON_SERVER_MAX = 24155;
 var SYSTEMS = [
 {
   id:'sanctum', group:'Character', name:'Sanctum skill tree', tier:'CROSS',
@@ -3226,6 +3616,28 @@ var SYSTEMS = [
   curNote:'meat / iron / wood / stone — set by the tile’s coordinates'
 },
 {
+  id:'dungeonlevel', group:'Dungeon', name:'Dungeon levels', tier:'CODE',
+  unit:'dungeon level', unitShort:'Level', def:23610, min:1, max:30000, view:3000, expandBy:3000, step:500, checked:'2026-10-31',
+  desc:'What your dungeon level lets you craft: the lowest and highest item level of fighter gear and sculptures (one shared table), or the level range of a cave description.',
+  variants:{ label:'Crafting', options:[{id:'gear',label:'Gear and sculpture'},{id:'cave',label:'Cave description'}] },
+  cur:[],
+  custom:function(v){
+    var range = v === 'cave'
+      ? function(d){ var hi = Math.round(Math.pow(d,0.7)/40) + 1; return [Math.max(1, hi - 10), hi]; }
+      : function(d){ var n = Math.round(Math.min(DUNGEON_SERVER_MAX, d*1.1))/100; return [Math.round(n*0.8)+1, Math.round(n)+1]; };
+    return {
+      head:'<thead><tr><th>Level</th><th>Lowest</th><th>Highest</th></tr></thead>',
+      row:function(n){ var r = range(n); return '<td>' + fmtInt(r[0]) + '</td><td>' + fmtInt(r[1]) + '</td>'; }
+    };
+  },
+  formula:'gear and sculpture: n = round(min(cap, D · 1.1)) / 100;  lowest = round(n · 0.8) + 1,  highest = round(n) + 1\ncave description: highest = round(D^0.7 / 40) + 1,  lowest = max(1, highest − 10)\nD = your dungeon level; cap = the highest dungeon level on the server',
+  userNote:'Your dungeon level sets the range a craft can roll. Gear and sculptures share one table. A craft is also held back by the highest dungeon level on the server: this table assumes the cap shown below, so past it the rows stop growing.',
+  devNote:'<b>CODE, 2026-10-31</b>: read from the 2026-10-22 bundle (utils-Bb94SwoJ.js <code>p</code>/<code>f</code> for gear and sculptures, DescriptionHoverCard-vBHLRdEt.js <code>A</code>/<code>j</code> for descriptions) and matched to the maintainer\u2019s formula pop-ups (23,610: gear 243 inside the range, description Lvl 20-30). The server cap is a live number (24,155 when read); the table holds it as a constant.',
+  srcs:['capture/raw/bundle-2026-10-22-live/assets/utils-Bb94SwoJ.js','capture/raw/bundle-2026-10-22-live/assets/DescriptionHoverCard-vBHLRdEt.js'],
+  noBreaks:'No chips: the highest level steps up about every 91 dungeon levels. Use a step of 1 to find an exact unlock.',
+  maxNote:'Server cap assumed: 24,155 (the highest dungeon level when this was read).'
+},
+{
   id:'cavetool', group:'Caves', name:'Cave tools', tier:'LIVE',
   unit:'tool level', unitShort:'Level', def:150, min:0, max:500, view:300, expandBy:100, step:5, checked:'2026-08-25',
   desc:'Every tool but the repeater costs four resources plus a gentle diamond fee. The repeater is diamonds only, and doubles.',
@@ -3313,6 +3725,7 @@ var GROUPS = [
   { id:'Partners',  label:'Partners' },
   { id:'Village',   label:'Village' },
   { id:'Fighters',  label:'Fighters' },
+  { id:'Dungeon',   label:'Dungeon' },
   { id:'Pets',      label:'Pets' },
   { id:'Caves',     label:'Caves & house' },
   { id:'Relics',    label:'Relics' },
@@ -3323,7 +3736,7 @@ var GROUPS = [
 var ORDER = ['charlevel','equipslot','sanctum',
              'partnerhire','partnerboost','partnerlevel',
              'villagebuilding','villagestrength','villageboss',
-             'fighterslot',
+             'fighterslot','dungeonlevel',
              'petslot',
              'cavetool','house',
              'relicboost',
@@ -3464,7 +3877,7 @@ function syncSummary(){
 // remembered per tool. Nothing here duplicates that.
 
 var LS = 'awooCostTables.v1';
-var state = { active:'charlevel', levels:{}, variants:{}, rows:{}, targets:{}, currency:{}, steps:{}, expanded:false };
+var state = { active:'charlevel', levels:{}, variants:{}, rows:{}, currency:{}, steps:{}, expanded:false };
 
 // Every system that HAS variants gets one selected before the first render.
 // Leaving it undefined would split the field key ("petslot") from the variant
@@ -3485,12 +3898,6 @@ function clampLevel(sys, v){
 function stepFor(sys){
   var v = state.steps[keyFor(sys)];
   return (v && v > 0) ? Math.round(v) : sys.step;
-}
-function targetLevel(sys){
-  var k = keyFor(sys), lv = currentLevel(sys);
-  var t = state.targets[k];
-  if (t == null || t <= lv) return Math.min(lv + 10, sys.max);
-  return Math.min(t, sys.max);
 }
 function defaultLevel(sys){
   var v = state.variants[sys.id];
@@ -3515,7 +3922,6 @@ function load(){
     if (o.variants) state.variants = o.variants;
     if (o.currency) state.currency = o.currency;
     if (o.edited) edited = o.edited;
-    if (o.targets) state.targets = o.targets;
     if (o.steps) state.steps = o.steps;
     // This page kept its own number override until 2026-09-23; hand it to
     // the shared layer once, where every tool now keeps it.
@@ -3531,7 +3937,7 @@ function save(){
     try {
       localStorage.setItem(LS, JSON.stringify({
         levels:state.levels, variants:state.variants, currency:state.currency,
-        targets:state.targets, expanded:state.expanded,
+        expanded:state.expanded,
         steps:state.steps, edited:edited, active:state.active
       }));
     } catch(e){}
@@ -3566,7 +3972,7 @@ function renderNav(){
             (s.id===state.active ? ' aria-current="true"' : '') + '>' +
             esc(s.name) + '<span class="nlv">' + fmtInt(lv) + '</span></button>';
   });
-  html += '<div class="cardfoot"><button class="awoo-btn" type="button" id="resetAllBtn" data-tip="Current levels, targets, steps and row counts back to their defaults, for every subject.">Reset every subject</button></div>';
+  html += '<div class="cardfoot"><button class="awoo-btn" type="button" id="resetAllBtn" data-tip="Current levels and steps back to their defaults, for every subject.">Reset every subject</button></div>';
   document.getElementById('nav').innerHTML = html;
 }
 
@@ -3576,7 +3982,8 @@ var TIER_TIP = {
   LIVE:'LIVE: checked against the real game.',
   CODE:'CODE: read from the shipped bundle.',
   CROSS:'CROSS: matches a known table, small drift.',
-  OPEN:'OPEN: something here is unresolved.'
+  OPEN:'OPEN: something here is unresolved.',
+  PLAYER:'PLAYER: read off the game by the maintainer, not yet checked against its code.'
 };
 var TIER_MARK = { LIVE:'awoo-mark-ok', CODE:'awoo-mark-ok', CROSS:'awoo-mark-acc', OPEN:'awoo-mark-info' };
 function tierTip(tier){
@@ -3591,16 +3998,11 @@ function costCell(amounts, cur, cls){
 
 function renderSystem(){
   var sys = BY_ID[state.active];
-  var cur = activeCurrency(sys);
+  var cur = sys.custom ? null : activeCurrency(sys);
   var lv  = currentLevel(sys);
   var key = keyFor(sys);
   var fstate = fieldState(key);
-  var tgt = targetLevel(sys);
   var step = stepFor(sys);
-  var rowsTo = state.rows[key];
-  if (rowsTo == null || rowsTo <= lv) rowsTo = Math.min(Math.max(lv + sys.view, tgt), sys.max);
-  rowsTo = Math.min(rowsTo, sys.max);
-  var from = Math.max(sys.min, lv - 3*step);
   var variant = state.variants[sys.id] || (sys.variants ? sys.variants.options[0].id : null);
 
   /* the inputs card (house style, DESIGN.md §10d): this subject's inputs in
@@ -3624,10 +4026,6 @@ function renderSystem(){
       });
     }
   }
-  f += '<label for="tgtInput"><span class="tip" data-tip="' +
-       esc('Where you want to get to. Sets the headline total, and grows the table to reach it.') +
-       '">Target</span></label><span class="awoo-cell">' +
-       '<input type="text" data-num data-num-kind="int" id="tgtInput" value="' + tgt + '" min="' + (lv+1) + '" max="' + sys.max + '"></span>';
   if (sys.variants){
     f += '<label for="varSel">' + esc(sys.variants.label) + '</label><span class="awoo-cell"><select id="varSel">';
     sys.variants.options.forEach(function(o){
@@ -3642,19 +4040,15 @@ function renderSystem(){
     });
     f += '</select></span>';
   }
-  f += '<label for="stepInput"><span class="tip" data-tip="' +
-       esc('Rows advance by this many levels. A subject that runs to thousands is unreadable at 1.') +
-       '">Step</span></label><span class="awoo-cell">' +
-       '<input type="text" data-num data-num-kind="int" id="stepInput" value="' + step + '" min="1" max="' + Math.max(1, sys.max) + '"></span>';
   f += '</div><div class="cardfoot"><button class="awoo-btn" type="button" id="resetSysBtn">Reset this subject</button></div>';
   var inputsEl = document.getElementById('inputs');
   inputsEl.innerHTML = f;
 
   var h = '';
 
+  if (!sys.custom){
   /* summary — the headline is the question this page exists to answer:
      what does it cost to get from where I am to where I want to be. */
-  var toTarget = sys.range(lv, tgt, variant);
   var next1 = sys.range(lv, Math.min(lv+1, sys.max), variant);
   var next5 = sys.range(lv, Math.min(lv+5, sys.max), variant);
   var spent = sys.range(sys.min, lv, variant);
@@ -3666,24 +4060,16 @@ function renderSystem(){
            '<div class="awoo-tile-v">' + v + '</div><div class="awoo-tile-w">' + w + '</div></div>';
   };
   h += '<div class="awoo-tiles">';
-  h += tile('To target', fmtNum(toTarget[cur]||0) + '<span class="awoo-tile-u">' + unit + '</span>',
-            fmtInt(lv) + ' → ' + fmtInt(tgt), ' awoo-hero');
-  h += tile('Next level', fmtNum(next1[cur]||0), fmtInt(lv) + ' → ' + fmtInt(Math.min(lv+1, sys.max)));
+  h += tile('Next level', fmtNum(next1[cur]||0) + '<span class="awoo-tile-u">' + unit + '</span>', fmtInt(lv) + ' → ' + fmtInt(Math.min(lv+1, sys.max)), ' awoo-hero');
   h += tile('Next 5', fmtNum(next5[cur]||0), fmtInt(lv) + ' → ' + fmtInt(Math.min(lv+5, sys.max)));
   h += tile('Sunk', fmtNum(spent[cur]||0), fmtInt(sys.min) + ' → ' + fmtInt(lv));
 
-  // The full bill for the target, when a system charges in more than one
-  // currency. The table can only show one column at a time; a village
-  // building upgrade you cannot actually afford in wood is not a detail, so
-  // each other currency gets a tile of its own rather than a strip.
-  for (var ck in toTarget){
-    if (ck !== cur && toTarget[ck]) h += tile(esc(CUR[ck].label), fmtNum(toTarget[ck]), 'also, ' + fmtInt(lv) + ' → ' + fmtInt(tgt), ' other');
-  }
   h += '</div>';
+  }
 
   /* The table panel: the subject's name as the one panel heading, its marks,
      its controls on the right (§10e); the description under it. */
-  var curNames = sys.cur.map(function(c){ return CUR[c].label; }).join(' · ');
+  var curNames = sys.custom ? '' : sys.cur.map(function(c){ return CUR[c].label; }).join(' · ');
   // A currency note is this page's one notice, above the panel it is about (§10g).
   if (sys.curNote){
     h += '<div class="awoo-notice"><span class="awoo-notice-g">i</span><span>' + sys.curNote + '</span></div>';
@@ -3691,80 +4077,35 @@ function renderSystem(){
   h += '<section class="awoo-panel">';
   h += '<h2 class="awoo-panel-h">' + esc(sys.name) +
        '<span class="awoo-mark ' + (TIER_MARK[sys.tier] || 'awoo-mark-mute') + ' tip" data-tip="' + esc(tierTip(sys.tier)) + '">' + sys.tier + '</span>' +
-       '<span class="awoo-mark awoo-mark-mute">' + esc(curNames) + '</span>' +
-       '<span class="awoo-panel-ctl">' +
-       '<button class="awoo-btn" type="button" id="expandBtn" aria-pressed="' + (state.expanded ? 'true' : 'false') + '">' +
-       (state.expanded ? 'Shrink table' : 'Expand table') + '</button>' +
-       (rowsTo < sys.max && sys.expandBy ? '<button class="awoo-btn" type="button" id="more30">+' + sys.expandBy + ' levels</button>' : '') +
-       '</span></h2>';
+       (curNames ? '<span class="awoo-mark awoo-mark-mute">' + esc(curNames) + '</span>' : '') +
+       '</h2>';
   h += '<p class="sysdesc">' + sys.desc +
        (sys.alias ? ' <span class="tip" data-tip="' + esc(sys.alias) + '">Naming note.</span>' : '') + '</p>';
 
-  /* breakpoints: every one, whatever the step, with what changes there */
+  /* the level table (§10f-bis): the kit draws the window, the breakpoint chips,
+     the size buttons and the footer; this page draws the cells of one level. */
   var bps = breaksFor(sys, variant);
-  h += '<div class="bpstrip"><span class="bk">Breakpoints</span>';
-  if (bps.length){
-    bps.forEach(function(b){
-      h += '<button type="button" class="bpchip' + (b.at <= lv ? ' passed' : '') + '" data-bp="' + b.at + '" data-tip="' +
-           esc(b.tip + (b.at <= lv ? ' (Behind you.)' : ' Click to make it your target.')) + '"' +
-           (b.dev ? ' data-tip-dev="' + esc(b.dev) + '"' : '') + '><b>' + fmtInt(b.at) + '</b>' + esc(b.short) + '</button>';
-    });
-  } else {
-    h += '<span class="bpnone">' + esc(sys.noBreaks || 'None.') + '</span>';
-  }
-  h += '</div>';
-
-  /* table: the kit's rules (§10f). What each head means is on its hover;
-     Cumulative is the optional column and goes first on a narrow page. */
-  h += '<div class="tablewrap"><table class="awoo-t"><thead><tr>' +
-       '<th>' + esc(sys.unitShort) + '</th>' +
-       '<th class="tip" data-tip="' + esc('The cost of ' + (step === 1 ? 'this level alone.' : 'this ' + step + '-level step.')) + '">Cost</th>' +
-       '<th class="tip awoo-o2" data-tip="' + esc('Everything from ' + sys.min + ' to this level.') + '">Cumulative</th>' +
-       '<th class="tip" data-tip="What you still owe from your level to this one.">From level ' + fmtInt(lv) + '</th>' +
-       '</tr></thead><tbody>';
-
-  // Rows advance by `step`, and always include the current and target levels
-  // even when they do not land on a step boundary - a table that hides the two
-  // rows the reader came for is worse than an unaligned one.
-  var marks = {};
-  for (var q = Math.max(from, sys.min + 1); q <= rowsTo; q += step) marks[q] = true;
-  if (lv > sys.min) marks[lv] = true;
-  if (tgt > sys.min && tgt <= rowsTo) marks[tgt] = true;
-  // Breakpoint rows are always shown in range, even off-step: a table that
-  // steps past the level where the formula changes hides the one row that
-  // explains the jump.
-  var bpAt = {};
-  bps.forEach(function(b){ bpAt[b.at] = b; if (b.at > sys.min && b.at >= from && b.at <= rowsTo) marks[b.at] = true; });
-  var rowLevels = Object.keys(marks).map(Number).sort(function(a,b){ return a-b; });
-
-  for (var ri = 0; ri < rowLevels.length; ri++){
-    var n = rowLevels[ri];
-    var prev = ri > 0 ? rowLevels[ri-1] : Math.max(sys.min, n - step);
-    // Current is treatment BC (.awoo-sel); bought levels fade (.awoo-done).
-    var cls = n === lv ? 'current awoo-sel' : (n < lv ? 'past awoo-done' : '');
-    if (n === tgt && n !== lv) cls += ' target';
-    var bp = bpAt[n] || null;
-    if (bp) cls += ' bp';
-    var stepCost = sys.range(prev, n, variant);
-    var cum  = sys.range(sys.min, n, variant);
-    h += '<tr class="' + cls + '"' + (n===lv ? ' id="curRow"' : '') + '>';
-    h += '<td>' + fmtInt(n) + (bp ? '<span class="bpnote" data-tip="' + esc(bp.tip) + '">' + esc(bp.short) + '</span>' : '') + '</td>';
-    h += costCell(stepCost, cur);
-    h += costCell(cum, cur, ' awoo-o2');
-    if (n <= lv) h += '<td class="awoo-dash">—</td>';
-    else h += costCell(sys.range(lv, n, variant), cur);
-    h += '</tr>';
-  }
-  h += '</tbody></table></div>';
-
-  /* the legend line under the table (§10g) */
-  h += '<div class="rowctl">';
-  h += '<span class="hint">Showing ' + Math.max(from, sys.min+1) + '–' + rowsTo +
-       ' of ' + sys.min + '–' + fmtInt(sys.max) + ', every ' + step + '.' +
-       (sys.maxNote ? ' ' + sys.maxNote : '') +
-       (bps.length ? ' Marked rows are where the formula changes shape.' : '') +
-       (rowsTo < sys.max && sys.expandBy ? '' : ' Showing the full range.') + '</span>';
-  h += '</div></section>';
+  var unitWords = sys.unitShort.toLowerCase(); if (unitWords.slice(-1) !== 's') unitWords += 's';
+  h += AWOO_TOOL_SETTINGS.levelTables.html({
+    id: 'ct:' + key, caption: sys.custom ? sys.name : sys.name + ' cost by ' + sys.unit, popout: true, main: true,
+    min: sys.min, max: sys.max, now: lv, step: step, steps: [1, 5, 10, 50, 100],
+    onStep: function(v){ state.steps[key] = v; save(); renderSystem(); },
+    unit: unitWords, rangeWord: sys.unitShort + 's ', minText: sys.unitShort.toLowerCase() + ' ' + fmtInt(sys.min), maxText: 'Max ' + sys.unitShort.toLowerCase() + ' ' + fmtInt(sys.max),
+    bps: bps, noBreaks: sys.noBreaks || 'None.',
+    head: sys.custom ? sys.custom(variant).head : '<thead><tr class="grp"><th></th><th>Step</th><th class="awoo-sep awoo-o2">From now</th></tr>' +
+      '<tr><th>' + esc(sys.unitShort) + '</th>' +
+      '<th class="tip" data-tip="' + esc('The cost of ' + (step === 1 ? 'this level alone.' : 'this ' + step + '-level step.')) + '">Cost</th>' +
+      '<th class="tip awoo-sep awoo-o2" data-tip="What you still owe from your level to this one.">Cost</th></tr></thead>',
+    // Rows advance by `step`; the kit adds your row and every breakpoint, off-step or not.
+    row: sys.custom ? sys.custom(variant).row : function(n, prev){
+      if (n <= sys.min) return '<td class="awoo-dash">—</td><td class="awoo-dash awoo-sep awoo-o2">—</td>';
+      var p0 = prev == null ? Math.max(sys.min, n - step) : prev;
+      return costCell(sys.range(p0, n, variant), cur) +
+        (n <= lv ? '<td class="awoo-dash awoo-sep awoo-o2">—</td>' : costCell(sys.range(lv, n, variant), cur, ' awoo-sep awoo-o2'));
+    }
+  });
+  if (sys.maxNote) h += '<p class="sysdesc">' + sys.maxNote + '</p>';
+  h += '</section>';
 
   /* notes */
   // Two audiences, one panel. A player wants the formula and the sentence that
@@ -3787,6 +4128,7 @@ function renderSystem(){
   NUM.enhance(inputsEl);
   NUM.enhance(document.getElementById('main'));
   wireSystem(sys);
+  AWOO_TOOL_SETTINGS.levelTables.after();
 }
 
 function breaksFor(sys, variant){
@@ -3797,14 +4139,6 @@ function breaksFor(sys, variant){
 function wireSystem(sys){
   var key = keyFor(sys);
 
-  Array.prototype.forEach.call(document.querySelectorAll('.bpchip'), function(chip){
-    chip.addEventListener('click', function(){
-      var at = parseInt(chip.getAttribute('data-bp'), 10);
-      if (at > currentLevel(sys)){ state.targets[key] = at; delete state.rows[key]; save(); }
-      renderSystem(); sizeTable(); scrollRowIntoView(at);
-    });
-  });
-
   var lvInput = document.getElementById('lvInput');
   lvInput.addEventListener('input', function(){
     var v = NUM.read(lvInput); if (v !== null) v = Math.round(v);
@@ -3813,16 +4147,6 @@ function wireSystem(sys){
     edited[key] = true;
     save();
     renderAll('lvInput');
-  });
-
-  var tgtInput = document.getElementById('tgtInput');
-  tgtInput.addEventListener('input', function(){
-    var v = NUM.read(tgtInput); if (v !== null) v = Math.round(v);
-    if (v === null || v <= currentLevel(sys) || v > sys.max) return;
-    state.targets[key] = v;
-    delete state.rows[key];
-    save();
-    renderAll('tgtInput');
   });
 
   var light = document.getElementById('stateLight');
@@ -3838,8 +4162,6 @@ function wireSystem(sys){
   document.getElementById('resetSysBtn').addEventListener('click', function(){
     delete edited[key];
     delete state.levels[key];
-    delete state.rows[key];
-    delete state.targets[key];
     delete state.steps[key];
     save();
     renderAll();
@@ -3857,26 +4179,6 @@ function wireSystem(sys){
     save(); renderSystem();
   });
 
-  var stepInput = document.getElementById('stepInput');
-  stepInput.addEventListener('input', function(){
-    var v = NUM.read(stepInput); if (v !== null) v = Math.round(v);
-    if (v === null || v < 1 || v > sys.max) return;
-    state.steps[key] = v;
-    save(); renderAll('stepInput');
-  });
-
-  document.getElementById('expandBtn').addEventListener('click', function(){
-    state.expanded = !state.expanded;
-    save(); renderSystem(); sizeTable(); scrollCurrentIntoView();
-  });
-
-  var more = document.getElementById('more30');
-  if (more) more.addEventListener('click', function(){
-    var lv = currentLevel(sys);
-    var now = state.rows[key] || Math.max(lv + sys.view, targetLevel(sys));
-    state.rows[key] = Math.min(now + sys.expandBy, sys.max);
-    save(); renderSystem();
-  });
 }
 
 function renderAll(refocusId, forceScrollY){
@@ -3899,43 +4201,6 @@ function renderAll(refocusId, forceScrollY){
     }
   }
   window.scrollTo(0, scrollY);
-  sizeTable();
-  scrollCurrentIntoView();
-}
-
-// The table gets a real height so "scroll the current row into view" means
-// something — sized to the viewport, not a fixed pixel count. Re-applied on
-// every render, because renderSystem() replaces the element.
-function sizeTable(){
-  var w = document.querySelector('.tablewrap');
-  if (!w) return;
-  var reserve = state.expanded ? 150 : 380;
-  w.style.maxHeight = Math.max(320, window.innerHeight - reserve) + 'px';
-}
-
-function scrollRowIntoView(level){
-  var wrap = document.querySelector('.tablewrap');
-  if (!wrap) return;
-  var rows = wrap.querySelectorAll('tbody tr');
-  for (var i = 0; i < rows.length; i++){
-    var c = rows[i].firstChild;
-    if (c && parseInt(c.textContent.replace(/[^0-9]/g, ''), 10) === level){
-      var delta = rows[i].getBoundingClientRect().top - wrap.getBoundingClientRect().top;
-      wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * rows[i].offsetHeight);
-      return;
-    }
-  }
-}
-
-function scrollCurrentIntoView(){
-  var wrap = document.querySelector('.tablewrap');
-  var row = document.getElementById('curRow');
-  if (!wrap || !row) return;
-  // A few rows above the current one, the rest below — the decision is about
-  // what comes next, not what is already paid for. Measured rather than read
-  // off offsetTop, whose offsetParent is the panel here, not the scroller.
-  var delta = row.getBoundingClientRect().top - wrap.getBoundingClientRect().top;
-  wrap.scrollTop = Math.max(0, wrap.scrollTop + delta - 3 * row.offsetHeight);
 }
 
 /* =====================================================================
@@ -3948,7 +4213,7 @@ function init(){
   // renderNav() rebuilds the card, so its buttons carry no listeners of their own.
   document.getElementById('nav').addEventListener('click', function(e){
     if (e.target.closest('#resetAllBtn')){
-      state.levels = {}; state.rows = {}; state.targets = {}; state.steps = {}; edited = {};
+      state.levels = {}; state.steps = {}; edited = {};
       save(); renderAll();
       return;
     }
@@ -3959,6 +4224,7 @@ function init(){
     renderAll(null, 0);
   });
 
+  AWOO_TOOL_SETTINGS.levelTables.init({ store:'costTables', rerender:function(){ renderSystem(); } });
   AWOO_TOOL_SETTINGS.mount(document.getElementById('gear'), {
     devHint: 'Adds the evidence tier, source files and last-checked date to each Formula panel.'
   });
@@ -4001,7 +4267,7 @@ function init(){
     backTop.hidden = !(window.scrollY > 320 && window.innerWidth <= 1000);
   };
   window.addEventListener('scroll', updateBackTop);
-  window.addEventListener('resize', function(){ sizeTable(); scrollCurrentIntoView(); updateBackTop(); });
+  window.addEventListener('resize', function(){ updateBackTop(); });
   updateBackTop();
 
   renderAll();
