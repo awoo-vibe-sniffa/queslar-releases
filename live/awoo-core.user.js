@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.19
+// @version      7.0.20
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -19,7 +19,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.19",
+    "version": "7.0.20",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -3232,6 +3232,9 @@
            ring says it stays, and its background drags it. */
         .awoo-ui-popup-locked { outline: 1px solid var(--awoo-accent-edge, var(--awoo-accent)); outline-offset: -1px; }
         .awoo-ui-popup-dragging, .awoo-ui-popup-dragging * { cursor: move !important; }
+        .awoo-ui-popup-origin { box-sizing: border-box; border: 1px dashed var(--awoo-accent-edge, var(--awoo-accent)); border-radius: 4px; pointer-events: none; opacity: .7; }
+        .awoo-ui-popup-lockicon { position: fixed; pointer-events: none; display: flex; padding: 3px; border-radius: 4px; color: var(--awoo-accent-ink, #111); background: var(--awoo-accent, #E3B36B); box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+        .awoo-ui-popup-lockicon[hidden] { display: none; }
         .awoo-ui-popup-close { display: none; }
         .awoo-ui-popup-locked .awoo-ui-popup-close { display: inline-flex; }
         .awoo-cp-pos { border: 1px solid var(--awoo-edge); background: transparent; border-radius: var(--awoo-in-radius); cursor: pointer; padding: 0; }
@@ -4666,7 +4669,7 @@
         // closes it now instead of starting another wait.
         function check(final) {
           frame = 0;
-          if (!openScope || locked) return;
+          if (!openScope || locked || dragging) return;
           // No pointer position yet (opened by a click or focus, and the
           // pointer has not moved since): nothing to judge by, so it stays.
           if (!Number.isFinite(px)) return;
@@ -4694,31 +4697,98 @@
         // capture is not used: the moves are read from the document for the
         // length of the drag only, inside the open scope.
         const INTERACTIVE = 'button,a,input,select,textarea,label,summary,[role="button"],[contenteditable="true"]';
+        // Round 6 (the maintainer, 2026-11-03): a press on a button never
+        // locks, and a press on the background only drags once the pointer
+        // has moved DRAG_START px. Until it is locked, a drag shows where the
+        // pop-up came from (a dashed outline) and lets go back to it if it
+        // was not taken DRAG_LOCK px away; only a drag that far locks it.
+        // Once locked, a drag is free as before, with no outline or snap-back.
+        const DRAG_START = 5, DRAG_LOCK = 40;
+        let dragging = false;
+        function moveTo(r, dx, dy) {
+          const rect = clampRectToViewport({ x: r.left + dx, y: r.top + dy, w: r.width, h: r.height },
+            viewportRect(), { minVisible: 48, margin: 4 });
+          el.style.left = rect.x + 'px';
+          el.style.top = rect.y + 'px';
+          el.style.right = 'auto';
+          el.style.bottom = 'auto';
+          return rect;
+        }
         function onPress(e) {
           raisePopup(el);
           if (e.button !== 0) return;
           const t = e.target && e.target.closest ? e.target : null;
           if (t && t.closest('[data-popup-close]')) return;
-          setLocked(true);
           if (t && t.closest(INTERACTIVE)) return;
           const r = el.getBoundingClientRect();
           const sx = e.clientX, sy = e.clientY;
+          const was = { left: el.style.left, top: el.style.top, right: el.style.right, bottom: el.style.bottom };
+          const wasLocked = locked;
+          let started = wasLocked, mark = null, lockIcon = null;
           const drag = openScope.child('drag');
+          const begin = () => {
+            started = true;
+            dragging = true;
+            // The move cursor only while a drag is under way (2026-11-02).
+            if (el.classList) el.classList.add('awoo-ui-popup-dragging');
+            if (!wasLocked) {
+              mark = document.createElement('div');
+              mark.className = 'awoo-ui-popup-origin';
+              mark.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;z-index:${Z.popover - 1}`;
+              document.body.appendChild(mark);
+            }
+          };
+          if (wasLocked) begin();
+          drag.add(() => {
+            dragging = false;
+            if (el.classList) el.classList.remove('awoo-ui-popup-dragging');
+            if (mark) { mark.remove(); mark = null; }
+            if (lockIcon) { lockIcon.remove(); lockIcon = null; }
+          });
           drag.on(document, 'pointermove', (m) => {
-            const rect = clampRectToViewport({ x: r.left + (m.clientX - sx), y: r.top + (m.clientY - sy), w: r.width, h: r.height },
-              viewportRect(), { minVisible: 48, margin: 4 });
-            el.style.left = rect.x + 'px';
-            el.style.top = rect.y + 'px';
-            el.style.right = 'auto';
-            el.style.bottom = 'auto';
+            const dx = m.clientX - sx, dy = m.clientY - sy;
+            if (!started) {
+              if (Math.hypot(dx, dy) < DRAG_START) return;
+              begin();
+            }
+            moveTo(r, dx, dy);
+            // Outside the snap-back area: a lock beside the pointer says
+            // that letting go here keeps the pop-up.
+            if (mark) {
+              const far = Math.hypot(dx, dy) >= DRAG_LOCK;
+              if (far && !lockIcon) {
+                lockIcon = document.createElement('div');
+                lockIcon.className = 'awoo-ui-popup-lockicon';
+                lockIcon.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="7" width="10" height="7" rx="1.5" fill="currentColor"/><path d="M5 7V5a3 3 0 0 1 6 0v2"/></svg>';
+                lockIcon.style.zIndex = String(Z.popover + 1);
+                document.body.appendChild(lockIcon);
+              }
+              if (lockIcon) {
+                lockIcon.hidden = !far;
+                lockIcon.style.left = (m.clientX + 14) + 'px';
+                lockIcon.style.top = (m.clientY + 14) + 'px';
+              }
+            }
           }, { capture: true, passive: true });
-          // The move cursor only while a drag is under way (the maintainer,
-          // 2026-11-02: not on the whole kept pop-up all the time).
-          if (el.classList) el.classList.add('awoo-ui-popup-dragging');
-          drag.add(() => { if (el.classList) el.classList.remove('awoo-ui-popup-dragging'); });
-          const end = () => drag.dispose();
-          drag.on(document, 'pointerup', end, true);
-          drag.on(window, 'blur', end);
+          const end = (ev, up) => {
+            if (started && !wasLocked && ev && up) {
+              if (Math.hypot(ev.clientX - sx, ev.clientY - sy) >= DRAG_LOCK) setLocked(true);
+              else {
+                // Not far enough: back to where it was, and not locked.
+                el.style.transition = 'left .12s ease-out, top .12s ease-out';
+                el.style.left = was.left; el.style.top = was.top;
+                el.style.right = was.right; el.style.bottom = was.bottom;
+                setTimeout(() => { el.style.transition = ''; }, 160);
+              }
+            } else if (started && !wasLocked) {
+              el.style.left = was.left; el.style.top = was.top;
+              el.style.right = was.right; el.style.bottom = was.bottom;
+            }
+            drag.dispose();
+            if (!locked) check();
+          };
+          drag.on(document, 'pointerup', (ev) => end(ev, true), true);
+          drag.on(window, 'blur', () => end(null, false));
           // No text selection while dragging the background.
           e.preventDefault();
         }
@@ -18600,9 +18670,126 @@ if (document.body) {
   // then rebuild; editing this block is overwritten and, worse,
   // silently diverges from the core it was supposed to mirror.
 
-  // NO-PROVENANCE: scaffolded by new-module.mjs; sculpture-grid-labels reads no data/ fact yet
+  // formulas/sculptures.json :: sculptures.gridTotals  [CODE]
+  function sculptureGridTotals(sculptures, upgrades) {
+    const ROWS = 8, COLS = 8;
+    const SIZES = { '1x1': [1, 1], '1x2': [1, 2], '2x1': [2, 1], '2x2': [2, 2], '2x3': [2, 3], '3x2': [3, 2] };
+    const EFFECT = {
+      resonator: (l) => 0.005 * Math.min(l, 100) + 0.1,
+      channeler: (l) => 0.005 * Math.min(l, 100) + 0.1,
+      amplifier: (l) => 0.005 * Math.min(l, 100) + 0.1,
+      nexus: (l) => 0.002 * Math.min(l, 100),
+      cornerstone: (l) => 0.02 * Math.min(l, 100) + 0.4,
+      perimeterStone: (l) => 0.03 * Math.min(l, 100) + 0.4,
+      obelisk: (l) => 0.0135 * Math.min(l, 100) + 0.25,
+    };
+    const OBELISK_EXPONENT = 0.32;
+    const K = [1.9, 1.5, 1.15, 0.75, 0.6, 0.4];
+    const BRACKETS = [[1500, 0.002], [1500, 0.001], [2000, 0.00075], [1000, 0.0005], [Infinity, 0.00025]];
+    const size = (s) => SIZES[s.size] || [1, 1];
+    const stacking = (count, s) => { const [w, h] = size(s); const a = w * h; const cap = a <= 2 ? 2 : a <= 4 ? 4 : K.length; return K[Math.min(count, Math.min(cap, K.length) - 1)]; };
+    const slotRate = (lv) => { let t = 0, r = lv; for (const [cap, rate] of BRACKETS) { if (r <= 0) break; const a = Math.min(cap, r); t += rate * a; r -= a; } return t; };
+    const tiles = (s) => { const [w, h] = size(s); const out = []; for (let dx = 0; dx < w; dx++) for (let dy = 0; dy < h; dy++) out.push({ x: s.grid.coordinates.x + dx, y: s.grid.coordinates.y + dy }); return out; };
+    const adjacent = (a, b) => Math.abs(a.x - b.x) <= 1 && Math.abs(a.y - b.y) <= 1 && !(a.x === b.x && a.y === b.y);
+    const sharesRow = (a, b) => { const ys = new Set(tiles(a).map((t) => t.y)); return tiles(b).some((t) => ys.has(t.y)); };
+    const sharesCol = (a, b) => { const xs = new Set(tiles(a).map((t) => t.x)); return tiles(b).some((t) => xs.has(t.x)); };
+    const onEdge = (s) => tiles(s).some((t) => t.x === 0 || t.y === 0 || t.x === COLS - 1 || t.y === ROWS - 1);
+    const placed = (sculptures || []).filter((s) => s && s.grid && s.grid.coordinates);
+    const occupied = {};
+    for (const s of placed) for (const t of tiles(s)) occupied[`${t.x},${t.y}`] = true;
+    const emptyInCols = (s) => { let n = 0; for (const x of new Set(tiles(s).map((t) => t.x))) for (let y = 0; y < ROWS; y++) if (!occupied[`${x},${y}`]) n++; return n; };
+    const emptyInRows = (s) => { let n = 0; for (const y of new Set(tiles(s).map((t) => t.y))) for (let x = 0; x < COLS; x++) if (!occupied[`${x},${y}`]) n++; return n; };
+    const cornerstones = placed.filter((s) => s.type === 'cornerstone').flatMap((s) => tiles(s).map((t) => ({ x: t.x, y: t.y, multiplier: EFFECT.cornerstone(s.iLevel), sourceId: s._id })));
+    const slotLevel = (s) => {
+      const others = cornerstones.filter((c) => c.sourceId !== s._id);
+      let total = 0;
+      for (const t of tiles(s)) {
+        const up = (upgrades || []).find((u) => u && u.coordinates && u.coordinates.x === t.x && u.coordinates.y === t.y);
+        let lv = up && up.level ? up.level : 0;
+        const c = others.find((c) => adjacent(t, c));
+        if (c) lv *= 1 + c.multiplier;
+        total += lv;
+      }
+      return total;
+    };
+    const activeTypes = (s) => {
+      const set = new Set();
+      if (placed.some((o) => o !== s && o.type === 'resonator' && sharesRow(o, s))) set.add('resonator');
+      if (placed.some((o) => o !== s && o.type === 'channeler' && sharesCol(o, s))) set.add('channeler');
+      if (placed.some((o) => o !== s && o.type === 'amplifier' && o.size === s.size)) set.add('amplifier');
+      if (cornerstones.some((c) => c.sourceId !== s._id && tiles(s).some((t) => adjacent(t, c)))) set.add('cornerstone');
+      if (s.type === 'nexus' && placed.some((o) => o !== s && o.stats.some((a) => s.stats.some((b) => b.type === a.type)))) set.add('nexus');
+      if (s.type === 'perimeterStone' && onEdge(s)) set.add('perimeterStone');
+      if (s.type === 'obelisk') set.add('obelisk');
+      return set;
+    };
+    const own = new Map();
+    const total = new Map();
+    for (const s of placed) {
+      const lv = slotLevel(s);
+      const r = {};
+      for (const st of s.stats || []) {
+        let v = st.value;
+        if (st.placement === 'stats' && lv > 0) v *= 1 + slotRate(lv);
+        if (s.type === 'perimeterStone' && onEdge(s)) v *= 1 + EFFECT.perimeterStone(s.iLevel);
+        if (s.type === 'obelisk') v *= 1 + EFFECT.obelisk(s.iLevel) * (emptyInCols(s) + emptyInRows(s)) ** OBELISK_EXPONENT;
+        r[st.type] = (r[st.type] || 0) + v;
+      }
+      own.set(s, r);
+      total.set(s, Object.assign({}, r));
+    }
+    const add = (s, key, v) => { const r = total.get(s); if (r) r[key] = (r[key] || 0) + v; };
+    const spread = (type, reaches) => {
+      for (const src of placed.filter((s) => s.type === type)) {
+        for (const dst of placed.filter((d) => d !== src && reaches(src, d))) {
+          for (const [key, v] of Object.entries(own.get(dst) || {})) add(dst, key, v * EFFECT[type](src.iLevel));
+        }
+      }
+    };
+    spread('resonator', sharesRow);
+    spread('channeler', sharesCol);
+    spread('amplifier', (a, b) => b.size === a.size);
+    for (const nx of placed.filter((s) => s.type === 'nexus')) {
+      const keys = new Set((nx.stats || []).map((st) => st.type));
+      for (const dst of placed.filter((d) => d !== nx)) {
+        for (const [key, v] of Object.entries(own.get(dst) || {})) if (keys.has(key)) add(dst, key, v * EFFECT.nexus(nx.iLevel));
+      }
+    }
+    const out = {};
+    for (const s of placed) {
+      const m = stacking(activeTypes(s).size, s);
+      for (const [key, v] of Object.entries(total.get(s) || {})) out[key] = (out[key] || 0) + v * m;
+    }
+    return out;
+  }
+
+  // formulas/sculptures.json :: sculptures.statPool  [CODE]
+  const SCULPTURE_STAT_POOL = ["recipeReroll","recipeLock","recipeCopy","recipeImplicit","recipeInstantaneous","recipeMerge","recipeStatReroll","recipeEnhance","recipeUpgrade","recipeDescriptions","recipeSanctum","recipeVirtue","recipeSculpture","gold","experience","partnerExperience","stat","statStrength","statAgility","statDexterity","statHealth","drop","meat","iron","wood","stone","relicsAmount","relicsAmountFlat"];
+
+  // tables/roll-coefficients.json :: rollCoefficients.table  [CODE]
+  const ROLL_COEFFICIENTS = {"gold":{"default":{"baseValue":0,"levelMultiplier":0.00075,"levelExponent":0.49}},"damageReductionFlat":{"default":{"baseValue":0.005,"levelMultiplier":0},"implicit":{"baseValue":0.005,"levelMultiplier":0}},"hitChanceFlat":{"default":{"baseValue":0.005,"levelMultiplier":0},"implicit":{"baseValue":0.005,"levelMultiplier":0}},"dodgeChanceFlat":{"default":{"baseValue":0.005,"levelMultiplier":0},"implicit":{"baseValue":0.005,"levelMultiplier":0}},"fireResistance":{"default":{"baseValue":0.04,"levelMultiplier":0},"implicit":{"baseValue":0.04,"levelMultiplier":0}},"waterResistance":{"default":{"baseValue":0.04,"levelMultiplier":0},"implicit":{"baseValue":0.04,"levelMultiplier":0}},"earthResistance":{"default":{"baseValue":0.04,"levelMultiplier":0},"implicit":{"baseValue":0.04,"levelMultiplier":0}},"windResistance":{"default":{"baseValue":0.04,"levelMultiplier":0},"implicit":{"baseValue":0.04,"levelMultiplier":0}},"healing":{"default":{"baseValue":0.04,"levelMultiplier":0.0001},"implicit":{"baseValue":0.04,"levelMultiplier":0.0001}},"critChance":{"default":{"baseValue":0.04,"levelMultiplier":0.0001},"implicit":{"baseValue":0.04,"levelMultiplier":0.0001}},"attackSpeed":{"default":{"baseValue":0.01,"levelMultiplier":0.0001},"implicit":{"baseValue":0.03,"levelMultiplier":0.0001,"levelExponent":0.49,"confidence":"CODE","_correction":"CORRECTED AGAIN 2026-09-27 (CODE, formula-audit.md finding #8), closing the 2.04x gap the 2026-09-10 LIVE 'correction' below opened: capture/raw/bundle-2026-09-23-live/assets/CharacterDataProvider-Ba19Q8CX.js has the running object literal verbatim — `attackSpeed:{default:{baseValue:.01,levelMultiplier:1e-4},implicit:{baseValue:.03,levelMultiplier:1e-4}}` — so baseValue is 0.03 for the IMPLICIT variant, not 0.01. The 2026-09-10 pass moved it to 0.01 because the player-pasted in-UI 'Formula' viewer text always shows 0.01: that viewer's own label-generator function (`R()` in utils-Cx1cl4O_.js) unconditionally reads `s.default` regardless of which variant is actually rolling (`let l=s.default`), while the VALUE the roll actually uses comes from a sibling function (`L()`, same file) that correctly reads `i[variant]`. So the rendered formula text is a display bug in the game's own tooltip, not evidence about the value — the same display-vs-value split as economy.json's statDrop.chance label vs its running function (finding #4). levelExponent 0.49 was already correct (the 2026-09-10 pass's one right call) and needed no change; it is also the roll engine's own DEFAULT fallback when an entry omits levelExponent entirely (module constant `b=.49` in CharacterDataProvider-Ba19Q8CX.js, exported as `Bn`, consumed by both `L()`'s and `R()`'s own `levelExponent:...=r`/`=p` destructuring defaults) — so a tool defaulting a missing exponent to 1 instead of 0.49 (Exploration Ceiling, before 2026-09-27) was wrong for the SAME reason, independently of this baseValue fix.","_correction2026_09_10_SUPERSEDED":"The 2026-09-10 correction this replaces reasoned from the player-pasted formula TEXT ('max(0.01, 0.01 + (iLevel^0.49)*0.0001) * variance(0.97-1.03) * tierMultiplier') and moved baseValue from 0.03 (then-undocumented origin) to 0.01. That text was accurate about the SHAPE (confirming levelExponent 0.49, correcting an earlier wrongly-assumed exponent of 1) but wrong about baseValue, for the display-bug reason above. Recorded here rather than deleted, per CONVENTIONS.md 1a: a checkpoint that cannot tell two hypotheses apart taught nothing, and this is the case study.","_openDiscrepancy_RESOLVED_2026_09_27":"The user's real example (iLevel 10622, T12, tierMultiplier 3.5) now predicts 0.03 + (10622**0.49)*0.0001 = 0.039396, times tierMultiplier 3.5 = 13.79% (variance=1) against the observed 13.84% — within ordinary roll variance (0.97-1.03), not a 2.04x gap. CHECKPOINT (fails on the pre-2026-09-27 baseValue of 0.01, which predicts ~6.79%): tests/income-character-equipment-vs-known-captures.mjs, the attackSpeed implicit block."}},"critDamage":{"default":{"baseValue":0.04,"levelMultiplier":0.0001},"implicit":{"baseValue":0.04,"levelMultiplier":0.0001}},"multistrike":{"default":{"baseValue":0.04,"levelMultiplier":0.0001},"implicit":{"baseValue":0.04,"levelMultiplier":0.0001}},"strength":{"default":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":20},"implicit":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":20}},"health":{"default":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":3},"implicit":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":3}},"agility":{"default":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":5},"implicit":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":5}},"dexterity":{"default":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":5},"implicit":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":5}},"damage":{"default":{"baseValue":50,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":20},"weapon":{"baseValue":200,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":10},"dagger":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":10},"implicit":{"baseValue":50,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":20}},"defense":{"default":{"baseValue":50,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":6},"shield":{"baseValue":100,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":3},"implicit":{"baseValue":50,"levelMultiplier":1,"levelExponent":0.5,"levelDivisor":6}},"monsterGoldPercentage":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"monsterGoldFlat":{"default":{"baseValue":0,"levelMultiplier":0.1,"levelExponent":0.49,"isLog":true}},"monsterExperiencePercentage":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"monsterExperienceFlat":{"default":{"baseValue":0,"levelMultiplier":0.1,"levelExponent":0.49,"isLog":true}},"sanctumExperiencePercentage":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"sanctumExperienceFlat":{"default":{"baseValue":0,"levelMultiplier":0.1,"levelExponent":0.49,"isLog":true}},"craftingExperience":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"craftingExperienceFlat":{"default":{"baseValue":0,"levelMultiplier":0.1,"levelExponent":0.49,"isLog":true}},"statGainPercentage":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"statGainFlat":{"default":{"baseValue":0,"levelMultiplier":0.025,"levelExponent":0.49,"isLog":true}},"stat":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedDamage":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedDefense":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedStrength":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedHealth":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedAgility":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"localIncreasedDexterity":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"statStrength":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"statAgility":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"statDexterity":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"statHealth":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeGainFlat":{"default":{"baseValue":0,"levelMultiplier":0.025,"levelExponent":0.49,"isLog":true}},"drop":{"default":{"baseValue":0,"levelMultiplier":0.0005,"levelExponent":0.49}},"dropRecipe":{"default":{"baseValue":0,"levelMultiplier":0.001,"levelExponent":0.49}},"dropRelics":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeReroll":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeStatReroll":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeEnhance":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeInstantaneous":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeImplicit":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeSanctum":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeSculpture":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeEquipment":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeTypeReroll":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"dropVillageEssence":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeFighterGear":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeGem":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipePets":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeCopy":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeDescriptions":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeUpgrade":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeVirtue":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeLock":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeUnlock":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"recipeMerge":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"dropWootz":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49}},"potionEffect":{"default":{"baseValue":0,"levelMultiplier":0.0025,"levelExponent":0.49}},"questProgress":{"default":{"baseValue":0,"levelMultiplier":0.002,"levelExponent":0.49}},"partnerSpeedFlat":{"default":{"baseValue":5,"levelMultiplier":1,"levelExponent":0.49,"minValue":5,"roundResult":true}},"partnerIntelligenceFlat":{"default":{"baseValue":5,"levelMultiplier":1,"levelExponent":0.49,"minValue":5,"roundResult":true}},"partnerExperienceFlat":{"default":{"baseValue":15,"levelMultiplier":2,"levelExponent":0.49,"minValue":15,"roundResult":true}},"recipeExtraAction":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49,"isLog":true}},"questQueue":{"default":{"baseValue":0,"levelMultiplier":0.4,"levelExponent":0.49,"isLog":true}},"houseQueue":{"default":{"baseValue":0,"levelMultiplier":0.4,"levelExponent":0.49,"isLog":true}},"sanctumQueue":{"default":{"baseValue":0,"levelMultiplier":0.4,"levelExponent":0.49,"isLog":true}},"caveQueue":{"default":{"baseValue":0,"levelMultiplier":0.4,"levelExponent":0.49,"isLog":true}},"potionCount":{"default":{"baseValue":0,"levelMultiplier":0.4,"levelExponent":0.49,"isLog":true}},"relicsAmountFlat":{"default":{"baseValue":5,"levelMultiplier":3,"levelExponent":0.49,"minValue":5,"roundResult":true}},"monsterDamage":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"monsterAgility":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"monsterDexterity":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"monsterStrength":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"monsterHealth":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"monsterCritChanceFlat":{"default":{"baseValue":0,"levelMultiplier":0.005,"levelExponent":0.49,"isLog":true}},"monsterCritDamageFlat":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49,"isLog":true}},"monsterMultistrikeChanceFlat":{"default":{"baseValue":0,"levelMultiplier":0.003,"levelExponent":0.49,"isLog":true}},"monsterHealingChanceFlat":{"default":{"baseValue":0,"levelMultiplier":0.003,"levelExponent":0.49,"isLog":true}},"monsterDefenseFlat":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49,"isLog":true}},"wootzGainFlat":{"default":{"baseValue":0,"levelMultiplier":0.025,"levelExponent":0.49,"isLog":true}},"experience":{"default":{"baseValue":0,"levelMultiplier":0.00075,"levelExponent":0.49}},"partnerExperience":{"default":{"baseValue":0,"levelMultiplier":0.0005,"levelExponent":0.49}},"relicsAmount":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"dungeon":{"default":{"baseValue":1,"levelMultiplier":0.1,"levelExponent":0.49,"minValue":1,"roundResult":true}},"resource":{"default":{"baseValue":0,"levelMultiplier":0.002,"levelExponent":0.49}},"meat":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49}},"iron":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49}},"wood":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49}},"stone":{"default":{"baseValue":0,"levelMultiplier":0.01,"levelExponent":0.49}},"partnerAsMeat":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"partnerAsIron":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"partnerAsWood":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}},"partnerAsStone":{"default":{"baseValue":0,"levelMultiplier":0.015,"levelExponent":0.49}}};
+
+  // tables/roll-coefficients.json :: rollCoefficients.defaultLevelExponent  [CODE]
+  const ROLL_EXPONENT = 0.49;
+
+  // formulas/sculptures.json :: sculptures.statLabels  [CODE]
+  const SCULPTURE_STAT_LABELS = {"recipeReroll":"Reroll Recipe Drop Rate","recipeLock":"Lock Recipe Drop Rate","recipeCopy":"Copy Recipe Drop Rate","recipeImplicit":"Implicit Recipe Drop Rate","recipeInstantaneous":"Instantaneous Recipe Drop Rate","recipeMerge":"Merge Recipe Drop Rate","recipeStatReroll":"Stat Reroll Recipe Drop Rate","recipeEnhance":"Enhance Recipe Drop Rate","recipeUpgrade":"Upgrade Recipe Drop Rate","recipeDescriptions":"Descriptions Recipe Drop Rate","recipeSanctum":"Sanctum Recipe Drop Rate","recipeVirtue":"Virtue Recipe Drop Rate","recipeSculpture":"Sculpture Recipe Drop Rate","gold":"Gold","experience":"Experience","partnerExperience":"Partner XP","stat":"Stat Rate","statStrength":"Strength Drop Rate","statAgility":"Agility Drop Rate","statDexterity":"Dexterity Drop Rate","statHealth":"Health Drop Rate","drop":"Drop Rate","meat":"Meat","iron":"Iron","wood":"Wood","stone":"Stone","relicsAmount":"Increased Base Relics","relicsAmountFlat":"Added Base Relics"};
+
+  // PROVENANCE — generated from this module's facts manifest.
+  const PROVENANCE = [
+    { file: "formulas/sculptures.json", fact: "sculptures.gridTotals" },
+    { file: "formulas/sculptures.json", fact: "sculptures.statPool" },
+    { file: "tables/roll-coefficients.json", fact: "rollCoefficients.table" },
+    { file: "tables/roll-coefficients.json", fact: "rollCoefficients.defaultLevelExponent" },
+    { file: "formulas/sculptures.json", fact: "sculptures.statLabels" },
+  ];
+  void PROVENANCE; // declaration only — never read at runtime
 
   // ==== END GENERATED ====
+
+  // ==== ADD-ONS for this module (build.mjs, R82): filled only in the bundles that carry them ====
+  const AWOO_ADDONS = [];
+  /* @AWOO_ADDONS:sculpture-grid-labels@ */
 
   // ---- What this module is, for a Core that has not started it (generated from sculpture-grid-labels.release.json) ----
   const AWOO_ABOUT = Object.freeze({"label":"Sculpture Grid Overlay","audience":"public","author":"Weeble","shortLabel":"Grid Overlay","description":"Shows sculpture mod names with roll percentages or item levels directly on the equipped grid.","category":"Fighters","kind":"tweak","defaultOn":true,"quickButton":false,"uses":[],"needsCore":14,"lifecycle":2,"order":20});
@@ -18617,11 +18804,161 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("sculpture-grid-labels", "0.1.5", function (Core) {
+  })("sculpture-grid-labels", "0.1.6", function (Core) {
   if (AWOO_ABOUT.needsCore && !(Core.version >= AWOO_ABOUT.needsCore)) {
     if (Core.registerModule) Core.registerModule(Object.assign({ id: "sculpture-grid-labels" }, AWOO_ABOUT));
     return null;
   }
+
+// ==== SHARED: userscripts/src/shared/sculpture-grid-engine.js ====
+// =====================================================================
+// THE SCULPTURE GRID ENGINE, SHARED (build.mjs `shared`): the pure part of the
+// Grid Overlay's Relative view (REGISTER.md R267). No DOM, no Core, nothing read
+// from the page: grid in, numbers out, so a test can drive it from a captured
+// grid and the optimiser add-on can ask "what would this grid be worth" with
+// the same function the overlay uses.
+//
+// PROVENANCE: none of its own. It uses the facts the including module emits
+// from its own manifest, so the audit sees them declared where they are used:
+//   sculptureGridTotals   sculptures.gridTotals   (the game's grid math, CODE)
+//   SCULPTURE_STAT_POOL   sculptures.statPool     (the 28 keys a sculpture rolls)
+//   ROLL_COEFFICIENTS     rollCoefficients.table
+//   ROLL_EXPONENT         rollCoefficients.defaultLevelExponent
+// =====================================================================
+
+// ---- POWER: one unit for every mod ----
+// The game's totals are fractions on very different scales (a Base Relics roll
+// is worth three times a Gold roll, a recipe roll a third of a Base Relics
+// roll), so "812% more" of one thing cannot be added to "40%" of another.
+// Relative is the common unit: 1 Relative = one AVERAGE roll of that mod on a
+// sculpture of item level POWER_REF_ILEVEL, before any grid bonus.
+//
+// THE REFERENCE LEVEL IS OUR DEFINITION, NOT A GAME NUMBER. 100 was chosen
+// because it is also where a sculpture's type effect stops growing
+// (sculptures.types: min(iLevel, 100)), so "an iLv-100 sculpture" is a round,
+// familiar yardstick; any other level would only rescale every Relative by the
+// same factor and change no ranking. Do not "correct" it to match the game.
+const POWER_REF_ILEVEL = 100;
+
+// unit(k) = baseValue + refLevel ^ levelExponent * levelMultiplier: the roll
+// formula (sculptures.statRoll.formula) at the reference level with no
+// variance, no minValue and no rounding, so it is a smooth yardstick rather
+// than a possible roll. null when the key has no coefficients (rule 3: a key
+// we cannot measure is left out, never counted as zero).
+function powerUnit(key) {
+  const row = ROLL_COEFFICIENTS[key];
+  const c = row && row.default;
+  if (!c || !Number.isFinite(c.levelMultiplier)) return null;
+  const unit = (c.baseValue || 0) + Math.pow(POWER_REF_ILEVEL, c.levelExponent ?? ROLL_EXPONENT) * c.levelMultiplier;
+  return Number.isFinite(unit) && unit > 0 ? unit : null;
+}
+function toPower(key, value) {
+  const unit = powerUnit(key);
+  return unit === null || !Number.isFinite(value) ? null : value / unit;
+}
+function fromPower(key, power) {
+  const unit = powerUnit(key);
+  return unit === null || !Number.isFinite(power) ? null : power * unit;
+}
+
+// ROLL POWER (R267 round 2): what a sculpture's OWN rolls are worth, before
+// anything the grid does to them: the mean over its stat lines of
+// toPower(type, rawValue). Placement, uniques and tile levels do not enter, so
+// a raw 7.40% Description (1.55 Relative) ranks below a raw 7.41% Enhance (1.55
+// too, a hair more) whatever their neighbours give them. Marginal Relative (below)
+// answers "what do I lose if I take it off"; this answers "how good is the
+// roll", which is what "weakest" should mean. The mean, not the sum: a
+// two-line sculpture is not twice as good as a one-line one of the same rolls.
+// Lines with no unit (or no number) are left out of the mean, never counted as
+// zero (rule 3); null when no line has one.
+function rollPower(s) {
+  const stats = s && Array.isArray(s.stats) ? s.stats : [];
+  let sum = 0, count = 0;
+  for (const st of stats) {
+    const p = st ? toPower(st.type, Number(st.value)) : null;
+    if (p !== null) { sum += p; count += 1; }
+  }
+  return count ? sum / count : null;
+}
+
+// ---- THE ANALYSIS ----
+// The six footprints the game knows, exactly the SIZES table inside
+// sculptureGridTotals (sculptures.gridTotals). A size outside it counts as 1x1
+// THERE (`SIZES[s.size] || [1, 1]`), so the footprint, the area behind perTile
+// and the host's drawn outline must say 1x1 too: a generic "NxM" parse would
+// give a 4x4 sixteen tiles here and one tile in the totals, and Relative per tile
+// would be divided by a footprint the totals never used. The table is a copy
+// only because the fact is one function text; sculpture-grid-power.mjs reads
+// the fact's own SIZES and fails if the two ever differ.
+const GRID_SIZES = { '1x1': [1, 1], '1x2': [1, 2], '2x1': [2, 1], '2x2': [2, 2], '2x3': [2, 3], '3x2': [3, 2] };
+function gridSize(size) {
+  const d = Object.prototype.hasOwnProperty.call(GRID_SIZES, size) ? GRID_SIZES[size] : null;
+  return d ? { w: d[0], h: d[1] } : { w: 1, h: 1 };
+}
+function gridArea(size) {
+  const { w, h } = gridSize(size);
+  return w * h;
+}
+
+// The key analyseGrid files a sculpture under in perSculpture: its _id, else
+// its anchor tile. One function so an add-on reading perSculpture looks up the
+// very key the analysis wrote (null: nothing to look up, e.g. an unplaced one).
+function sculptureId(s) {
+  if (s && s._id !== undefined && s._id !== null) return s._id;
+  const c = s && s.grid && s.grid.coordinates;
+  return c ? `${Number(c.x)},${Number(c.y)}` : null;
+}
+
+// The grid's totals as Relative, per key. Keys without a unit are named in
+// unknownKeys and add nothing to gridPower (they are also not zero: they are
+// simply not in perKey's power).
+function powerOfTotals(totals) {
+  const perKey = {};
+  const unknownKeys = [];
+  let gridPower = 0;
+  for (const [key, value] of Object.entries(totals)) {
+    const power = toPower(key, value);
+    perKey[key] = { value, power };
+    if (power === null) unknownKeys.push(key); else gridPower += power;
+  }
+  return { perKey, unknownKeys, gridPower };
+}
+
+// analyseGrid(sculptures, upgrades): what the placed sculptures are worth, in
+// Relative. `upgrades` are getSculptureUpgrades rows {coordinates:{x,y}, level};
+// a tile without a row is level 0 in the game, but a list that was never READ
+// is not the same thing as a list with no rows, so a non-array (null,
+// undefined) returns null and the caller shows "—" (AGENTS.md rule 3).
+//
+// A sculpture's `power` is MARGINAL: gridPower(all) - gridPower(all but it).
+// Taking it off frees its tiles, so an Obelisk gains empty tiles, stacking
+// counts change, a Nexus loses its partner. It can therefore be worth less
+// than its own lines, or negative. That is the honest answer to "what do I
+// lose if I take it off", and it is why tiles do NOT add up to gridPower.
+function analyseGrid(sculptures, upgrades) {
+  if (!Array.isArray(upgrades)) return null;
+  // Copies with numeric coordinates and an id of their own. The game's function
+  // tells a sculpture from "another one" by _id (a Cornerstone must not boost
+  // its own tiles), so a sculpture without one would be treated as every other
+  // sculpture without one.
+  const placed = (Array.isArray(sculptures) ? sculptures : []).filter((s) => s && s.grid && s.grid.coordinates
+    && Number.isFinite(Number(s.grid.coordinates.x)) && Number.isFinite(Number(s.grid.coordinates.y)) && Array.isArray(s.stats))
+    .map((s) => {
+      const x = Number(s.grid.coordinates.x), y = Number(s.grid.coordinates.y);
+      return Object.assign({}, s, { _id: sculptureId(s), grid: Object.assign({}, s.grid, { coordinates: { x, y } }) });
+    });
+  const totals = sculptureGridTotals(placed, upgrades);
+  const { perKey, unknownKeys, gridPower } = powerOfTotals(totals);
+  const perSculpture = new Map();
+  for (const s of placed) {
+    const without = powerOfTotals(sculptureGridTotals(placed.filter((o) => o !== s), upgrades)).gridPower;
+    const power = gridPower - without;
+    const area = gridArea(s.size);
+    perSculpture.set(s._id, { power, perTile: power / area, area, rollPower: rollPower(s) });
+  }
+  return { totals, perKey, gridPower, unknownKeys, perSculpture };
+}
+// ==== END SHARED: sculpture-grid-engine ====
 
 const MODULE_ID = 'sculpture-grid-labels';
 const STORAGE_KEY = `awoo:${MODULE_ID}:enabled`;
@@ -18654,32 +18991,118 @@ let labelsOn = savedPill !== 0 && savedPill !== false;     // the pill
 let enabled = false;                                       // = coreEnabled && labelsOn
 let running = false;
 let lastGridSignature = '';
+// What the last read of the grid gave, for the Relative view and for add-ons
+// (the add-on seam's state()): { sculptures, upgrades, analysis, activePreset }.
+// null until a grid has been read. analysis is null when the tile levels were
+// not found (Relative unknown, rule 3).
+let hostState = null;
+
+// THE LAST GRID, for other modules (the Grid Optimizer) through the
+// 'sculpture-grid' service (R267 round 2): { totals, perKey, gridPower, source,
+// activePreset, at } of the last grid shown with the overlay on. `totals` are
+// the game's own Multipliers panel when it could be read (source 'panel'),
+// else this module's calculation of them (source 'computed'). Kept in the
+// player's storage so it survives a reload and is there away from the
+// sculpture page. null until a grid has been shown, and null when what is
+// stored is not this shape (a record from some other version is no grid).
+const lastGridStore = Core.store(`awoo:${MODULE_ID}:last-grid`);
+const lastGridListeners = [];
+function validLastGrid(v) {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const isMap = (m) => !!m && typeof m === 'object' && !Array.isArray(m);
+  if (!isMap(v.totals) || !isMap(v.perKey)) return null;
+  if (!Object.values(v.totals).every((x) => typeof x === 'number' && Number.isFinite(x))) return null;
+  if (!Object.values(v.perKey).every((e) => isMap(e) && Number.isFinite(e.value) && (e.power === null || Number.isFinite(e.power)))) return null;
+  if (typeof v.gridPower !== 'number' || !Number.isFinite(v.gridPower)) return null;
+  if (v.source !== 'panel' && v.source !== 'computed') return null;
+  if (v.activePreset !== true && v.activePreset !== false && v.activePreset !== null) return null;
+  if (typeof v.at !== 'number' || !Number.isFinite(v.at)) return null;
+  return v;
+}
+let lastGridNow = (() => { try { return validLastGrid(lastGridStore.read()); } catch { return null; } })();
+function lastGridSignature_(g) {
+  return JSON.stringify([g.source, g.activePreset, g.gridPower, Object.keys(g.totals).sort().map((k) => [k, g.totals[k]])]);
+}
+function cloneGrid(g) { return g ? JSON.parse(JSON.stringify(g)) : null; }
+function publishLastGrid(reading) {
+  if (!reading || !hostState) return;
+  const next = {
+    totals: Object.assign({}, reading.totals),
+    perKey: JSON.parse(JSON.stringify(reading.perKey)),
+    gridPower: reading.gridPower,
+    source: reading.source,
+    activePreset: hostState.activePreset,
+    at: Date.now(),
+  };
+  if (!validLastGrid(next)) return;
+  if (lastGridNow && lastGridSignature_(lastGridNow) === lastGridSignature_(next)) return;
+  lastGridNow = next;
+  try { lastGridStore.write(next); } catch (err) { console.debug('[Sculpture Grid Overlay] last grid not saved', err); }
+  for (const fn of lastGridListeners.slice()) {
+    try { fn(cloneGrid(next)); } catch (err) { console.error('[Sculpture Grid Overlay] a last-grid listener failed:', err); }
+  }
+}
+// What other modules get (Core.provide, in bootstrap). Read-only: copies out.
+const GRID_SERVICE = Object.freeze({
+  schema: 1,
+  lastGrid: () => cloneGrid(lastGridNow),
+  onChange: (fn) => {
+    if (typeof fn !== 'function') return () => {};
+    lastGridListeners.push(fn);
+    return () => { const i = lastGridListeners.indexOf(fn); if (i >= 0) lastGridListeners.splice(i, 1); };
+  },
+});
 
 // WHAT THE LABELS SHOW, and the rotate button that switches it (R69 round 7,
 // the maintainer: a rotate button that swaps "name + percentage" for "name +
-// sculpture ilevel"). The button sits beside the overlay pill while the
-// overlay is on, and can be switched off in its settings (Modules › Tweaks).
+// sculpture ilevel"; R267 added a third view, the sculpture's Relative, see
+// src/shared/sculpture-grid-engine.js). The button sits beside the overlay
+// pill while the overlay is on, and can be switched off in its settings
+// (Modules › Tweaks). It cycles roll % <-> item level; while POWER MODE is on
+// (the "Relative" button next to it, round 3) it cycles roll % -> item level ->
+// Relative. Relative mode is also what shows the add-ons' controls (the Weakest
+// slider), in every view, so the slider no longer comes and goes with the view.
 // iLevel is the sculpture document's own field, the one the game's hover card
 // feeds its effect formulas (SculptureHoverCard bundle, `e.iLevel`; CODE,
 // data/formulas/sculptures.json). A sculpture without one shows a dash, never
 // a guessed level (AGENTS.md rule 3).
-const VIEW_DEFAULTS = { show: 'roll', rotateButton: true };
+const VIEWS = ['roll', 'ilevel', 'power'];
+const NEXT_VIEW = { roll: 'ilevel', ilevel: 'power', power: 'roll' };            // Relative mode on
+const NEXT_VIEW_PLAIN = { roll: 'ilevel', ilevel: 'roll', power: 'roll' };      // Relative mode off
+// show: where the overlay starts (rolls or item levels); powerMode: the Relative
+// button, remembered per player. The setting "Overlay starts as" used to offer
+// Relative as a third start state. That is now what a remembered Relative mode is, so
+// the option is gone and an old stored show:'power' is read as powerMode on
+// (the simpler of the two ways to keep one meaning for "starts in Relative").
+const VIEW_DEFAULTS = { show: 'roll', rotateButton: true, powerMode: false };
 const viewStore = Core.store(`awoo:${MODULE_ID}:view`);
 let view = readView();
 // What the labels show right now. The saved view.show is only where the
-// overlay STARTS (the setting); the rotate button flips this and nothing is
-// saved, and turning the overlay on again starts from the saved choice.
-let showNow = view.show;
+// overlay STARTS (the setting) and powerMode starts it in the Relative view; the
+// rotate button flips showNow and nothing is saved, and turning the overlay
+// on again starts from the saved choice.
+function startView() { return view.powerMode ? 'power' : view.show; }
+let showNow = startView();
 function readView() {
   const raw = viewStore.read();
   const v = Object.assign({}, VIEW_DEFAULTS, raw && typeof raw === 'object' ? raw : {});
-  return { show: v.show === 'ilevel' ? 'ilevel' : 'roll', rotateButton: v.rotateButton !== false };
+  return { show: v.show === 'ilevel' ? 'ilevel' : 'roll', rotateButton: v.rotateButton !== false, powerMode: v.powerMode === true || v.show === 'power' };
 }
 function setView(patch) {
+  const wasPower = view.powerMode;
   view = Object.assign({}, view, patch);
-  if (patch && 'show' in patch) showNow = view.show;
+  let next = showNow;
+  if (view.powerMode !== wasPower) {
+    // On: straight to the Relative view. Off: the Relative view goes back to where
+    // the overlay starts; any other view stays as it is.
+    if (view.powerMode) next = 'power';
+    else if (showNow === 'power') next = view.show;
+  } else if (patch && 'show' in patch && !view.powerMode) next = view.show;
+  const changedView = next !== showNow || view.powerMode !== wasPower;
+  showNow = next;
   viewStore.write(view);
   lastGridSignature = '';
+  if (changedView) notifyAddons();
   if (coreEnabled) queueDecorate();
 }
 function iLevelOf(s) {
@@ -18788,13 +19211,12 @@ function getUniqueType(s) {
   return null;
 }
 
+// The footprint in tiles. It is the engine's gridSize, not a parse of "NxM":
+// the game's totals count a size outside its six as 1x1, and an outline,
+// a footprint and an occupancy check that read 4x4 as sixteen tiles would
+// disagree with the Relative the same sculpture is given.
 function parseSize(size) {
-  const m = String(size || '1x1').match(/^(\d+)x(\d+)$/i);
-
-  return {
-    w: m ? Math.max(1, Number(m[1])) : 1,
-    h: m ? Math.max(1, Number(m[2])) : 1,
-  };
+  return gridSize(size);
 }
 
 /*
@@ -18845,6 +19267,20 @@ function formatRoll(v) {
   if (Core.num) return Core.num.pct(n, digits);
   const k = Math.pow(10, digits);
   return `${Math.round(n * k) / k}%`;
+}
+
+// Fixed decimals through Core.num (the player's separators); an older Core
+// without it (before v18) draws plain digits with a dot, as formatRoll does.
+function fixedText(x, digits) {
+  if (Core.num) return Core.num.fixed(x, digits);
+  return (Math.round(x * Math.pow(10, digits)) / Math.pow(10, digits)).toFixed(digits); // fmt-raw: fallback for a Core without Core.num, which draws plain digits
+}
+
+// A sculpture's or the grid's Relative: one decimal under 100, whole above, so
+// "3.6" and "812" both read at a glance. Absent is "—", never 0 (rule 3).
+function formatPower(p) {
+  if (typeof p !== 'number' || !Number.isFinite(p)) return '—';
+  return fixedText(p, Math.abs(p) < 100 ? 1 : 0);
 }
 
 function looksLikeSculpture(obj) {
@@ -18914,6 +19350,47 @@ function hasGridCoordinates(s) {
     Number.isFinite(Number(s.grid.coordinates.y)));
 }
 
+// The game's tile levels (getSculptureUpgrades: rows {coordinates:{x,y},
+// level}, one per upgraded tile; capture/api/live-2026-08-24/
+// sculpture-grid-upgrades.json) and its presets (rows with _id and a boolean
+// isActive), read by the SAME walk that finds the grid (R267: one walk, not
+// two, because a walk visits up to 40,000 fibers). A row is a tile upgrade
+// when it has a numeric level, numeric x/y inside the 8x8 grid and no `size`
+// (a sculpture has one, and keeps its coordinates under `grid`). The list with
+// the most rows wins, like the sculpture candidates.
+//
+// The Relative view needs the tile levels: they set a sculpture's slot boost, the
+// biggest part of its value. They are therefore null when not found, and
+// Relative is then unknown, never computed as if every tile were level 0 (rule 3;
+// a level-0 grid is indistinguishable from "no list", an empty array, so a
+// player with no upgrades at all also sees "—").
+// INFER: where the fiber holds the list (which hook, how deep) is NOT checked
+// on the live page; only against fake fibers in tests/sculpture-grid-labels.mjs.
+let gridReads = { upgrades: null, presetLists: [] };
+function looksLikeUpgrade(u) {
+  return !!u && typeof u === 'object' && !('size' in u)
+    && typeof u.level === 'number' && Number.isFinite(u.level)
+    && !!u.coordinates && Number.isInteger(u.coordinates.x) && Number.isInteger(u.coordinates.y)
+    && u.coordinates.x >= 0 && u.coordinates.x < COLS && u.coordinates.y >= 0 && u.coordinates.y < ROWS;
+}
+function looksLikePreset(p) {
+  return !!p && typeof p === 'object' && !('size' in p) && typeof p._id === 'string' && typeof p.isActive === 'boolean';
+}
+// true: the grid shown is the active preset, whose multipliers the account
+// holds; false: another preset's grid is on screen; null: cannot tell (no
+// presets read, no preset id on the sculptures, or the ids disagree).
+function activePresetOf(sculptures, presetLists) {
+  const ids = new Set((sculptures || []).map((s) => s && s.grid && s.grid.presetId).filter((id) => typeof id === 'string'));
+  if (ids.size !== 1) return null;
+  const [shown] = ids;
+  // Several arrays can look like presets; the one that lists the grid's own
+  // preset is the preset list.
+  const list = (presetLists || []).filter((l) => l.some((p) => p._id === shown)).sort((a, b) => b.length - a.length)[0];
+  if (!list) return null;
+  const active = list.filter((p) => p.isActive);
+  return active.length === 1 ? active[0]._id === shown : null;
+}
+
 // THREE ANSWERS, not two (R143, the maintainer 2026-10-04: "When grid is
 // empty it stops updating the overlay, should be empty"):
 //   an array of sculptures  the equipped grid, labelled as before;
@@ -18953,6 +19430,8 @@ function findGrid() {
   let scanBudget = 100000;
   let sawSculpture = false;
   let sawPlaced = false;
+  const upgradeLists = [];
+  const presetLists = [];
 
   function scan(obj, depth = 0) {
     if (!obj || typeof obj !== 'object' || depth > 8 || scanBudget-- <= 0) return;
@@ -18965,6 +19444,8 @@ function findGrid() {
     }
 
     if (Array.isArray(obj)) {
+      if (obj.length && obj.length <= ROWS * COLS && obj.every(looksLikeUpgrade)) upgradeLists.push(obj);
+      if (obj.length && obj.every(looksLikePreset)) presetLists.push(obj);
       const sculptures = obj.filter(looksLikeSculpture);
 
       if (sculptures.length) {
@@ -19047,14 +19528,22 @@ function findGrid() {
   // to find the equipped sculpture array on the live Fighter page.
   const walked = walkFiber((value) => scan(value, 0));
 
+  // Kept for the Relative view; only when the grid itself was read, so the two
+  // always describe the same moment.
+  const keepReads = () => {
+    upgradeLists.sort((a, b) => b.length - a.length);
+    gridReads = { upgrades: upgradeLists[0] || null, presetLists };
+  };
+
   if (candidates.length) {
     candidates.sort((a, b) => b.score - a.score);
+    keepReads();
     return candidates[0].items;
   }
 
   // Found, and empty: see the evidence rule above this function.
   // (scanBudget goes below 0 only once scan() has refused an object for it.)
-  if (walked === 'complete' && scanBudget >= 0 && sawSculpture && !sawPlaced) return [];
+  if (walked === 'complete' && scanBudget >= 0 && sawSculpture && !sawPlaced) { keepReads(); return []; }
   return null;
 }
 
@@ -19117,8 +19606,6 @@ function updateToggleAppearance(btn) {
 }
 
 function ensurePageToggle() {
-  const TOGGLE_ID = 'awoo-sculpture-grid-labels-toggle';
-
   let btn = document.getElementById(TOGGLE_ID);
 
   if (btn) {
@@ -19143,7 +19630,7 @@ function ensurePageToggle() {
   btn = document.createElement('button');
   btn.id = TOGGLE_ID;
   btn.type = 'button';
-  btn.title = 'Show or hide the mod names and rolls on the grid';
+  btn.setAttribute('data-tooltip', 'Show or hide the mod names and rolls on the grid');
 
   btn.style.cssText = `
     padding:1px 9px;
@@ -19166,7 +19653,7 @@ function ensurePageToggle() {
 
   if (gridEl) {
     const row = document.createElement('div');
-    row.className = 'awoo-sculpture-grid-labels-toggle-row';
+    row.className = TOGGLE_ROW_CLASS;
     row.appendChild(btn);
     gridEl.insertAdjacentElement('afterend', row);
   } else {
@@ -19185,8 +19672,14 @@ const ROTATE_SVG = '<svg viewBox="0 0 16 16" width="12" height="12" fill="none" 
   + 'stroke-linecap="round" stroke-linejoin="round"><path d="M13.2 6.5A5.3 5.3 0 0 0 3.4 5"/><path d="M3.2 2.4V5.2H6"/>'
   + '<path d="M2.8 9.5a5.3 5.3 0 0 0 9.8 1.5"/><path d="M12.8 13.6v-2.8H10"/></svg>';
 // Present only while the overlay is on and the setting allows it: with the
-// overlay off there is nothing for it to switch.
+// overlay off there is nothing for it to switch. The Relative button (next to it)
+// is independent of that setting.
 function ensureRotateButton(pill) {
+  ensureRotateOnly(pill);
+  ensurePowerButton(pill);
+  ensureRowExtras();
+}
+function ensureRotateOnly(pill) {
   let rb = document.getElementById(ROTATE_ID);
   if (!pill || !pill.parentElement || !enabled || !view.rotateButton) { rb?.remove(); return; }
   if (!rb) {
@@ -19211,15 +19704,347 @@ function ensureRotateButton(pill) {
     scope.on(rb, 'click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      showNow = showNow === 'ilevel' ? 'roll' : 'ilevel';
+      showNow = (view.powerMode ? NEXT_VIEW : NEXT_VIEW_PLAIN)[showNow] || 'roll';
       lastGridSignature = '';
-      ensureRotateButton(document.getElementById('awoo-sculpture-grid-labels-toggle'));
+      notifyAddons();   // an add-on may want to know the view
+      ensureRotateButton(document.getElementById(TOGGLE_ID));
       if (coreEnabled) queueDecorate();
     });
   }
   if (rb.previousElementSibling !== pill) pill.insertAdjacentElement('afterend', rb);
-  const tip = showNow === 'ilevel' ? 'Showing item levels. Click to show rolls.' : 'Showing rolls. Click to show item levels.';
-  if (rb.title !== tip) { rb.title = tip; rb.setAttribute('aria-label', tip); }
+  const tip = rotateTip();
+  // AWOO+ tooltip (Core's, data-tooltip), not the browser's title; aria-label stays for screen readers.
+  if (rb.getAttribute('data-tooltip') !== tip) { rb.setAttribute('data-tooltip', tip); rb.setAttribute('aria-label', tip); }
+}
+function rotateTip() {
+  if (showNow === 'power') return 'Showing Relative. Click to show rolls.';
+  if (showNow === 'ilevel') return view.powerMode ? 'Showing item levels. Click to show Relative.' : 'Showing item levels. Click to show rolls.';
+  return 'Showing rolls. Click to show item levels.';
+}
+
+// The Relative button (round 3): Relative mode on shows the Relative view and the
+// add-ons' controls (the Weakest slider) and adds Relative to the rotate cycle.
+// Its pop-up carries what used to be explained on the Grid Strength hover:
+// what the Relative view shows, what the slider marks, and the unit.
+const POWER_BTN_ID = 'awoo-sculpture-grid-labels-powermode';
+function powerButtonTip() {
+  const lines = ['Relative: shows each sculpture\'s own rolls in Relative, wherever it sits. Hover a tile to see what it adds to the grid here. While it is on, the rotate button also cycles through the Relative view.'];
+  // Only when an add-on control exists: a public build has no slider to explain.
+  if (addonControls.length) lines.push('The Weakest slider outlines the sculptures with the lowest Roll Relative, the weakest marked 1.');
+  lines.push('1 Relative = one average roll of that mod on an item-level-100 sculpture.');
+  return lines.join('\n');
+}
+function updatePowerButton(pb) {
+  if (!pb) return;
+  const on = view.powerMode;
+  // The same pressed look as "Overlay on".
+  pb.style.background = on ? 'var(--awoo-bg-success, rgba(34,197,94,.18))' : 'transparent';
+  pb.style.borderColor = on ? 'color-mix(in srgb, var(--awoo-success, #22c55e) 45%, transparent)' : 'var(--awoo-border-control, #64748b)';
+  pb.style.color = on ? 'var(--awoo-success, #86efac)' : 'var(--awoo-ink-mute, #94a3b8)';
+  pb.dataset.on = on ? '1' : '0';
+  pb.setAttribute('aria-pressed', on ? 'true' : 'false');
+  const tip = powerButtonTip();
+  if (pb.getAttribute('data-tooltip') !== tip) pb.setAttribute('data-tooltip', tip);
+}
+function ensurePowerButton(pill) {
+  let pb = document.getElementById(POWER_BTN_ID);
+  if (!pill || !pill.parentElement || !enabled) { pb?.remove(); return; }
+  if (!pb) {
+    pb = document.createElement('button');
+    pb.id = POWER_BTN_ID;
+    pb.type = 'button';
+    pb.textContent = 'Relative';
+    pb.setAttribute('aria-label', 'Relative mode');
+    pb.setAttribute('data-tooltip-wide', '');
+    pb.style.cssText = `
+      padding:1px 9px;
+      height:20px;
+      margin-left:4px;
+      border:1px solid var(--awoo-border-control, #64748b);
+      border-radius:999px;
+      font:600 10px/1 var(--awoo-font, system-ui, sans-serif);
+      letter-spacing:.02em;
+      cursor:pointer;
+      vertical-align:middle;
+      white-space:nowrap;
+    `;
+    scope.on(pb, 'click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setView({ powerMode: !view.powerMode });
+      ensureRotateButton(document.getElementById(TOGGLE_ID));
+    });
+  }
+  const rb = document.getElementById(ROTATE_ID);
+  const anchor = rb && rb.parentElement === pill.parentElement ? rb : pill;
+  if (pb.previousElementSibling !== anchor) anchor.insertAdjacentElement('afterend', pb);
+  updatePowerButton(pb);
+}
+
+// ---- Grid Strength beside the game's "Multipliers" heading, and the add-on row ----
+// (Named Grid Power until round 3; "Relative" is now the unit and the overview's name, so the
+// total is Grid Strength. Identifiers keep the old name to avoid churn.)
+const POWER_ID = 'awoo-sculpture-grid-labels-power';
+const TOGGLE_ID = 'awoo-sculpture-grid-labels-toggle';
+const TOGGLE_ROW_CLASS = 'awoo-sculpture-grid-labels-toggle-row';
+const ADDON_ROW_CLASS = 'awoo-sculpture-grid-labels-addon-row';
+
+// The value as the game's Multipliers panel writes it: "+18.379,73%" for a
+// fraction, "+33,6" for the one flat key. Fractions become percent; the flat
+// key stays a plain number.
+function shownValue(key, value) {
+  const flat = /Flat$/.test(key);
+  const shown = flat ? value : value * 100;
+  const text = fixedText(shown, Math.abs(shown) < 100 ? 1 : 0);
+  return `${shown < 0 ? '' : '+'}${text}${flat ? '' : '%'}`;
+}
+// In the row's words, not the game's: Base Relics 640 Relative (+9,159%).
+function powerLine(key, entry) {
+  return `${STAT_DISPLAY_NAMES[key] || key} ${formatPower(entry.power)} Relative (${shownValue(key, entry.value)})`;
+}
+
+// ---- reading the game's Multipliers panel (R267 round 2) ----
+// WHY THE PANEL AND NOT OUR OWN SUM. The panel is drawn by the game from the
+// same function as sculptures.gridTotals (SculpturesPage `It` = Pe(grid,
+// upgrades), data/formulas/sculptures.json), so its numbers are the account's
+// own, and they need no tile levels from the fiber. The overlay's own
+// calculation stays as the fallback and as a cross-check.
+//
+// THE MARKUP, read from the bundle (2026-10-22 SculpturesPage, NOT seen in a
+// DOM capture of the live page): a Card whose title is the text "Multipliers"
+// and whose content is a grid of rows, each row a div holding exactly two
+// spans, the label (sculptures.statLabels) and the value, "+" then the number,
+// then "%" for a fraction key (the flat key has none). So: from the heading go
+// up to the nearest ancestor that holds such rows (at most four levels, so a
+// wrong guess about the nesting cannot wander across the page) and read them.
+// A row we cannot read makes the WHOLE panel unreadable, never a partial sum
+// (rule 3): the caller falls back to the computed totals and says so.
+const LABEL_TO_KEY = new Map(Object.entries(SCULPTURE_STAT_LABELS).map(([key, label]) => [label, key]));
+let multipliersHeadingEl = null;
+// Where the cost rules of findHighlightHeading apply: this reads the text of
+// page elements, so it runs only while the overlay is on AND the grid's own
+// tiles exist (the sculpture page), and the found heading is kept until it
+// leaves the page. Elements with more than one child are skipped before their
+// text is read (a heading holds one text node, or one inner element).
+// The heading's own words, without the Grid Strength span this module puts in it.
+function headingText(el) {
+  const pw = document.getElementById(POWER_ID);
+  const t = el.textContent || '';
+  return cleanText(pw && el.contains && el.contains(pw) ? t.replace(pw.textContent || '', '') : t);
+}
+function findMultipliersHeading() {
+  const kept = multipliersHeadingEl;
+  if (kept && kept.isConnected !== false && kept.offsetParent !== null && headingText(kept) === 'Multipliers') return kept;
+  multipliersHeadingEl = null;
+  const found = [...document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, div, label')].filter(
+    (el) => el.children.length <= 2 && el.offsetParent !== null && headingText(el) === 'Multipliers'
+  );
+  // A wrapper around the heading has the same text; the innermost is the heading.
+  multipliersHeadingEl = found.find((el) => !found.some((o) => o !== el && el.contains(o))) || null;
+  return multipliersHeadingEl;
+}
+// "+18.379,73%" -> { value: 183.7973, pct: true }: the FRACTION behind 18,379.73%
+// (a "%" means divide by 100; none means a flat number, as for relicsAmountFlat).
+// Through Core.parseNumber, which knows whether this player's "." is a thousand
+// or a decimal point and refuses what it cannot tell.
+function parsePanelValue(raw) {
+  let t = cleanText(raw).replace(/\s/g, '');
+  const negative = /^[-−]/.test(t);
+  t = t.replace(/^[+\-−]/, '');
+  const pct = t.endsWith('%');
+  if (pct) t = t.slice(0, -1);
+  if (!t) return null;
+  const n = typeof Core.parseNumber === 'function' ? Core.parseNumber(t) : (/^\d+(\.\d+)?$/.test(t) ? Number(t) : null);
+  if (n === null || n === undefined || !Number.isFinite(n)) return null;
+  return { value: (negative ? -n : n) / (pct ? 100 : 1), pct };
+}
+// The rows under one ancestor: { totals, pct } or null (none found, or one
+// that could not be read).
+function panelRowsIn(node) {
+  const totals = {}, pct = {};
+  let count = 0;
+  for (const span of node.querySelectorAll('span')) {
+    const key = LABEL_TO_KEY.get(cleanText(span.textContent));
+    if (!key) continue;
+    const row = span.parentElement;
+    const kids = row ? [...row.children] : [];
+    if (kids.length !== 2 || kids[0] !== span) continue;       // not a label-and-value row
+    if (key in totals) continue;
+    const parsed = parsePanelValue(kids[1].textContent);
+    if (!parsed) return null;
+    totals[key] = parsed.value;
+    pct[key] = parsed.pct;
+    count += 1;
+  }
+  return count ? { totals, pct } : null;
+}
+function readMultipliersPanel(heading) {
+  let node = heading.parentElement;
+  for (let hop = 0; node && hop < 4; hop += 1, node = node.parentElement) {
+    const rows = panelRowsIn(node);
+    if (rows) return rows;
+  }
+  return null;
+}
+// Panel against our own calculation, key by key. The panel rounds to two
+// decimals (percent, or the flat number), so half that step is allowed as well
+// as 0.1%: a tiny total would otherwise "differ" from rounding alone. The panel
+// lists only totals above zero, so a key it lacks is compared as 0.
+function comparePanel(panelTotals, pct, computedTotals) {
+  const differing = [];
+  for (const key of new Set([...Object.keys(panelTotals), ...Object.keys(computedTotals)])) {
+    const p = panelTotals[key] ?? 0, c = computedTotals[key] ?? 0;
+    if (!(key in panelTotals) && c <= 0) continue;
+    const step = (key in panelTotals ? pct[key] : !/Flat$/.test(key)) ? 1e-4 : 0.01;
+    if (Math.abs(p - c) > Math.max(Math.abs(c) * 0.001, step / 2)) differing.push({ key, panel: p, computed: c });
+  }
+  return differing;
+}
+// What Grid Strength is built from, or null when nothing is known (no panel and
+// no tile levels).
+function gridReading(panel, analysis) {
+  if (panel) {
+    const { perKey, unknownKeys, gridPower } = powerOfTotals(panel.totals);
+    return {
+      source: 'panel', totals: panel.totals, perKey, unknownKeys, gridPower,
+      // null: nothing to check it against (tile levels not read)
+      differing: analysis ? comparePanel(panel.totals, panel.pct, analysis.totals) : null,
+    };
+  }
+  if (analysis) {
+    return { source: 'computed', totals: analysis.totals, perKey: analysis.perKey, unknownKeys: analysis.unknownKeys, gridPower: analysis.gridPower, differing: null };
+  }
+  return null;
+}
+// The Grid Strength pop-up explains the TOTAL only: what it is, the unit, one row
+// per mod, and whether the panel and the overlay's own calculation agree. What
+// the Relative view and the tiles show is explained on the Relative button.
+// Core's tooltip shows the text first and its two-column rows (awooTipRows)
+// under it, so the check line is part of the text above the rows.
+function gridStrengthTip(reading) {
+  if (!reading) return { text: 'Grid Strength needs the Multipliers panel or your tile levels, and neither has been read yet. Open the sculpture page and wait a moment. (Tile levels not read yet.)', rows: [] };
+  const lines = ['Grid Strength: the grid\'s multipliers (the game\'s Multipliers panel) on one scale. 1 Relative = one average roll of that mod on an item-level-100 sculpture.'];
+  if (reading.source === 'computed') {
+    lines.push('The Multipliers panel could not be read, so this is the overlay\'s own calculation from your sculptures and tile levels.');
+  } else if (reading.differing === null) {
+    lines.push('From the game\'s Multipliers panel. Not checked against the overlay\'s own calculation: tile levels not read yet.');
+  } else if (!reading.differing.length) {
+    lines.push('From the game\'s Multipliers panel; the overlay\'s own calculation agrees (within 0.1%).');
+  } else {
+    lines.push('From the game\'s Multipliers panel. The overlay\'s own calculation differs for: '
+      + reading.differing.map((d) => `${STAT_DISPLAY_NAMES[d.key] || d.key} (panel ${shownValue(d.key, d.panel)}, calculated ${shownValue(d.key, d.computed)})`).join(', ') + '.');
+  }
+  if (reading.unknownKeys.length) lines.push(`No Relative unit yet for: ${reading.unknownKeys.join(', ')}`);
+  const rows = Object.entries(reading.perKey).filter(([, e]) => e.power !== null)
+    .sort((a, b) => b[1].power - a[1].power)
+    .map(([k, e]) => [STAT_DISPLAY_NAMES[k] || k, `${formatPower(e.power)} Relative (${shownValue(k, e.value)})`]);
+  return { text: lines.join('\n'), rows };
+}
+// The quiet text right of the "Multipliers" heading, and the record of the last
+// grid for other modules. Called wherever the row is touched, so a panel that
+// appears after the grid (or changes) is picked up on the next pass.
+// Held by reference as well as by id: inside the game's heading it can sit in a
+// subtree the page has already let go of, where a lookup by id finds nothing.
+let gridPowerSpan = null;
+function syncGridPower() {
+  let pw = gridPowerSpan || document.getElementById(POWER_ID);
+  const onSculptureGrid = enabled && !!document.querySelector(GRID_TILE_SELECTOR);
+  const heading = onSculptureGrid ? findMultipliersHeading() : null;
+  const analysis = hostState && hostState.analysis;
+  const panel = heading ? readMultipliersPanel(heading) : null;
+  const reading = onSculptureGrid ? gridReading(panel, analysis) : null;
+  if (reading && hostState) publishLastGrid(reading);
+  // Shown where Relative is known, or in the Relative view, where "—" and the
+  // reason beat silence.
+  if (heading && heading.parentElement && (reading || showNow === 'power')) {
+    if (!pw) {
+      pw = document.createElement('span');
+      pw.id = POWER_ID;
+      pw.setAttribute('data-tooltip-wide', '');
+      gridPowerSpan = pw;
+      pw.style.cssText = `display:inline-block;margin-left:10px;font:500 11px/1 var(--awoo-font, system-ui, sans-serif);text-transform:none;letter-spacing:normal;`
+        + `color:var(--awoo-ink-soft, #cbd5e1);font-variant-numeric:tabular-nums;white-space:nowrap;cursor:default;`;
+    }
+    const text = `Grid Strength ${reading ? formatPower(reading.gridPower) : '—'}`;
+    if (pw.textContent !== text) pw.textContent = text;
+    // Core's tooltip (data-tooltip + its rows), not the browser's title. The
+    // rows are a property Core reads at show time, so they are set every pass.
+    const tip = gridStrengthTip(reading);
+    if (pw.getAttribute('data-tooltip') !== tip.text) pw.setAttribute('data-tooltip', tip.text);
+    pw.awooTipRows = tip.rows;
+    // INSIDE the heading, as its last child, not after it: the game's card
+    // title is a block element, and a sibling after it would wrap onto a line
+    // of its own instead of sitting right of "Multipliers" (Anton, round 2).
+    // The heading search reads the heading's text without this span.
+    // One span only: one left behind by an earlier run of this module (a
+    // reload of the module without a page reload) goes.
+    for (const c of [...(heading.children || [])]) if (c !== pw && c.id === POWER_ID) c.remove();
+    if (pw.parentElement !== heading) heading.appendChild(pw);
+  } else {
+    pw?.remove();
+    gridPowerSpan = null;
+  }
+}
+
+// Add-on controls (the add-on seam, addControl): in a SECOND centred row right
+// under the pill row (R267 round 2: the pill row is back to "Overlay on" and
+// rotate), made once, and made again if it is gone (the game re-rendered the
+// page and our rows went with it). The row has no say in what its controls
+// show: an add-on hides itself with the `hidden` attribute (by the view, say),
+// and the stylesheet hides a row none of whose controls is showing.
+const addonControls = [];
+let addonRow = null;
+function removeAddonRow() {
+  for (const c of addonControls) { c.el?.remove(); c.el = null; }
+  addonRow?.remove();
+  addonRow = null;
+}
+// Everything this file puts beside the pill, whichever layout it sits in. The
+// elements are dropped (el = null) so that turning the module on again makes
+// them afresh.
+function removeRowExtras() {
+  document.getElementById(ROTATE_ID)?.remove();
+  document.getElementById(POWER_BTN_ID)?.remove();
+  document.getElementById(POWER_ID)?.remove();
+  gridPowerSpan?.remove();
+  gridPowerSpan = null;
+  removeAddonRow();
+}
+function ensureRowExtras() {
+  // Module off in Core: nothing of ours may be (re)inserted. addControl, a
+  // re-render and ensureRotateButton all end up here, and without this guard
+  // any of them would put a control back on a page the module has left.
+  if (!coreEnabled) { removeRowExtras(); return; }
+  syncGridPower();
+  // Its pop-up mentions the slider only once an add-on has put a control in the row.
+  updatePowerButton(document.getElementById(POWER_BTN_ID));
+  const pill = document.getElementById(TOGGLE_ID);
+  const row = pill && pill.parentElement;
+  // The second row hangs under OUR pill row. In the heading-fallback layout
+  // (the grid is not on screen, the pill sits beside the game's heading) there
+  // is no row of ours and no grid to rank, so the controls wait.
+  if (!addonControls.length || (row && row.className !== TOGGLE_ROW_CLASS)) { removeAddonRow(); return; }
+  // No pill yet (the page is being set up, or our row was dropped): a second row
+  // that is still on the page stays, so its controls are not made and thrown
+  // away on every pass; one that is gone takes its controls with it.
+  if (!row) { if (addonRow && addonRow.isConnected === false) removeAddonRow(); return; }
+  if (addonRow && (addonRow.isConnected === false || addonRow.previousElementSibling !== row)) removeAddonRow();
+  if (!addonRow) {
+    addonRow = document.createElement('div');
+    addonRow.className = ADDON_ROW_CLASS;
+    row.insertAdjacentElement('afterend', addonRow);
+  }
+  let prev = null;
+  for (const c of addonControls) {
+    const gone = c.el && (c.el.parentElement !== addonRow || c.el.isConnected === false);
+    if (!c.el || gone) {
+      try { c.el = c.make(); } catch (err) { console.error('[Sculpture Grid Overlay] an add-on control failed:', err); c.el = null; }
+    }
+    if (!c.el) continue;
+    if (c.el.parentElement !== addonRow) { if (prev) prev.insertAdjacentElement('afterend', c.el); else addonRow.appendChild(c.el); }
+    else if (prev && c.el.previousElementSibling !== prev) prev.insertAdjacentElement('afterend', c.el);
+    prev = c.el;
+  }
 }
 
 function clearOld(buttons = getGridButtons()) {
@@ -19244,11 +20069,52 @@ function clearOld(buttons = getGridButtons()) {
       if (btn.dataset.qsgOldTitle !== undefined) {
         btn.title = btn.dataset.qsgOldTitle;
         delete btn.dataset.qsgOldTitle;
+        btn.removeAttribute('data-tooltip');
+        btn.removeAttribute('data-tooltip-wide');
       }
 
       delete btn.dataset.qsgSimple;
     }
   }
+}
+
+// The tile levels and the preset verdict change what the Relative view shows
+// without touching a sculpture, so they are part of "did anything change".
+function upgradesSignature() {
+  return gridReads.upgrades
+    ? gridReads.upgrades.map((u) => `${u.coordinates.x},${u.coordinates.y}:${u.level}`).sort().join(';')
+    : 'none';
+}
+function readsSignature(sculptures) {
+  return `${upgradesSignature()}~${activePresetOf(sculptures, gridReads.presetLists)}`;
+}
+
+// What analyseGrid reads and nothing else: the sculptures' id, footprint, type,
+// item level and stats (with their placement), plus the tile levels. The view
+// (the rotate button) and the preset verdict are NOT in it, so flipping the
+// view redraws the labels but does not redo the marginal-Relative pass, which
+// runs the game's grid maths once per sculpture. The same object is handed to
+// the add-ons until the grid really changes, so they can compare it by
+// identity (the optimizer does, to skip a re-plan).
+function analysisSignature(sculptures) {
+  const rows = sculptures.map((s) => {
+    const c = s.grid?.coordinates || {};
+    const stats = Array.isArray(s.stats) ? s.stats.map((st) => `${st?.type || ''}:${String(st?.value ?? '')}:${st?.placement || ''}`).join(',') : '';
+    return [s._id ?? '', s.size, c.x, c.y, s.type ?? '', s.iLevel ?? '', stats].join('|');
+  }).sort();
+  return `${rows.join('::')}#${upgradesSignature()}`;
+}
+let analysisCache = { signature: null, analysis: null };
+function analysisFor(sculptures) {
+  const signature = analysisSignature(sculptures);
+  if (analysisCache.signature === signature) return analysisCache.analysis;
+  // analyseGrid refuses (null) when the tile levels were not read; a throw (a
+  // sculpture shape the game's function does not expect) also leaves Relative
+  // unknown rather than taking the labels down.
+  let analysis = null;
+  try { analysis = analyseGrid(sculptures, gridReads.upgrades); } catch (err) { console.debug('[Sculpture Grid Overlay] Relative', err); }
+  analysisCache = { signature, analysis };
+  return analysis;
 }
 
 function buildSignature(sculptures) {
@@ -19269,7 +20135,7 @@ function buildSignature(sculptures) {
       ].join('|');
     })
     .sort()
-    .join('::') + '#' + showNow;
+    .join('::') + '#' + showNow + '#' + readsSignature(sculptures);
 }
 
 function decorate() {
@@ -19297,7 +20163,13 @@ function decorate() {
 
   lastGridSignature = signature;
   clearOld(buttons);
-  if (!sculptures.length) return;
+
+  // POWER, once per change of the grid or the tile levels (see analysisFor).
+  const upgrades = gridReads.upgrades;
+  const analysis = analysisFor(sculptures);
+  hostState = { sculptures, upgrades, analysis, activePreset: activePresetOf(sculptures, gridReads.presetLists) };
+  ensureRowExtras();
+  if (!sculptures.length) { notifyAddons(); return; }
 
   const MOD_PALETTE = [
     '#35e07a',
@@ -19585,6 +20457,16 @@ function decorate() {
       }
     }
 
+    // The analysis entry (src/shared/sculpture-grid-engine.js), found by the
+    // same id the engine used. Two numbers, kept apart (R267 round 2): Roll
+    // Relative is the sculpture's own rolls before the grid, the tile's number;
+    // the marginal Relative is what the grid loses without it, kept for the hover.
+    const power = analysis ? analysis.perSculpture.get(s._id ?? `${x0},${y0}`) : null;
+    const rollP = power && Number.isFinite(power.rollPower) ? power.rollPower : null;
+    const addsP = power && Number.isFinite(power.power) ? power.power : null;
+    const powerTitle = rollP === null && addsP === null ? ''
+      : ' · ' + [rollP === null ? '' : `Roll ${fixedText(rollP, 2)} Relative`, addsP === null ? '' : `adds ${formatPower(addsP)} Grid Strength here`].filter(Boolean).join(' · ');
+
     const stats = Array.isArray(s.stats) ? s.stats : [];
     const displayCount = Math.min(stats.length, footprintButtons.length);
 
@@ -19632,39 +20514,55 @@ function decorate() {
       modEl.style.cssText =
         `font-size:8.5px;font-weight:600;color:${statColor};max-width:94%;white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:.06em;text-transform:uppercase;opacity:.92;text-shadow:${LABEL_SHADOW};`;
 
-      const pctEl = document.createElement('div');
-      pctEl.textContent = showNow === 'ilevel' ? lvText : pct;
+      // The Relative view puts the sculpture's one Roll Relative (two decimals) on
+      // its first tile only; the others keep just the mod name. "—" when it is
+      // unknown.
+      const numberText = showNow === 'ilevel' ? lvText : showNow === 'power' ? (rollP !== null ? fixedText(rollP, 2) : '—') : pct;
+      label.appendChild(modEl);
+      if (showNow !== 'power' || i === 0) {
+        const pctEl = document.createElement('div');
+        pctEl.textContent = numberText;
 
-      pctEl.style.cssText =
-        `font-size:11.5px;font-weight:600;margin-top:3px;color:${statColor};font-variant-numeric:tabular-nums;text-shadow:${LABEL_SHADOW};`;
+        pctEl.style.cssText =
+          `font-size:11.5px;font-weight:600;margin-top:3px;color:${statColor};font-variant-numeric:tabular-nums;text-shadow:${LABEL_SHADOW};`;
 
-      label.append(modEl, pctEl);
+        label.appendChild(pctEl);
+      }
       btn.appendChild(label);
 
       if (btn.dataset.qsgOldTitle === undefined) {
         btn.dataset.qsgOldTitle = btn.title || '';
       }
 
-      btn.title =
-        `${fullMod}: ${pct}${lv === null ? '' : ` · iLv ${lv}`}${i === 0 && uniqueType ? ` | ${uniqueType}` : ''}`;
+      // AWOO+'s tooltip (Core's, delegated from the document), not the browser's
+      // title: the game's own title is blanked while ours is on and restored in
+      // clearOld. The tile keeps pointer events (our label has none), so the
+      // delegation reaches it even though the host hides the tile's other children.
+      btn.title = '';
+      btn.setAttribute('data-tooltip-wide', '');
+      btn.setAttribute('data-tooltip',
+        `${fullMod}: ${pct}${lv === null ? '' : ` · iLv ${lv}`}${powerTitle}${i === 0 && uniqueType ? ` | ${uniqueType}` : ''}`);
     }
   }
+  notifyAddons();
 }
 
 // The one place the visible state changes, and the one place Core is told.
 function sync() {
   const wasEnabled = enabled;
   enabled = coreEnabled && labelsOn;
-  if (enabled && !wasEnabled) showNow = view.show; // starts as the setting says
+  if (enabled && !wasEnabled) showNow = startView(); // starts as the setting says, or in Relative when Relative mode is remembered
   if (typeof Core.setState === 'function') Core.setState(MODULE_ID, enabled ? 'running' : 'idle', enabled ? 'Overlay on' : 'Overlay off');
   updateToggleAppearance(document.getElementById('awoo-sculpture-grid-labels-toggle'));
   ensureRotateButton(document.getElementById('awoo-sculpture-grid-labels-toggle'));
+  if (enabled !== wasEnabled) notifyAddons();
   if (enabled) {
     lastGridSignature = '';
     queueDecorate();
   } else {
     clearOld();
     if (!coreEnabled) {
+      removeRowExtras();
       const pill = document.getElementById('awoo-sculpture-grid-labels-toggle');
       (pill && pill.parentElement && pill.parentElement.className === 'awoo-sculpture-grid-labels-toggle-row'
         ? pill.parentElement : pill)?.remove();
@@ -19738,11 +20636,18 @@ function injectStyles() {
     button:has(> .awoo-sculpture-grid-labels-simple-label){
       position:relative !important;
     }
-    .awoo-sculpture-grid-labels-toggle-row{
+    .awoo-sculpture-grid-labels-toggle-row,
+    .awoo-sculpture-grid-labels-addon-row{
       display:flex;
       justify-content:center;
+      align-items:center;
+      gap:var(--awoo-s3, 6px);
       padding:var(--awoo-s3, 6px) 0 0;
     }
+    /* The second row belongs to the add-ons; one that hides itself ([hidden])
+       must really go, and a row with nothing showing takes no room. */
+    .awoo-sculpture-grid-labels-addon-row > [hidden]{ display:none !important; }
+    .awoo-sculpture-grid-labels-addon-row:not(:has(> :not([hidden]))){ display:none; }
 
     .awoo-sculpture-grid-labels-clean-active{
       position:relative !important;
@@ -19764,10 +20669,19 @@ function injectStyles() {
 function bootstrap() {
   injectStyles();
 
+  // The last grid, for other modules (the Grid Optimizer). Released with this
+  // module's run, so an unloaded overlay is never used.
+  if (typeof Core.provide === 'function') scope.add(Core.provide('sculpture-grid', GRID_SERVICE));
+
   scope.add(() => {
     document.querySelector('.awoo-sculpture-grid-labels-toggle-row')?.remove();
     document.getElementById('awoo-sculpture-grid-labels-toggle')?.remove();
     document.getElementById(ROTATE_ID)?.remove();
+    document.getElementById(POWER_BTN_ID)?.remove();
+    document.getElementById(POWER_ID)?.remove();
+    removeAddonRow();
+    addonListeners.length = 0;
+    lastGridListeners.length = 0;
     clearOld();
   });
 
@@ -19826,6 +20740,80 @@ function bootstrap() {
   });
 }
 
+// Add-ons hear about every change that matters to them (the add-on seam,
+// onChange): the grid was redrawn, or the overlay went on or off. A listener
+// that throws must not stop the others, or the overlay itself.
+const addonListeners = [];
+function hostSnapshot() {
+  return hostState ? Object.assign({ on: enabled, view: showNow, powerMode: view.powerMode }, hostState) : null;
+}
+function notifyAddons() {
+  const snap = hostSnapshot();
+  for (const fn of addonListeners.slice()) {
+    try { fn(snap); } catch (err) { console.error('[Sculpture Grid Overlay] an add-on listener failed:', err); }
+  }
+}
+function footprintOf(s) {
+  const c = s && s.grid && s.grid.coordinates;
+  if (!c) return [];
+  const { w, h } = parseSize(s.size);
+  const out = [];
+  for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) out.push({ x: Number(c.x) + dx, y: Number(c.y) + dy });
+  return out;
+}
+
+{
+  // ==== the add-on seam (REGISTER.md R267; the pattern is Fighter Allocator's) ====
+  //
+  // An add-on (sculpture-grid-weakest.js, sculpture-grid-optimizer.js) is placed
+  // by build.mjs OUTSIDE this module's own code, in the bundles whose audience
+  // includes it, and pushed onto AWOO_ADDONS. It sees nothing of this module
+  // except `addonHost`: the one declared interface, versioned so a change to it
+  // cannot slip past unnoticed. In the public build no add-on extends this
+  // module, build.mjs generates no AWOO_ADDONS at all (hence the typeof guard),
+  // and the overlay runs exactly as it did before the seam existed.
+  //
+  // THE RULE FOR CHANGING IT: adding a member is free. Removing or renaming
+  // one, or changing what one returns, breaks every add-on built against the
+  // old shape, so bump ADDON_HOST_VERSION and update the add-ons in the same
+  // PR. addon-audit.mjs fails the build if an add-on uses a member that is not
+  // here, or needs a newer version than this. (That audit reads this block
+  // line by line: keep one member to a line, and the closing at two spaces.)
+  const ADDON_HOST_VERSION = 1;
+  const engineApi = Object.freeze({
+    analyseGrid, sculptureId, rollPower, powerUnit, toPower, fromPower, sculptureGridTotals, POOL: SCULPTURE_STAT_POOL,
+    displayName: (key) => STAT_DISPLAY_NAMES[key] || key,
+    shortName: (key) => SHORT_NAMES[key] || STAT_DISPLAY_NAMES[key] || key,
+  });
+  const addonHost = Object.freeze({
+    version: ADDON_HOST_VERSION,
+    // the pure Relative maths and the names the overlay draws with
+    engine: engineApi,
+    // what the last read of the grid gave (a fresh object each call): { on, view ('roll' | 'ilevel' | 'power'), powerMode (the Relative button is on; add-on controls show only then), sculptures, upgrades, analysis, activePreset }, or null when no grid has been read
+    state: () => hostSnapshot(),
+    // fn(state) after every redraw and when the overlay goes on or off; returns the unsubscribe
+    onChange: (fn) => { addonListeners.push(fn); return () => { const i = addonListeners.indexOf(fn); if (i >= 0) addonListeners.splice(i, 1); }; },
+    // the 64 tiles, row-major (empty when the grid is not on screen)
+    tileButtons: () => getGridButtons(),
+    // the tiles {x,y} a sculpture covers, top-left first
+    footprint: (s) => footprintOf(s),
+    // make() -> Element, placed in a second centred row under the pill row and made again if the row is rebuilt; hide it with the `hidden` attribute
+    addControl: (make) => { addonControls.push({ make, el: null }); ensureRowExtras(); },
+    // Core can unload this module; an add-on removes whatever it drew
+    onUnload: (fn) => { scope.add(() => { try { fn(); } catch (err) { console.error('[Sculpture Grid Overlay] an add-on unload failed:', err); } }); },
+    forTest: {},
+  });
+  // A failing add-on must not take the overlay down with it: each one is
+  // started on its own, refused if it needs a newer seam, and said out loud.
+  for (const addon of (typeof AWOO_ADDONS !== 'undefined' ? AWOO_ADDONS : [])) {
+    if (addon.needsHost > ADDON_HOST_VERSION) {
+      console.warn(`[AWOO+] the "${addon.id}" add-on needs Sculpture Grid Overlay's add-on seam v${addon.needsHost}; this is v${ADDON_HOST_VERSION}. Update AWOO+ Extras.`);
+      continue;
+    }
+    try { addon.init(addonHost, Core); } catch (err) { console.error(`[AWOO+] the "${addon.id}" add-on failed to start:`, err); }
+  }
+}
+
 if (document.body) {
   bootstrap();
 } else {
@@ -19854,7 +20842,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.19", function (Core) {
+  })("awoo-tools-public", "7.0.20", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
