@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.20
+// @version      7.0.21
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -19,7 +19,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.20",
+    "version": "7.0.21",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -311,6 +311,12 @@
       // disable the dot on the sync icon in top bar"). Off hides the dot
       // only: old data still shows on the icon's hover card and the page.
       barSyncDot: true,
+      // The size letters of an amount (k, m, b, t, qa ...) get a faint colour of
+      // their own across AWOO+ so they read apart from the digits. 'off' is the
+      // default; 'dim' is the text a little fainter; 'soft' a darkened tint of the theme's accent; the named colours
+      // are a touch clearer; 'off' leaves them the text's own colour. Separate
+      // from the theme. Control Panel > Appearance > Fonts & numbers.
+      sizeLetterTint: 'off',
       // General > Time zone (the maintainer, 2026-09-26: "a way for users to
       // change their timezone instead of server time for modules"). DISPLAY
       // ONLY — see the `resolvedTimeZone`/`timeFormat`/`timeParts` block below
@@ -538,6 +544,7 @@
       if (key === 'barScaleOwn' || key === 'barScale') applyBarScale();
       if (key === 'cpSideWidth') { applyCpSideWidth(); fitCpColumns(); }
       if (key === 'barSyncDot') renderProfileButton();
+      if (key === 'sizeLetterTint') applySizeLetterTint();
       // The setup wizard's state (R185): the bar's Setup button and General's
       // Setup row follow it, in this tab and in every other.
       if (key === 'setupWizard') { renderSetupButton(); paintSetupRow(); }
@@ -2232,6 +2239,115 @@
     // `digits` decimals with the player's decimal mark, the whole part
     // grouped. opts.trim drops trailing zeros ("2.50" -> "2.5", "2.00" -> "2");
     // opts.group: false leaves the whole part ungrouped.
+    // ---- The size letters of an amount (1,23qa, 4,5t), tinted app-wide ----
+    // One pass over AWOO+'s own text instead of a call in every module: a text
+    // node inside an AWOO+ element that holds "<digits><letters>" gets the
+    // letters wrapped in a span (.awoo-ui-sfx). textContent, titles, copied
+    // text and every module's own reads are unchanged, because a span adds no
+    // characters. Never touches the game's own elements, inputs, scripts or
+    // anything marked data-awoo-nosfx. The colour is a setting (sizeLetterTint).
+    // The first group is the short list (Anton's picks, 2026-11-03); the rest sit
+    // under a separator in the dropdown. Each mix is "<colour> <share>" blended
+    // with the text's own colour, so the tint always stays readable.
+    const SFX_COLOURS = Object.freeze({
+      dim: { label: 'Dim (fainter than the text)', mix: 'transparent 42%' },
+      soft: { label: 'Soft (darker theme accent)', mix: 'color-mix(in oklab, var(--awoo-accent, #E3B36B) 55%, #000) 55%' },
+      rust: { label: 'Rust', mix: '#B7572B 55%' },
+      wine: { label: 'Wine', mix: '#8E2F4A 55%' },
+      charcoal: { label: 'Charcoal', mix: '#4A4E57 60%' },
+      moss: { label: 'Moss', mix: '#6B7F4E 55%' },
+      dustyRose: { label: 'Dusty rose', mix: '#B98A93 50%' },
+      clay: { label: 'Clay', mix: '#B98F6F 50%' },
+      grey: { label: 'Grey', mix: '#8E9199 55%' },
+      slate: { label: 'Slate', mix: '#6E7A8A 55%' },
+      stone: { label: 'Stone', mix: '#9A958C 55%' },
+      rose: { label: 'Rose', mix: '#E08A9B 45%' },
+      mauve: { label: 'Mauve', mix: '#A68AA8 50%' },
+      lilac: { label: 'Lilac', mix: '#A99BE0 45%' },
+      dusk: { label: 'Dusk blue', mix: '#7F97B5 50%' },
+      sky: { label: 'Sky', mix: '#6FA8DC 45%' },
+      sage: { label: 'Sage', mix: '#8FA68E 50%' },
+      mint: { label: 'Mint', mix: '#6FCF97 45%' },
+      amber: { label: 'Amber', mix: '#E3B36B 45%' },
+    });
+    const SFX_TOP = ['dim', 'soft', 'rust', 'wine', 'charcoal', 'moss', 'dustyRose', 'clay'];
+    const SFX_RE = /(?<![A-Za-z#_\d.,])(\d[\d.,]*)(qa|qi|sx|sp|oc|no|dc|ud|k|m|b|t)(?![A-Za-z])/g;
+    const SFX_SKIP = 'script,style,noscript,textarea,input,select,option,[contenteditable=""],[contenteditable="true"],[data-awoo-nosfx],.awoo-ui-sfx';
+    function sfxMode() {
+      const v = getSetting('sizeLetterTint');
+      return v === 'off' || SFX_COLOURS[v] ? v : 'off';
+    }
+    function applySizeLetterTint() {
+      const root = document.documentElement;
+      if (!root) return;
+      const mode = sfxMode();
+      if (mode === 'off') root.setAttribute('data-awoo-sfx', 'off');
+      else {
+        root.removeAttribute('data-awoo-sfx');
+        root.style.setProperty('--awoo-sfx-mix', SFX_COLOURS[mode].mix);
+        sfxScan(document.body);
+      }
+    }
+    function sfxSplit(node) {
+      const text = node.nodeValue;
+      if (!text || text.length > 4000 || !/\d(qa|qi|sx|sp|oc|no|dc|ud|k|m|b|t)/.test(text)) return;
+      const par = node.parentElement;
+      if (!par || par.closest(SFX_SKIP) || !par.closest('[class*="awoo"]')) return;
+      let last = 0;
+      let frag = null;
+      text.replace(SFX_RE, (m, num, sfx, off) => {
+        if (sfx === 'm') {
+          // "1h 5m", "5m 30s": minutes, not millions.
+          const before = text.slice(0, off + num.length);
+          const after = text.slice(off + m.length);
+          if (/\d\s?[hd]\s?\d[\d.,]*$/.test(before) || /^\s?\d+\s?s(?![A-Za-z])/.test(after)) return m;
+        }
+        frag = frag || document.createDocumentFragment();
+        const cut = off + num.length;
+        frag.appendChild(document.createTextNode(text.slice(last, cut)));
+        const sp = document.createElement('span');
+        sp.className = 'awoo-ui-sfx';
+        sp.textContent = sfx;
+        frag.appendChild(sp);
+        last = cut + sfx.length;
+        return m;
+      });
+      if (!frag) return;
+      if (last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+      try { node.replaceWith(frag); } catch (e) { /* node left the page meanwhile */ }
+    }
+    function sfxScan(start) {
+      if (!start || sfxMode() === 'off') return;
+      if (start.nodeType === 3) { sfxSplit(start); return; }
+      if (start.nodeType !== 1 || !document.createTreeWalker) return;
+      const walker = document.createTreeWalker(start, 4);
+      const nodes = [];
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) nodes.push(n);
+      for (const n of nodes) sfxSplit(n);
+    }
+    function startSizeLetterTint() {
+      applySizeLetterTint();
+      if (typeof MutationObserver !== 'function' || !document.body) return;
+      let pending = new Set();
+      let timer = null;
+      const flush = () => {
+        timer = null;
+        const batch = pending;
+        pending = new Set();
+        for (const n of batch) { if (n.isConnected) sfxScan(n); }
+      };
+      const obs = new MutationObserver((list) => {
+        if (sfxMode() === 'off') return;
+        for (const m of list) {
+          if (m.type === 'characterData') { if (m.target.parentElement) pending.add(m.target); continue; }
+          for (const n of m.addedNodes) {
+            if (n.nodeType === 3 || n.nodeType === 1) pending.add(n);
+          }
+        }
+        if (pending.size && !timer) timer = setTimeout(flush, SCOPE_MIN_OBSERVER_DEBOUNCE_MS);
+      });
+      obs.observe(document.body, { childList: true, subtree: true, characterData: true });
+    }
     function numFixed(x, digits = 2, opts) {
       if (typeof x !== 'number' || !Number.isFinite(x)) return '—';
       const o = opts || {};
@@ -3228,11 +3344,27 @@
         .awoo-cp-tipdemo[data-pos="top"] .awoo-cp-tipdemo-tip { left: 19px; top: 3px; }
         .awoo-cp-tipdemo[data-pos="bottom-start"] .awoo-cp-tipdemo-tip { left: 30px; top: 33px; }
         .awoo-cp-tipdemo[data-pos="right"] .awoo-cp-tipdemo-tip { left: 46px; top: 18px; }
+        /* The info mark (AWOO+ style guide, DESIGN.md 10g): an empty span with
+           data-tooltip. Small and raised after a label; --big full height next
+           to a heading. The shape is one mask (--awoo-info-mask), the
+           game's own circled i, in the text's own colour, a little muted; DESIGN.md holds the two
+           other shapes that were drawn. */
+        :root { --awoo-info-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='9.5'/%3E%3Cpath d='M12 17v-6M12 7.2h.01'/%3E%3C/svg%3E"); }
+        .awoo-ui-info { display: inline-block; flex: none; width: .72em; height: .72em; min-width: 9px; min-height: 9px; margin-left: .2em; vertical-align: .38em; cursor: help;
+          background-color: color-mix(in oklab, currentColor 60%, transparent); -webkit-mask: var(--awoo-info-mask) center / contain no-repeat; mask: var(--awoo-info-mask) center / contain no-repeat; text-transform: none; }
+        .awoo-ui-sfx { color: color-mix(in oklab, var(--awoo-sfx-mix, var(--awoo-accent, #E3B36B) 30%), currentColor); }
+        :root[data-awoo-sfx="off"] .awoo-ui-sfx { color: inherit; }
+        .awoo-ui-info:hover { background-color: currentColor; }
+        .awoo-ui-info.awoo-ui-info-big { width: 1em; height: 1em; min-width: 12px; min-height: 12px; margin-left: .35em; vertical-align: -.12em; }
         /* A hover pop-up kept open by a click (ui.hoverPopup): an accent
            ring says it stays, and its background drags it. */
         .awoo-ui-popup-locked { outline: 1px solid var(--awoo-accent-edge, var(--awoo-accent)); outline-offset: -1px; }
         .awoo-ui-popup-dragging, .awoo-ui-popup-dragging * { cursor: move !important; }
-        .awoo-ui-popup-origin { box-sizing: border-box; border: 1px dashed var(--awoo-accent-edge, var(--awoo-accent)); border-radius: 4px; pointer-events: none; opacity: .7; }
+        .awoo-ui-popup-origin { box-sizing: border-box; border: 2px dashed var(--awoo-accent, #E3B36B); border-radius: 4px; pointer-events: none; overflow: hidden; }
+        .awoo-ui-popup-origin .awoo-ui-popup-ghost { filter: opacity(.12); pointer-events: none; }
+        .awoo-ui-popup-zone { box-sizing: border-box; border: 1px dashed var(--awoo-accent-edge, var(--awoo-accent)); border-radius: var(--awoo-r-lg, 8px); pointer-events: none; opacity: .4;
+          background: color-mix(in oklab, var(--awoo-accent, #E3B36B) 5%, transparent); transition: opacity .1s; }
+        .awoo-ui-popup-zone.awoo-ui-popup-zone-out { opacity: .4; filter: opacity(.4); }
         .awoo-ui-popup-lockicon { position: fixed; pointer-events: none; display: flex; padding: 3px; border-radius: 4px; color: var(--awoo-accent-ink, #111); background: var(--awoo-accent, #E3B36B); box-shadow: 0 1px 4px rgba(0,0,0,.4); }
         .awoo-ui-popup-lockicon[hidden] { display: none; }
         .awoo-ui-popup-close { display: none; }
@@ -4703,7 +4835,12 @@
         // pop-up came from (a dashed outline) and lets go back to it if it
         // was not taken DRAG_LOCK px away; only a drag that far locks it.
         // Once locked, a drag is free as before, with no outline or snap-back.
-        const DRAG_START = 5, DRAG_LOCK = 40;
+        // 2026-11-03: the snap-back area is a wider square round the place it
+        // came from (the pop-up may be taken DRAG_LOCK px away in each
+        // direction and still goes back), drawn very faintly; the origin is a
+        // clearer outline with a faint ghost of the pop-up inside it.
+        const DRAG_START = 5, DRAG_LOCK = 72;
+        const farAway = (dx, dy) => Math.max(Math.abs(dx), Math.abs(dy)) >= DRAG_LOCK;
         let dragging = false;
         function moveTo(r, dx, dy) {
           const rect = clampRectToViewport({ x: r.left + dx, y: r.top + dy, w: r.width, h: r.height },
@@ -4724,7 +4861,7 @@
           const sx = e.clientX, sy = e.clientY;
           const was = { left: el.style.left, top: el.style.top, right: el.style.right, bottom: el.style.bottom };
           const wasLocked = locked;
-          let started = wasLocked, mark = null, lockIcon = null;
+          let started = wasLocked, mark = null, zone = null, lockIcon = null;
           const drag = openScope.child('drag');
           const begin = () => {
             started = true;
@@ -4732,9 +4869,21 @@
             // The move cursor only while a drag is under way (2026-11-02).
             if (el.classList) el.classList.add('awoo-ui-popup-dragging');
             if (!wasLocked) {
+              zone = document.createElement('div');
+              zone.className = 'awoo-ui-popup-zone';
+              zone.style.cssText = `position:fixed;left:${r.left - DRAG_LOCK}px;top:${r.top - DRAG_LOCK}px;width:${r.width + 2 * DRAG_LOCK}px;height:${r.height + 2 * DRAG_LOCK}px;z-index:${Z.popover - 2}`;
+              document.body.appendChild(zone);
               mark = document.createElement('div');
               mark.className = 'awoo-ui-popup-origin';
               mark.style.cssText = `position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;z-index:${Z.popover - 1}`;
+              try {
+                // A very transparent still copy of the pop-up, where it was.
+                const g = el.cloneNode(true);
+                g.removeAttribute('id');
+                g.className = 'awoo-ui-popup-ghost';
+                g.style.cssText = `position:absolute;left:0;top:0;width:${r.width}px;height:${r.height}px;margin:0;transform:none`;
+                mark.appendChild(g);
+              } catch { /* the outline alone */ }
               document.body.appendChild(mark);
             }
           };
@@ -4743,6 +4892,7 @@
             dragging = false;
             if (el.classList) el.classList.remove('awoo-ui-popup-dragging');
             if (mark) { mark.remove(); mark = null; }
+            if (zone) { zone.remove(); zone = null; }
             if (lockIcon) { lockIcon.remove(); lockIcon = null; }
           });
           drag.on(document, 'pointermove', (m) => {
@@ -4755,7 +4905,8 @@
             // Outside the snap-back area: a lock beside the pointer says
             // that letting go here keeps the pop-up.
             if (mark) {
-              const far = Math.hypot(dx, dy) >= DRAG_LOCK;
+              const far = farAway(dx, dy);
+              if (zone) zone.classList.toggle('awoo-ui-popup-zone-out', far);
               if (far && !lockIcon) {
                 lockIcon = document.createElement('div');
                 lockIcon.className = 'awoo-ui-popup-lockicon';
@@ -4772,7 +4923,7 @@
           }, { capture: true, passive: true });
           const end = (ev, up) => {
             if (started && !wasLocked && ev && up) {
-              if (Math.hypot(ev.clientX - sx, ev.clientY - sy) >= DRAG_LOCK) setLocked(true);
+              if (farAway(ev.clientX - sx, ev.clientY - sy)) setLocked(true);
               else {
                 // Not far enough: back to where it was, and not locked.
                 el.style.transition = 'left .12s ease-out, top .12s ease-out';
@@ -4955,6 +5106,7 @@
           for (const opt of spec.options) {
             const o = document.createElement('option');
             o.value = opt.value; o.textContent = opt.label;
+            if (opt.disabled) o.disabled = true;
             input.appendChild(o);
           }
         }
@@ -8251,6 +8403,47 @@
       });
       onReset(() => { if (abbrevRow._input) abbrevRow._input.value = getSetting('numberAbbrev'); });
       paneFonts.appendChild(abbrevRow);
+      const sfxRow = ui.inputRow({
+        label: 'Size letters', type: 'select', value: getSetting('sizeLetterTint'),
+        options: [{ value: 'off', label: 'Off (same colour as the number)' }]
+          .concat(SFX_TOP.map((k) => ({ value: k, label: SFX_COLOURS[k].label })))
+          .concat([{ value: '', label: '──────────', disabled: true }])
+          .concat(Object.keys(SFX_COLOURS).filter((k) => !SFX_TOP.includes(k)).map((k) => ({ value: k, label: SFX_COLOURS[k].label }))),
+        info: 'A faint colour for the letters after an amount (k, m, b, t, qa ...) everywhere in AWOO+, so they stand apart from the digits. Soft is a darker version of the theme\'s accent. Separate from the theme.',
+        onChange: (v) => { setSetting('sizeLetterTint', v === 'off' || SFX_COLOURS[v] ? v : 'off'); paintSfx(); },
+      });
+      onReset(() => { if (sfxRow._input) sfxRow._input.value = getSetting('sizeLetterTint'); paintSfx(); });
+      paneFonts.appendChild(sfxRow);
+      // A sample of each colour, to click: the same amounts, only the letters differ.
+      const sfxSamples = document.createElement('div');
+      sfxSamples.style.cssText = 'display:flex; flex-wrap:wrap; gap:6px; margin:4px 0 10px;';
+      const sfxChips = [];
+      const paintSfx = () => { const cur = sfxMode(); for (const c of sfxChips) c.style.outline = c.dataset.sfx === cur ? '1px solid var(--awoo-accent, currentColor)' : '1px solid transparent'; };
+      for (const k of ['dim', 'soft', 'rust', 'wine', 'charcoal']) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.dataset.sfx = k;
+        chip.title = SFX_COLOURS[k].label;
+        chip.style.cssText = 'cursor:pointer; padding:3px 7px; border-radius:6px; border:0; background:var(--awoo-surface-3, rgba(128,128,128,.15)); color:inherit; font:inherit; font-size:12px; white-space:nowrap;';
+        const lbl = document.createElement('span');
+        lbl.style.cssText = 'opacity:.6; margin-right:6px;';
+        lbl.textContent = SFX_COLOURS[k].label.replace(/ \(.*\)/, '');
+        chip.appendChild(lbl);
+        [['1.25', 'm'], ['870', 'k'], ['3.4', 'b'], ['12', 'qa']].forEach(([n, l], i) => {
+          const nm = document.createElement('span');
+          nm.textContent = (i ? ' ' : '') + n;
+          chip.appendChild(nm);
+          const sp = document.createElement('span');
+          sp.textContent = l;
+          sp.style.color = `color-mix(in oklab, ${SFX_COLOURS[k].mix}, currentColor)`;
+          chip.appendChild(sp);
+        });
+        chip.addEventListener('click', () => { setSetting('sizeLetterTint', k); if (sfxRow._input) sfxRow._input.value = k; paintSfx(); });
+        sfxSamples.appendChild(chip);
+        sfxChips.push(chip);
+      }
+      paintSfx();
+      paneFonts.appendChild(sfxSamples);
 
       // ---- windows, and the Control Panel's own size and options ----
       // Since the redesign each row goes to its place on Theme & size: the
@@ -13983,6 +14176,7 @@
       try { buildUi(); renderDropdown(); } catch (e) { showStartupFailure(e, 'AWOO+ menu could not be built'); }
     }
     mountUiWhenReady();
+    whenBodyReady(startSizeLetterTint);
     return publicApi;
   })();
   } catch (err) {
@@ -20842,7 +21036,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.20", function (Core) {
+  })("awoo-tools-public", "7.0.21", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
