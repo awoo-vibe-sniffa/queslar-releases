@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.21
+// @version      7.0.22
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -19,7 +19,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.21",
+    "version": "7.0.22",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -3718,6 +3718,7 @@
         /* ---- activity strip ---- */
         .awoo-ui-activity { margin: auto -11px -10px; border-top: 1px solid var(--awoo-line);
           background: color-mix(in srgb, var(--awoo-card) 94%, #000); flex: none; }
+        .awoo-window > .awoo-ui-activity-dock { margin: 0; border-radius: 0 0 var(--awoo-r-lg) var(--awoo-r-lg); }
         .awoo-ui-activity-head { display: flex; align-items: center; gap: 7px; width: 100%;
           padding: var(--awoo-s3) 11px; background: none; border: none; color: inherit;
           font: inherit; font-size: var(--awoo-fs-body); text-align: left; cursor: pointer; }
@@ -4571,7 +4572,24 @@
           return Math.round(s / 3600) + 'h';
         }
 
+        // THE STRIP IS THE WINDOW'S FOOT (the maintainer, 2026-11-06: "stick
+        // it to the bottom of the window", every module window). A module
+        // appends it inside its content, which scrolls with the body and ends
+        // wherever the content ends; here it moves out of the body to sit
+        // under it, as the window's last child (the window is a flex column),
+        // so it is always at the bottom and never scrolls away. Checked once
+        // after the module's own append and again on every draw, so a content
+        // rebuild that appends it again is put right too.
+        function dock() {
+          const win = el.parentNode && el.closest ? el.closest('.awoo-window') : null;
+          if (!win || el.parentNode === win) return;
+          win.appendChild(el);
+          el.classList.add('awoo-ui-activity-dock');
+        }
+        (typeof requestAnimationFrame === 'function' ? requestAnimationFrame : (f) => setTimeout(f, 0))(() => { try { dock(); } catch (e) { /* not in a window */ } });
+
         function render() {
+          dock();
           const top = entries[0];
           domWrite.text(glyph, top ? GLYPH[top.level] : '');
           domWrite.attr(glyph, 'class', 'awoo-ui-activity-g awoo-ui-lvl-' + (top ? top.level : 'info'));
@@ -18350,7 +18368,7 @@
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("dungeon-win-rate", "0.1.4", function (Core) {
+  })("dungeon-win-rate", "0.1.5", function (Core) {
   if (AWOO_ABOUT.needsCore && !(Core.version >= AWOO_ABOUT.needsCore)) {
     if (Core.registerModule) Core.registerModule(Object.assign({ id: "dungeon-win-rate" }, AWOO_ABOUT));
     return null;
@@ -18817,7 +18835,8 @@ function bootstrap() {
     // and then resized itself to fit.
     // 290, not 330: reported slightly too tall. The content measured 197px
     // plus the strip; 290 leaves the strip room to open a line or two.
-    defaultSize: { w: 360, h: 290 },
+    // About a tenth larger both ways (2026-11-06, DESIGN.md §8: every module window).
+    defaultSize: { w: 400, h: 330 },
     minSize: { w: 320, h: 260 },
     resizable: true,
     onClose: () => togglePanel(false),
@@ -21036,7 +21055,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.21", function (Core) {
+  })("awoo-tools-public", "7.0.22", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //

@@ -1,19 +1,19 @@
 {
   "channel": "live",
-  "generated": "2026-11-03T09:32:42.052Z",
+  "generated": "2026-11-06T08:33:28.467Z",
   "core": {
-    "version": "7.0.21",
+    "version": "7.0.22",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
-    "notes": "The letters after an amount (k, m, b, t, qa ...) get a very faint colour everywhere in AWOO+ so they stand apart from the digits; pick a colour (off by default; Soft, Rust, Wine, Charcoal, Moss, Dusty rose, Clay and more, with samples) or switch it off under Control Panel > Appearance > Fonts & numbers > Size letters\nA new, clearer info mark (a small raised circled i in the AWOO+ accent) replaces the plain letter \"i\" that looked like an \"l\"\nDragging a pop-up: the spot it came from is a clearer dashed outline with a faint ghost of the pop-up, and the area where it springs back is larger and shown faintly"
+    "notes": "Every module window opens a little larger, and its status line sits at the very bottom of the window instead of scrolling with the page (use Reset window sizes to get the new sizes)\nDungeon Win Rate: The window opens a little larger, and its status line stays at the bottom of the window"
   },
   "modules": [
     {
       "id": "dungeon-win-rate",
       "label": "Dungeon Win Rate",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
       "bundledIn": "awoo-core",
-      "notes": "Its entry in Control Panel › Feature settings is greyed, because it has no settings of its own",
+      "notes": "The window opens a little larger, and its status line stays at the bottom of the window",
       "standalone": {
         "version": "0.1.1",
         "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/dungeon-win-rate.user.js",
