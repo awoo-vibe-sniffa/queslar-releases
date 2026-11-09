@@ -1207,17 +1207,24 @@ var FALLBACK_THEME = 'slate';
 
 // The two font lists of Settings > Fonts. Core carries the same two lists for
 // the overlay; userscripts/tests/tool-theme-contract.mjs fails if they drift apart.
-//   text: Public Sans (default) · Open Sans · Figtree
+//   text: Nunito (default) · Public Sans · Open Sans · Figtree · Quicksand
 //   num:  Public Sans with tabular figures (default) · Roboto Mono · Barlow Semi
 //         Condensed · Nunito · Quicksand
 // Roboto Mono marks its zero (69% ink in the counter, measured); it is offered
 // because it was asked for, and labelled for what it is in Core's picker.
 var FONT_TEXT = {
+  // Nunito first: the text default since 2026-11-08 (Anton).
+  nunito:  { stack:"'Nunito',system-ui,-apple-system,sans-serif",      family:'Nunito:wght@400;500;600;700' },
   public:  { stack:"'Public Sans',system-ui,-apple-system,sans-serif", family:'Public+Sans:wght@400;500;600;700' },
   open:    { stack:"'Open Sans',system-ui,-apple-system,sans-serif",   family:'Open+Sans:wght@400;500;600;700' },
   figtree: { stack:"'Figtree',system-ui,-apple-system,sans-serif",     family:'Figtree:wght@400;500;600;700' },
-  nunito:  { stack:"'Nunito',system-ui,-apple-system,sans-serif",      family:'Nunito:wght@400;500;600;700' },
-  quicksand: { stack:"'Quicksand',system-ui,-apple-system,sans-serif", family:'Quicksand:wght@400;500;600;700' }
+  quicksand: { stack:"'Quicksand',system-ui,-apple-system,sans-serif", family:'Quicksand:wght@400;500;600;700' },
+  // The game's own face (its stylesheet sets JetBrains Mono on every element), 2026-11-08.
+  calibri: { stack:"'Calibri','Carlito',system-ui,sans-serif",     family:'' },
+  segoe:   { stack:"'Segoe UI',system-ui,sans-serif",             family:'' },
+  system:  { stack:"system-ui,sans-serif",                         family:'' },
+  claude:  { stack:"'Anthropic Sans','Styrene B',system-ui,sans-serif", family:'' },
+  game:    { stack:"'JetBrains Mono',ui-monospace,monospace",          family:'JetBrains+Mono:wght@400;500;600;700' }
 };
 var FONT_NUM = {
   // Nunito first: the number default since 2026-11-07 (Core's list says why).
@@ -1226,7 +1233,12 @@ var FONT_NUM = {
   roboto: { stack:"'Roboto Mono',ui-monospace,monospace",             family:'Roboto+Mono:wght@400;500;600' },
   // 2026-11-07: narrower, soft or rounded faces with a plain zero (Core's list says why).
   barlow:    { stack:"'Barlow Semi Condensed',system-ui,-apple-system,sans-serif", family:'Barlow+Semi+Condensed:wght@400;500;600;700' },
-  quicksand: { stack:"'Quicksand',system-ui,-apple-system,sans-serif",             family:'Quicksand:wght@400;500;600;700' }
+  quicksand: { stack:"'Quicksand',system-ui,-apple-system,sans-serif",             family:'Quicksand:wght@400;500;600;700' },
+  calibri:   { stack:"'Calibri','Carlito',system-ui,sans-serif",             family:'' },
+  segoe:     { stack:"'Segoe UI',system-ui,sans-serif",                     family:'' },
+  system:    { stack:"system-ui,sans-serif",                                family:'' },
+  claude:    { stack:"'Anthropic Sans','Styrene B',system-ui,sans-serif",   family:'' },
+  game:      { stack:"'JetBrains Mono',ui-monospace,monospace",                      family:'JetBrains+Mono:wght@400;500;600;700' }
 };
 
 // NUMBER PRESENTATION (2026-09-23: moved here from Cost Tables, so every tool
@@ -1409,7 +1421,8 @@ function fontIds(){
   var f = inherited().fonts;
   var tools = f && (f.tools || f);
   return {
-    text: local.fontText || (tools && FONT_TEXT[tools.text] ? tools.text : null),
+    // Nunito is the text default too since 2026-11-08 (Anton): "default font nunito, in both tools and AWOO+".
+    text: local.fontText || (tools && FONT_TEXT[tools.text] ? tools.text : 'nunito'),
     num: local.fontNum || (tools && FONT_NUM[tools.num] ? tools.num : null)
   };
 }
@@ -1417,6 +1430,7 @@ function applyFonts(){
   var ids = fontIds();
   var text = ids.text && FONT_TEXT[ids.text];
   var num = ids.num && FONT_NUM[ids.num];
+  if (!root.style || typeof root.style.setProperty !== 'function') return;
   if (text){
     loadFamily(text.family);
     root.style.setProperty('--font-body', text.stack);
@@ -1432,7 +1446,7 @@ function applyFonts(){
   if (!text){ rm('--font-body'); rm('--font-display'); }
   if (!num) rm('--font-num');
 }
-var FONT_LABEL = { public:'Public Sans', open:'Open Sans', figtree:'Figtree', roboto:'Roboto Mono (marked 0)', barlow:'Barlow Semi Condensed (narrow)', nunito:'Nunito (rounded)', quicksand:'Quicksand (rounded)' };
+var FONT_LABEL = { public:'Public Sans', open:'Open Sans', figtree:'Figtree', roboto:'Roboto Mono (marked 0)', barlow:'Barlow Semi Condensed (narrow)', nunito:'Nunito (rounded)', quicksand:'Quicksand (rounded)', calibri:'Calibri (system)', segoe:'Segoe UI (system)', system:'System default (system-ui)', claude:'Claude app style', game:'Match game (JetBrains Mono)' };
 
 /* NUMBER INPUTS (2026-09-23). A box marked data-num shows thousands
    separators while you are not in it, and plain digits while you edit (so the
