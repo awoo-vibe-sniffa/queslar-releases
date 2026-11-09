@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.24
+// @version      7.0.25
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -19,7 +19,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.24",
+    "version": "7.0.25",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -19363,7 +19363,7 @@ else scope.on(document, 'DOMContentLoaded', bootstrap, { once: true });
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("sculpture-grid-labels", "0.1.8", function (Core) {
+  })("sculpture-grid-labels", "0.1.9", function (Core) {
   if (AWOO_ABOUT.needsCore && !(Core.version >= AWOO_ABOUT.needsCore)) {
     if (Core.registerModule) Core.registerModule(Object.assign({ id: "sculpture-grid-labels" }, AWOO_ABOUT));
     return null;
@@ -21111,6 +21111,8 @@ function measureGrid(buttons) {
   const gridParent = buttons[0] && buttons[0].parentElement;
   if (!gridParent) return null;
   if (getComputedStyle(gridParent).position === 'static') gridParent.style.position = 'relative';
+  // The overlay's layers (z-index 20-60) stay inside the grid's own stacking context, so the game's pop-ups and drop-down menus, which sit above the grid, are drawn over them.
+  if (gridParent.style.isolation !== 'isolate') gridParent.style.isolation = 'isolate';
   const cellStyle = getComputedStyle(buttons[0]);
   const cellBorder = parseFloat(cellStyle.borderTopWidth) || 1;
   const cellRadius = cellStyle.borderTopLeftRadius || '6px';
@@ -21648,7 +21650,7 @@ function decorate() {
         tag.textContent = UNIQUE_TAGS[uniqueType] || '';
 
         tag.style.cssText =
-          `position:absolute;top:2px;left:2px;font-size:6.5px;font-weight:700;color:var(--awoo-on-accent, #0b1120);background:${theme.hue};padding:1px 2px;border-radius:2px;letter-spacing:.04em;line-height:1;`;
+          `position:absolute;top:2px;left:2px;font-size:6.5px;font-weight:700;color:var(--awoo-on-accent, #0b1120);background:${(UNIQUE_THEMES[uniqueType] || theme).hue};padding:1px 2px;border-radius:2px;letter-spacing:.04em;line-height:1;`;
 
         label.appendChild(tag);
       }
@@ -22186,7 +22188,7 @@ function bootstrap() {
           options: [{ value: 'soft', label: 'Soft' }, { value: 'normal', label: 'Normal' }, { value: 'vibrant', label: 'Vibrant' }],
           onChange: (v) => setView({ modStyle: v }),
         }));
-        check('Uniques one colour', 'uniqueOneColour', 'Every unique sculpture in the same orange-red instead of its own colour');
+        check('Uniques one colour', 'uniqueOneColour', 'Every unique sculpture tile and line in the same orange-red; the small labels keep each unique\'s own colour');
         check('Unique visuals', 'uniqueVisuals', 'Coloured grid lines around the row of a resonator, the column of a channeler and the tiles around a cornerstone. Also with the overlay off');
         check('Tile tooltips', 'tilePopups', 'The roll and item level of the tile under the mouse');
         check('Cleaner grid tiles (overlay on)', 'gameSkin', 'Bigger tiles with less space between them, quieter borders and a darker ground, while the overlay is on');
@@ -22352,7 +22354,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.24", function (Core) {
+  })("awoo-tools-public", "7.0.25", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
