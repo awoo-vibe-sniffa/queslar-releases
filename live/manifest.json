@@ -1,19 +1,19 @@
 {
   "channel": "live",
-  "generated": "2026-11-09T22:25:58.667Z",
+  "generated": "2026-11-12T05:10:59.959Z",
   "core": {
-    "version": "7.0.25",
+    "version": "7.0.26",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
-    "notes": "Grid Overlay: The grid overlay now sits under the game's own pop-ups and drop-down menus\nGrid Overlay: With \"Uniques one colour\" on, the small unique labels keep each unique's own colour"
+    "notes": "General › Changelog lists this update's window fixes and the Grid Overlay and Dungeon Win rate changes\nA window closed near the edge and reopened after the browser got smaller now comes back on-screen\nBring window on-screen on a closed window no longer shrinks it to nothing\nGeneral › Changelog catches up: it now lists what changed in 7.0.20 to 7.0.25, which were missing\nDungeon Win rate: Renamed to Dungeon Win rate (was Win rate), by Apoz and Weeble\nDungeon Win rate: After loading older entries for a range, the log scrolls back up to where you were, instead of staying at the bottom\nGrid Overlay: Now by Apoz, Weeble and Spiritie\nGrid Overlay: New Colours window (Colours menu in the overlay's right-click menu, or the new cog on the Presets list): themes Classic, Classic original (the old Grid Labels script), Colour-blind and Distinct; tones Classic, Vivid, Deep and Intense; Hybrid, Most used or Fixed colours; tile transparency from 0% (no fill) to 60%; a plain edge in your game theme's own border colour or a coloured one, each Full, Semi or Thin; bold and coloured text for names or numbers\nGrid Overlay: Presets Default, AWOO+, Calm, Vibrant, Old script look and Alternative (the overlay as it was), plus up to three Custom looks on their own row that you can rename or delete (right-click one). Every change applies at once; a custom preset shows * until you press Save custom preset, and Reset goes back to its saved settings\nGrid Overlay: Stats, resources, gold, XP, relics and drop rate keep their own natural colours; recipes get clearly different colours on each grid, and no colour is used twice on one grid\nGrid Overlay: The right-click menu is shorter: Uniques and Cleaner tiles are two buttons each, Show/hide stats is on right-click of the grid\nGrid Overlay: If you had Mod colours switched off, your grid stays without fill\nGrid Overlay: Overlay tiles have crisp edges and are filled right into the corners; colours look the same whatever background the game uses\nGrid Overlay: Hovering a tile with the overlay on lights it up clearly (a larger sculpture lights up whole), and the text on the tiles is sharper\nGrid Overlay: The lines inside larger unique sculptures are all equally thin and crisp\nGrid Overlay: No more short flicker of the tiles when the grid updates\nGrid Overlay: A quiet note under the presets list names any unique sculpture missing from the grid (can be switched off in the Control Panel)\nGrid Overlay: Cleaner tiles with the overlay off: the 🗿 sculpture heads are hidden (point at the middle of a tile for the game's pop-up), the tiles are less purple, and sculpture outlines are a little thicker"
   },
   "modules": [
     {
       "id": "dungeon-win-rate",
-      "label": "Win rate",
-      "version": "0.2.1",
+      "label": "Dungeon Win rate",
+      "version": "0.2.2",
       "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
       "bundledIn": "awoo-core",
-      "notes": "Dungeon Win Rate is now a Tweak and works on the Dungeon log page itself: a panel above the log shows the win rate, wins and losses since the last 1, 2, 3, 6, 12 or 24 hours, 3 days or all time. Choosing a range that reaches further back loads older entries for you, and Stop cancels it",
+      "notes": "Renamed to Dungeon Win rate (was Win rate), by Apoz and Weeble\nAfter loading older entries for a range, the log scrolls back up to where you were, instead of staying at the bottom",
       "standalone": {
         "version": "0.1.1",
         "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/dungeon-win-rate.user.js",
@@ -24,10 +24,10 @@
     {
       "id": "sculpture-grid-labels",
       "label": "Grid Overlay",
-      "version": "0.1.9",
+      "version": "0.1.10",
       "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
       "bundledIn": "awoo-core",
-      "notes": "The grid overlay now sits under the game's own pop-ups and drop-down menus\nWith \"Uniques one colour\" on, the small unique labels keep each unique's own colour",
+      "notes": "Now by Apoz, Weeble and Spiritie\nNew Colours window (Colours menu in the overlay's right-click menu, or the new cog on the Presets list): themes Classic, Classic original (the old Grid Labels script), Colour-blind and Distinct; tones Classic, Vivid, Deep and Intense; Hybrid, Most used or Fixed colours; tile transparency from 0% (no fill) to 60%; a plain edge in your game theme's own border colour or a coloured one, each Full, Semi or Thin; bold and coloured text for names or numbers\nPresets Default, AWOO+, Calm, Vibrant, Old script look and Alternative (the overlay as it was), plus up to three Custom looks on their own row that you can rename or delete (right-click one). Every change applies at once; a custom preset shows * until you press Save custom preset, and Reset goes back to its saved settings\nStats, resources, gold, XP, relics and drop rate keep their own natural colours; recipes get clearly different colours on each grid, and no colour is used twice on one grid\nThe right-click menu is shorter: Uniques and Cleaner tiles are two buttons each, Show/hide stats is on right-click of the grid\nIf you had Mod colours switched off, your grid stays without fill\nOverlay tiles have crisp edges and are filled right into the corners; colours look the same whatever background the game uses\nHovering a tile with the overlay on lights it up clearly (a larger sculpture lights up whole), and the text on the tiles is sharper\nThe lines inside larger unique sculptures are all equally thin and crisp\nNo more short flicker of the tiles when the grid updates\nA quiet note under the presets list names any unique sculpture missing from the grid (can be switched off in the Control Panel)\nCleaner tiles with the overlay off: the 🗿 sculpture heads are hidden (point at the middle of a tile for the game's pop-up), the tiles are less purple, and sculpture outlines are a little thicker",
       "standalone": {
         "version": "0.1.1",
         "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/sculpture-grid-labels.user.js",

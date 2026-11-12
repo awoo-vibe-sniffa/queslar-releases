@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.25
+// @version      7.0.26
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -19,7 +19,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.25",
+    "version": "7.0.26",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -661,7 +661,7 @@
     // src/awoo-core.changelog.md (build.mjs changelog(), which also refuses a
     // line that names anything private). Each entry: { title, date, lines }.
     // Shown on General › Changelog; the raw src/ file carries an empty list.
-    const CHANGELOG = [{"title":"7.0.19","date":"2026-11-02","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table","Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates","The All Tweaks hover fits its text: the names on top, then each Tweak's full description"],"groups":[{"name":"Menu & top bar","lines":["The All Tweaks hover fits its text: the names on top, then each Tweak's full description"]},{"name":"Profile Sync","lines":["Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates"]},{"name":"Tools","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table"]}]},{"title":"7.0.17","date":"2026-10-23","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"],"groups":[{"name":"Control Panel","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"]}]},{"title":"7.0.15","date":"2026-10-17","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General","The Control Panel pages share one tidy table,","Profile Sync writes much less to your browser"],"groups":[{"name":"Control Panel","lines":["The Control Panel pages share one tidy table,"]},{"name":"Look & themes","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General"]},{"name":"Profile Sync","lines":["Profile Sync writes much less to your browser"]}]},{"title":"7.0.4","date":"2026-09-25","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side","The AWOO+ menu is a quick list you can search, with a right-click menu on every module","Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely","A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes","Profile Sync has its own top-bar icon that shows how fresh your data is","Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"],"groups":[{"name":"Control Panel","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side"]},{"name":"Menu & top bar","lines":["The AWOO+ menu is a quick list you can search, with a right-click menu on every module"]},{"name":"Look & themes","lines":["A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes"]},{"name":"Profile Sync","lines":["Profile Sync has its own top-bar icon that shows how fresh your data is"]},{"name":"Modules & Tweaks","lines":["Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"]}]},{"title":"7.0.3","date":"2026-09-24","lines":["Profile Sync reads more of your profile and shows how old each part is"],"groups":[{"name":"Profile Sync","lines":["Profile Sync reads more of your profile and shows how old each part is"]}]},{"title":"7.0.2","date":"2026-09-23","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details","Cost Tables opens from the Tools menu","Profile Sync keeps what it read on a page after you move on"],"groups":[{"name":"Profile Sync","lines":["Profile Sync keeps what it read on a page after you move on"]},{"name":"Tools","lines":["Cost Tables opens from the Tools menu"]},{"name":"Updates & install","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details"]}]},{"title":"7.0.1","date":"2026-09-22","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format","Export and import your settings"],"groups":[{"name":"Control Panel","lines":["Export and import your settings"]},{"name":"Look & themes","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format"]}]},{"title":"7.0.0","date":"2026-09-18","lines":["Apoz Core becomes AWOO+"],"groups":[{"name":"Updates & install","lines":["Apoz Core becomes AWOO+"]}]}] /* GENERATED from src/awoo-core.changelog.md */;
+    const CHANGELOG = [{"title":"7.0.26","date":"2026-11-12","lines":["The Changelog catches up: it now lists 7.0.20 to 7.0.25, which were missing","A window you closed near the edge comes back on-screen when you reopen it in a smaller browser","Bring window on-screen no longer shrinks a closed window to nothing","Grid Overlay: a new Colours window with presets (Default, AWOO+, Calm, Vibrant, Old script look, Alternative) and your own custom ones","Grid Overlay: crisper tiles, a clear highlight on hover, and no flicker when the grid updates","Grid Overlay: a shorter right-click menu, and a note that names any unique sculpture missing from the grid","Win rate is now called Dungeon Win rate, and is on for a new player","Dungeon Win rate: after loading older entries, the log scrolls back to where you were"],"groups":[{"name":"Control Panel","lines":["The Changelog catches up: it now lists 7.0.20 to 7.0.25, which were missing"]},{"name":"Menu & top bar","lines":["A window you closed near the edge comes back on-screen when you reopen it in a smaller browser","Bring window on-screen no longer shrinks a closed window to nothing"]},{"name":"Modules & Tweaks","lines":["Grid Overlay: a new Colours window with presets (Default, AWOO+, Calm, Vibrant, Old script look, Alternative) and your own custom ones","Grid Overlay: crisper tiles, a clear highlight on hover, and no flicker when the grid updates","Grid Overlay: a shorter right-click menu, and a note that names any unique sculpture missing from the grid","Win rate is now called Dungeon Win rate, and is on for a new player","Dungeon Win rate: after loading older entries, the log scrolls back to where you were"]}]},{"title":"7.0.25","date":"2026-11-09","lines":["Grid Overlay sits under the game's own pop-ups and drop-down menus","Grid Overlay: with \"Uniques one colour\" on, the small unique labels keep each unique's own colour"],"groups":[{"name":"Modules & Tweaks","lines":["Grid Overlay sits under the game's own pop-ups and drop-down menus","Grid Overlay: with \"Uniques one colour\" on, the small unique labels keep each unique's own colour"]}]},{"title":"7.0.24","date":"2026-11-09","lines":["Calmer feature lists in three views (Minimal, Normal, Descriptive), with a short summary beside each name and Tweak categories you can fold","Tweaks that belong together sit under one head with one switch for all of them","Feature settings have their own entry in the sidebar, listing the features that are on","Clearer headings, with a choice of style under Appearance › Control Panel › Headings","A setting changed from its default gets a small mark (hover it to see the default)","General › Reset: Reset all saved data, and Reset window sizes now asks first","Nunito is now the text font as well as the number font (pick another under Appearance › Formatting)","New fonts (Calibri, Segoe UI, System default, Match game), a Text size and a Letter spacing option","Your font choice now reaches all of AWOO+, and a change shows at once","Notifications can be larger (120 % is the new default), and reminders that stay on screen can be turned off","Hovering All Tweaks lists every Tweak, the ones that are on in normal colour","The AWOO+ bar no longer makes the game's top bar taller","Choose how often AWOO+ checks for updates: every 1, 2, 6 or 12 hours","A shorter welcome tour in four visual steps, with Skip on every step","Dungeon Win Rate is now a Tweak on the Dungeon log page: win rate, wins and losses over the last hours, days or all time","Grid Overlay: every mod has its own colour, with Soft, Normal or Vibrant mod colours"],"groups":[{"name":"Control Panel","lines":["Calmer feature lists in three views (Minimal, Normal, Descriptive), with a short summary beside each name and Tweak categories you can fold","Tweaks that belong together sit under one head with one switch for all of them","Feature settings have their own entry in the sidebar, listing the features that are on","Clearer headings, with a choice of style under Appearance › Control Panel › Headings","A setting changed from its default gets a small mark (hover it to see the default)","General › Reset: Reset all saved data, and Reset window sizes now asks first"]},{"name":"Menu & top bar","lines":["Hovering All Tweaks lists every Tweak, the ones that are on in normal colour","The AWOO+ bar no longer makes the game's top bar taller"]},{"name":"Look & themes","lines":["Nunito is now the text font as well as the number font (pick another under Appearance › Formatting)","New fonts (Calibri, Segoe UI, System default, Match game), a Text size and a Letter spacing option","Your font choice now reaches all of AWOO+, and a change shows at once","Notifications can be larger (120 % is the new default), and reminders that stay on screen can be turned off"]},{"name":"Modules & Tweaks","lines":["Dungeon Win Rate is now a Tweak on the Dungeon log page: win rate, wins and losses over the last hours, days or all time","Grid Overlay: every mod has its own colour, with Soft, Normal or Vibrant mod colours"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates: every 1, 2, 6 or 12 hours","A shorter welcome tour in four visual steps, with Skip on every step"]}]},{"title":"7.0.23","date":"2026-11-07","lines":["Nunito (rounded) is everyone's number font; three more narrow number fonts to choose from, and Nunito and Quicksand as text fonts","Right-click menus with ticks stay open while you change several options","Grid Overlay: clearer, bigger tiles, a choice of decimals and font for the numbers, and presets beside the grid"],"groups":[{"name":"Menu & top bar","lines":["Right-click menus with ticks stay open while you change several options"]},{"name":"Look & themes","lines":["Nunito (rounded) is everyone's number font; three more narrow number fonts to choose from, and Nunito and Quicksand as text fonts"]},{"name":"Modules & Tweaks","lines":["Grid Overlay: clearer, bigger tiles, a choice of decimals and font for the numbers, and presets beside the grid"]}]},{"title":"7.0.22","date":"2026-11-06","lines":["Module windows open a little larger, and their status line stays at the bottom of the window"],"groups":[{"name":"Look & themes","lines":["Module windows open a little larger, and their status line stays at the bottom of the window"]}]},{"title":"7.0.21","date":"2026-11-03","lines":["The letters after an amount (k, m, b, qa …) can get a faint colour of their own, under Appearance › Fonts & numbers","A clearer info mark replaces the plain letter \"i\""],"groups":[{"name":"Look & themes","lines":["The letters after an amount (k, m, b, qa …) can get a faint colour of their own, under Appearance › Fonts & numbers","A clearer info mark replaces the plain letter \"i\""]}]},{"title":"7.0.20","date":"2026-11-03","lines":["Pop-ups no longer lock when you click them: drag one a short way to keep it, and a short drag springs back"],"groups":[{"name":"Look & themes","lines":["Pop-ups no longer lock when you click them: drag one a short way to keep it, and a short drag springs back"]}]},{"title":"7.0.19","date":"2026-11-02","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table","Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates","The All Tweaks hover fits its text: the names on top, then each Tweak's full description"],"groups":[{"name":"Menu & top bar","lines":["The All Tweaks hover fits its text: the names on top, then each Tweak's full description"]},{"name":"Profile Sync","lines":["Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates"]},{"name":"Tools","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table"]}]},{"title":"7.0.17","date":"2026-10-23","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"],"groups":[{"name":"Control Panel","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"]}]},{"title":"7.0.15","date":"2026-10-17","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General","The Control Panel pages share one tidy table,","Profile Sync writes much less to your browser"],"groups":[{"name":"Control Panel","lines":["The Control Panel pages share one tidy table,"]},{"name":"Look & themes","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General"]},{"name":"Profile Sync","lines":["Profile Sync writes much less to your browser"]}]},{"title":"7.0.4","date":"2026-09-25","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side","The AWOO+ menu is a quick list you can search, with a right-click menu on every module","Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely","A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes","Profile Sync has its own top-bar icon that shows how fresh your data is","Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"],"groups":[{"name":"Control Panel","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side"]},{"name":"Menu & top bar","lines":["The AWOO+ menu is a quick list you can search, with a right-click menu on every module"]},{"name":"Look & themes","lines":["A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes"]},{"name":"Profile Sync","lines":["Profile Sync has its own top-bar icon that shows how fresh your data is"]},{"name":"Modules & Tweaks","lines":["Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"]}]},{"title":"7.0.3","date":"2026-09-24","lines":["Profile Sync reads more of your profile and shows how old each part is"],"groups":[{"name":"Profile Sync","lines":["Profile Sync reads more of your profile and shows how old each part is"]}]},{"title":"7.0.2","date":"2026-09-23","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details","Cost Tables opens from the Tools menu","Profile Sync keeps what it read on a page after you move on"],"groups":[{"name":"Profile Sync","lines":["Profile Sync keeps what it read on a page after you move on"]},{"name":"Tools","lines":["Cost Tables opens from the Tools menu"]},{"name":"Updates & install","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details"]}]},{"title":"7.0.1","date":"2026-09-22","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format","Export and import your settings"],"groups":[{"name":"Control Panel","lines":["Export and import your settings"]},{"name":"Look & themes","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format"]}]},{"title":"7.0.0","date":"2026-09-18","lines":["Apoz Core becomes AWOO+"],"groups":[{"name":"Updates & install","lines":["Apoz Core becomes AWOO+"]}]}] /* GENERATED from src/awoo-core.changelog.md */;
 
     // DEV-PROXY LINKS (2026-10-07, the maintainer: two buttons in the menu's
     // bottom strip, "strictly only visible for proxy-users"). Generated like
@@ -4304,6 +4304,18 @@
         el.style.width = (rect.w + extraW) + 'px';
       }
       function currentRect() {
+        // A hidden window's box measures 0x0, so its size comes from the
+        // style it was laid out with, as widen() below does. Without this,
+        // "Bring window on-screen" on a CLOSED window (the Core menu offers it
+        // whenever the module is on) laid the window out 0x0 for the rest of
+        // the session (found 2026-11-12 while building REGISTER.md R271).
+        if (el.hidden) {
+          const sw = parseFloat(el.style.width), sh = parseFloat(el.style.height);
+          return {
+            x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0,
+            w: Number.isFinite(sw) ? Math.max(0, sw - extraW) : minW, h: Number.isFinite(sh) ? sh : minH,
+          };
+        }
         return {
           x: parseFloat(el.style.left) || 0, y: parseFloat(el.style.top) || 0,
           w: Math.max(0, el.offsetWidth - extraW), h: el.offsetHeight,
@@ -4441,12 +4453,18 @@
         persistNow();
       }
 
+      // The viewport-resize sweep skips a hidden window (nothing to measure),
+      // so a window closed near an edge and reopened after the browser
+      // shrank came back off-screen. open() and toggle() call this on every
+      // hidden->shown change, which closes that gap (REGISTER.md R271).
+      function reclamp() {
+        if (el.hidden) return; // a hidden window has nothing on-screen to reclamp
+        applyMaxSize(el, { resizable: specResizeMode });
+        applyRect(clampRectToViewport(currentRect(), viewportRect(), { minVisible: 72, margin: 4 }));
+      }
+
       windowRegistry[spec.id] = {
-        reclamp() {
-          if (el.hidden) return; // a hidden window has nothing on-screen to reclamp
-          applyMaxSize(el, { resizable: specResizeMode });
-          applyRect(clampRectToViewport(currentRect(), viewportRect(), { minVisible: 72, margin: 4 }));
-        },
+        reclamp,
         // Called when the windowResizingEnabled setting flips, so every
         // already-open window picks up the change immediately rather than
         // only on its next fresh open.
@@ -4466,9 +4484,11 @@
         open() {
           // Opened fresh: lifted only if an on-top window opened it (R138).
           // Already open and lifted: stays lifted until it closes.
-          if (el.hidden) raisedWindows.delete(el);
+          const wasHidden = el.hidden;
+          if (wasHidden) raisedWindows.delete(el);
           if (!spec.alwaysOnTop && openedFromOnTopWindow(el)) raisedWindows.add(el);
           el.hidden = false;
+          if (wasHidden) reclamp();
           bringToFront(el, spec.alwaysOnTop || raisedWindows.has(el));
         },
         // Plain hide — no side effects, so a module can call this from its
@@ -4494,6 +4514,7 @@
         toggle() {
           if (!el.hidden) flushPendingResize(); // same reasoning as close(), above
           el.hidden = !el.hidden;
+          if (!el.hidden) reclamp();
           return !el.hidden;
         },
         setContent(node) { body.innerHTML = ''; body.appendChild(node); },
@@ -18778,7 +18799,7 @@
   // ==== END GENERATED ====
 
   // ---- What this module is, for a Core that has not started it (generated from dungeon-win-rate.release.json) ----
-  const AWOO_ABOUT = Object.freeze({"label":"Win rate","audience":"public","author":"Weeble","hasSettings":false,"shortLabel":"Win rate","description":"A panel above the Dungeon log: your win rate, wins and losses over the last hours, days or all time.\nPicking a longer range loads older log entries for you.","summary":"Win rate on the Dungeon log","category":"Fighters","kind":"tweak","uses":[],"needsCore":14,"lifecycle":2,"order":10,"defaultOn":false,"quickButton":false,"inMenu":true,"group":"Info"});
+  const AWOO_ABOUT = Object.freeze({"label":"Dungeon Win rate","audience":"public","author":"Apoz, Weeble","hasSettings":false,"shortLabel":"Win rate","description":"A panel above the Dungeon log: your win rate, wins and losses over the last hours, days or all time.\nPicking a longer range loads older log entries for you.","summary":"Win rate on the Dungeon log","category":"Fighters","kind":"tweak","uses":[],"needsCore":14,"lifecycle":2,"order":10,"defaultOn":true,"quickButton":false,"inMenu":true,"group":"Info"});
 
   // ---- Core intake shim (generated) ----
   // Requires the "AWOO+" userscript. Without it this module does nothing.
@@ -18790,7 +18811,7 @@
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("dungeon-win-rate", "0.2.1", function (Core) {
+  })("dungeon-win-rate", "0.2.2", function (Core) {
   if (AWOO_ABOUT.needsCore && !(Core.version >= AWOO_ABOUT.needsCore)) {
     if (Core.registerModule) Core.registerModule(Object.assign({ id: "dungeon-win-rate" }, AWOO_ABOUT));
     return null;
@@ -19008,6 +19029,19 @@ async function growOnce() {
   }
   return false;
 }
+// Where the player was reading, to put back after loading. The cards scroll
+// inside the game's own list (overflow-y-auto), not the window, so the window
+// alone is not enough: a range click used to leave the list scrolled to the
+// bottom (2026-11-11). Every box from the list up to the page is remembered.
+function rememberScroll(list) {
+  const startY = window.scrollY;
+  const boxes = [];
+  for (let el = list; el && el !== document.body && el !== document.documentElement; el = el.parentElement) boxes.push([el, el.scrollTop]);
+  return () => {
+    for (const [el, top] of boxes) { try { if (el.isConnected !== false) el.scrollTop = top; } catch (e) { /* page gone */ } }
+    if (typeof window.scrollTo === 'function') { try { window.scrollTo(0, startY); } catch (e) { /* page gone */ } }
+  };
+}
 async function loadUntilCovered() {
   if (loading || !listEl) return;
   const range = rangeById(prefs.range);
@@ -19015,7 +19049,7 @@ async function loadUntilCovered() {
   stopRequested = false;
   let stuck = 0;
   if (typeof Core.setState === 'function') Core.setState(MODULE_ID, 'running', 'loading');
-  const startY = window.scrollY;
+  const putBack = rememberScroll(listEl);
   let outcome = 'done';
   try {
     while (!stopRequested && listEl && listEl.isConnected) {
@@ -19040,7 +19074,7 @@ async function loadUntilCovered() {
     stopRequested = false;
     if (typeof Core.setState === 'function') Core.setState(MODULE_ID, 'running', '');
     // Back to where the player was reading: the panel is at the top.
-    if (typeof window.scrollTo === 'function' && listEl && listEl.isConnected) { try { window.scrollTo(0, startY); } catch (e) { /* page gone */ } }
+    if (listEl && listEl.isConnected) putBack();
     paint(true);
   }
 }
@@ -19206,7 +19240,7 @@ function bootstrap() {
     __forTest: {
       readCards, summary, covered, oldestOf, blockHtml, RANGES, parseDate,
       sleep, scopeSize: () => scope.size, routeOk: (p) => ROUTE_RX.test(p),
-      prefs: () => prefs,
+      prefs: () => prefs, rememberScroll,
     },
   });
   if (typeof Core.onNavigate === 'function') scope.add(Core.onNavigate((path) => onRoute(path)));
@@ -19351,7 +19385,7 @@ else scope.on(document, 'DOMContentLoaded', bootstrap, { once: true });
   /* @AWOO_ADDONS:sculpture-grid-labels@ */
 
   // ---- What this module is, for a Core that has not started it (generated from sculpture-grid-labels.release.json) ----
-  const AWOO_ABOUT = Object.freeze({"label":"Grid Overlay","audience":"public","author":"Weeble","shortLabel":"Grid","description":"Shows each sculpture's mod names with roll percentages or item levels on the equipped grid.","summary":"Mod names and rolls on the grid","group":"Overlays","category":"Fighters","kind":"tweak","defaultOn":true,"quickButton":false,"uses":[],"needsCore":14,"lifecycle":2,"order":20,"inMenu":true});
+  const AWOO_ABOUT = Object.freeze({"label":"Grid Overlay","audience":"public","author":"Apoz, Weeble, Spiritie","shortLabel":"Grid","description":"Shows each sculpture's mod names with roll percentages or item levels on the equipped grid.","summary":"Mod names and rolls on the grid","group":"Overlays","category":"Fighters","kind":"tweak","defaultOn":true,"quickButton":false,"uses":[],"needsCore":14,"lifecycle":2,"order":20,"inMenu":true});
 
   // ---- Core intake shim (generated) ----
   // Requires the "AWOO+" userscript. Without it this module does nothing.
@@ -19363,7 +19397,7 @@ else scope.on(document, 'DOMContentLoaded', bootstrap, { once: true });
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("sculpture-grid-labels", "0.1.9", function (Core) {
+  })("sculpture-grid-labels", "0.1.10", function (Core) {
   if (AWOO_ABOUT.needsCore && !(Core.version >= AWOO_ABOUT.needsCore)) {
     if (Core.registerModule) Core.registerModule(Object.assign({ id: "sculpture-grid-labels" }, AWOO_ABOUT));
     return null;
@@ -19628,6 +19662,205 @@ const GRID_SERVICE = Object.freeze({
   },
 });
 
+// THE COLOURS (R270, Anton's design rounds 1-8, 2026-11-11; the approved
+// mockup is userscripts/design/grid-colours-mockup.html). Players found the
+// soft per-mod colours too alike, possibly with colour blindness, and liked
+// the old Sculpture Grid Labels script, which coloured the grid's mods by how
+// many tiles each had. A look is nine settings (LOOK_KEYS), picked from a
+// preset or saved in one of three Custom slots:
+//  - theme: which colours. classic (the old script's five, with a truer blue,
+//    a pink-violet for its purple and orange as 6th), classicOrig (the old
+//    script exactly), cb (Okabe-Ito, made for colour blindness), distinct
+//    (Kelly's maximum-contrast order, each colour picked as far as possible
+//    from the ones before it, for normal and red-green colour-blind vision,
+//    and kept in the gaps between the seven unique colours).
+//  - sort: hybrid gives the mods with a natural colour that colour (stats in
+//    the game's colours, resources, gold, XP, relics, drop) and hands the
+//    theme's colours to the rest by tile count, skipping any colour within
+//    deltaE 12 of one already on the grid; used is the old script (the theme's
+//    colours by tile count); fixed is one colour per mod for that theme
+//    (classicOrig has none and falls back to used).
+//  - tone: each colour's OKLCH lightness and chroma moved relative to itself.
+//  - fill 0-60% (0 is no fill), border plain / coloured, bold
+//    off / on (names) / numbers (names and numbers) at a weight, coloured
+//    text off / on / numbers.
+// The distances behind these choices (OKLab deltaE, Machado 2009 simulation)
+// are in the mockup's tables. These are looks, not game facts.
+// A unique sculpture keeps its own tint, border and tag; only its text takes
+// the mod's colour.
+const PALETTES = {
+  classic: ['#35e07a', '#f4d64e', '#ff5f6d', '#3fa9ff', '#e879f9', '#ff9a3c'],
+  classicOrig: ['#35e07a', '#f4d64e', '#ff5f6d', '#55d7ff', '#b883ff', '#ffffff'],
+  cb: ['#E69F00', '#56B4E9', '#CC79A7', '#F0E442', '#3D7FD9', '#1DB98A'],
+  distinct: ['#f3f53a', '#ff4fd8', '#5effc4', '#7d7dff', '#ff3b30', '#ffb3e6'],
+  // The overlay as it was before R270 (0.1.9): its one colour per mod, in its
+  // "soft" style (hsl saturation x0.62, lightness 0.74), worked out once.
+  previous: ['#e6d394', '#9edbd2', '#d494e6', '#e694b0', '#94c1e6', '#e6c094'],
+};
+// The natural colours (Hybrid, and the base of every Fixed map).
+const ANCHORS = {
+  statStrength: '#ff4d4d', statHealth: '#3ddc6a', statAgility: '#4f9dff', statDexterity: '#ffa51f', stat: '#ff6fd8',
+  relicsAmount: '#ffd23f', relicsAmountFlat: '#ff8a3d', drop: '#3ddc6a',
+  gold: '#ffd23f', experience: '#8f7dff', partnerExperience: '#5fd3ff',
+  meat: '#ff6b6b', wood: '#d08a3e', iron: '#7fb2ff', stone: '#d9cba3',
+};
+const ANCHORS_CB = {
+  statStrength: '#E8702A', statHealth: '#1DB98A', statAgility: '#3D7FD9', statDexterity: '#F0E442', stat: '#CC79A7',
+  relicsAmount: '#E69F00', relicsAmountFlat: '#E8702A', drop: '#1DB98A',
+  gold: '#F0E442', experience: '#3D7FD9', partnerExperience: '#56B4E9',
+  meat: '#E8702A', wood: '#E69F00', iron: '#56B4E9', stone: '#F0E442',
+};
+const FIXED = {
+  classic: Object.assign({}, ANCHORS, {
+    relicsAmount: '#35e07a', recipeDescriptions: '#f4d64e', recipeReroll: '#ff5f6d', recipeLock: '#3fa9ff', recipeEnhance: '#e879f9', recipeStatReroll: '#ff9a3c',
+    relicsAmountFlat: '#a3e635', drop: '#22d3ee', recipeImplicit: '#8b7cff', recipeCopy: '#14b8a6', recipeSanctum: '#c084fc', recipeInstantaneous: '#ff3b30',
+    recipeMerge: '#84cc16', recipeUpgrade: '#f59e0b', recipeVirtue: '#f472b6', recipeSculpture: '#d97706',
+    meat: '#ff5f6d', wood: '#d97706', iron: '#3fa9ff', stone: '#e0c068',
+  }),
+  distinct: Object.assign({}, ANCHORS, {
+    relicsAmount: '#f3f53a', recipeDescriptions: '#5effc4', recipeReroll: '#ff4fd8', recipeStatReroll: '#7d7dff', recipeLock: '#ff3b30', recipeEnhance: '#3d5afe',
+    relicsAmountFlat: '#ffd000', drop: '#00e5ff', recipeImplicit: '#ffb3e6', recipeCopy: '#40c4ff', recipeSanctum: '#d500f9', recipeInstantaneous: '#ff1744',
+    recipeMerge: '#1de9b6', recipeUpgrade: '#c6ff00', recipeVirtue: '#ff80ab', recipeSculpture: '#ff9100',
+  }),
+  cb: Object.assign({}, ANCHORS_CB, {
+    relicsAmount: '#E69F00', recipeDescriptions: '#56B4E9', recipeReroll: '#CC79A7', recipeStatReroll: '#3D7FD9', recipeLock: '#E8702A', recipeEnhance: '#F0E442',
+    relicsAmountFlat: '#E8702A', drop: '#1DB98A', recipeImplicit: '#9FD3F0', recipeCopy: '#3D7FD9', recipeSanctum: '#CC79A7', recipeInstantaneous: '#E8702A',
+    recipeMerge: '#1DB98A', recipeUpgrade: '#F0E442', recipeVirtue: '#CC79A7', recipeSculpture: '#E69F00',
+  }),
+};
+// The previous overlay's colours (0.1.9, soft style), per mod.
+FIXED.previous = {
+  relicsAmount: '#e6d394', relicsAmountFlat: '#e6bb94', drop: '#a5d5ad', recipeDescriptions: '#9edbd2', recipeImplicit: '#94c1e6', recipeCopy: '#94a3e6',
+  recipeSanctum: '#ab94e6', recipeReroll: '#d494e6', recipeLock: '#e694b0', recipeInstantaneous: '#e69b94', recipeMerge: '#d0daa0', recipeStatReroll: '#9ad4df',
+  recipeEnhance: '#e6c094', recipeUpgrade: '#dbd99f', recipeVirtue: '#b2b2c7', recipeSculpture: '#ccbbae', statStrength: '#e69494', statHealth: '#a2d8b0',
+  statAgility: '#94b1e6', statDexterity: '#e6c594', stat: '#e694bd', meat: '#d5b0a4', iron: '#b5bbc4', wood: '#cdbfac', stone: '#b3c4c7',
+  partnerExperience: '#ad94e6', experience: '#b094e6', gold: '#e6d394',
+};
+const THEME_LABELS = { classic: 'Classic', classicOrig: 'Classic original', cb: 'Colour-blind', distinct: 'Distinct', previous: 'Alternative' };
+const TONE_LABELS = { classic: 'Classic', vivid: 'Vivid', deep: 'Deep', intense: 'Intense' };
+const SORT_LABELS = { hybrid: 'Hybrid', used: 'Most used', fixed: 'Fixed' };
+// Border (R270 round 9): Plain is the overlay's own tile edge, as before R270;
+// Coloured paints that same edge in the mod's colour. The round-8 Off and
+// Modern drew a second edge inside the game's, which looked doubled.
+const BORDER_LABELS = { plain: 'Plain', coloured: 'Coloured' };
+// How strong a plain sculpture's edge is (round 14, replacing the Thin switch),
+// the same three steps for Plain and Coloured: [the edge's share against the
+// tile's ground, the outer ring's strength]. Full is round 13's Coloured.
+const EDGE_LABELS = { full: 'Full', semi: 'Semi', thin: 'Thin' };
+const EDGE_STEPS = { full: [100, 20], semi: [75, 10], thin: [55, 0] };
+// [lightness shift, chroma multiplier]. Intense: a little darker than Classic, much more saturated.
+const TONES = { classic: [0, 1], vivid: [0.01, 1.3], deep: [-0.10, 1.05], intense: [-0.07, 1.6] };
+const WEIGHTS = { semi: 650, bold: 750, heavy: 850 };
+const NEXT_WEIGHT = { semi: 'bold', bold: 'heavy', heavy: 'semi' };
+const FILL_MAX = 60;   // above this, white text drops under 3:1 contrast on the lightest colours (measured)
+const LOOK_PRESETS = {
+  default: { theme: 'classic', tone: 'classic', sort: 'hybrid', fill: 25, border: 'coloured', edge: 'semi', bold: 'on', weight: 'bold', ctext: 'on' },
+  // AWOO+ (round 12, Anton's own look; round 15 made it Vivid): Alternative's soft colours, a light wash, thin coloured edges.
+  awoo: { theme: 'previous', tone: 'vivid', sort: 'hybrid', fill: 10, border: 'coloured', edge: 'thin', bold: 'off', weight: 'bold', ctext: 'on' },
+  calm: { theme: 'classic', tone: 'deep', sort: 'hybrid', fill: 20, border: 'coloured', edge: 'thin', bold: 'off', weight: 'bold', ctext: 'on' },
+  vibrant: { theme: 'classic', tone: 'vivid', sort: 'hybrid', fill: 35, border: 'coloured', edge: 'full', bold: 'numbers', weight: 'bold', ctext: 'on' },
+  old: { theme: 'classicOrig', tone: 'classic', sort: 'used', fill: 0, border: 'plain', edge: 'full', bold: 'numbers', weight: 'heavy', ctext: 'numbers' },
+  // "Alternative" (round 11; it was "Previous look"): the overlay exactly as it
+  // was before R270, its soft colour per mod, a 16% wash, white numbers.
+  previous: { theme: 'previous', tone: 'classic', sort: 'fixed', fill: 16, border: 'coloured', edge: 'semi', bold: 'off', weight: 'bold', ctext: 'on' },
+};
+const PRESET_LABELS = { default: 'Default', awoo: 'AWOO+', calm: 'Calm', vibrant: 'Vibrant', old: 'Old script look', previous: 'Alternative' };
+const LOOK_KEYS = Object.keys(LOOK_PRESETS.default);
+const CUSTOM_MAX = 3;
+const isCustomId = (id) => /^c[0-2]$/.test(String(id));
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+function cleanLook(o) {
+  const src = o && typeof o === 'object' ? o : {};
+  const d = LOOK_PRESETS.default;
+  const fill = Math.round(Number(src.fill));   // whole percent; the slider moves in 5s, the Previous preset is 16
+  return {
+    theme: has(THEME_LABELS, src.theme) ? src.theme : d.theme,
+    tone: has(TONE_LABELS, src.tone) ? src.tone : d.tone,
+    sort: has(SORT_LABELS, src.sort) ? src.sort : d.sort,
+    // No fill is 0% (round 11 removed the separate button); a stored nofill reads as 0.
+    fill: src.nofill === true ? 0 : (Number.isFinite(fill) ? Math.min(FILL_MAX, Math.max(0, fill)) : d.fill),
+    border: has(BORDER_LABELS, src.border) ? src.border : (src.border === 'off' || src.border === 'modern' ? 'plain' : d.border),
+    // A stored round-12/13 Thin switch reads as the Thin step.
+    edge: has(EDGE_LABELS, src.edge) ? src.edge : (src.thin === true ? 'thin' : d.edge),
+    bold: ['off', 'on', 'numbers'].includes(src.bold) ? src.bold : d.bold,
+    weight: has(WEIGHTS, src.weight) ? src.weight : d.weight,
+    ctext: ['off', 'on', 'numbers'].includes(src.ctext) ? src.ctext : d.ctext,
+  };
+}
+// ---- OKLab / OKLCH (Ottosson's matrices), for the tones and the Hybrid distance ----
+const toLin = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+const toGam = (c) => (c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055);
+const clamp01 = (x) => Math.min(1, Math.max(0, x));
+function hexLin(hex) { const h = String(hex).replace('#', ''); return [0, 2, 4].map((i) => toLin(parseInt(h.slice(i, i + 2), 16) / 255)); }
+function linHex(l) { return '#' + l.map((c) => Math.round(clamp01(toGam(clamp01(c))) * 255).toString(16).padStart(2, '0')).join(''); }
+function oklab(hex) {
+  const [r, g, b] = hexLin(hex);
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const s = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s, 1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.808675766 * s];
+}
+function deltaE(a, b) { const x = oklab(a), y = oklab(b); return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) * 100; }
+function oklchHex(L, C, h) {
+  // The most chroma that still fits in sRGB at this lightness and hue.
+  for (let c = C; c >= 0; c -= 0.004) {
+    const a = c * Math.cos(h * Math.PI / 180), b = c * Math.sin(h * Math.PI / 180);
+    const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3, m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3, s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3;
+    const v = [4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s];
+    if (v.every((x) => x >= -1e-4 && x <= 1 + 1e-4)) return linHex(v);
+  }
+  return linHex([L ** 3, L ** 3, L ** 3]);
+}
+const toneCache = new Map();
+function toned(hex, tone) {
+  if (tone === 'classic' || String(hex).toLowerCase() === '#ffffff') return hex;
+  const key = hex + tone;
+  if (toneCache.has(key)) return toneCache.get(key);
+  const [L, A, B] = oklab(hex), C = Math.hypot(A, B), h = (Math.atan2(B, A) * 180 / Math.PI + 360) % 360;
+  const [dl, cm] = TONES[tone] || TONES.classic;
+  const out = oklchHex(Math.min(0.95, Math.max(0.45, L + dl)), C * cm, h);
+  toneCache.set(key, out);
+  return out;
+}
+// Which colour each mod on this grid gets: Map(type -> hex, or null for no colour).
+// counts: Map(type -> how many of the grid's stats are that type).
+function gridColours(counts, look) {
+  const byCount = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a));
+  const pal = PALETTES[look.theme] || PALETTES.classic;
+  const anchors = look.theme === 'cb' ? ANCHORS_CB : ANCHORS;
+  const base = new Map();
+  if (look.sort === 'fixed' && FIXED[look.theme]) {
+    for (const k of byCount) base.set(k, FIXED[look.theme][k] || null);
+  } else if (look.sort === 'hybrid') {
+    const used = [];
+    for (const k of byCount) if (anchors[k]) { base.set(k, anchors[k]); used.push(anchors[k]); }
+    const free = pal.filter((c) => used.every((u) => deltaE(c, u) >= 12));
+    for (const k of byCount) if (!anchors[k]) base.set(k, free.shift() || null);
+  } else {
+    byCount.forEach((k, i) => base.set(k, pal[i] || null));
+  }
+  // No colour twice on one grid (round 9): two mods may share a colour in a
+  // theme (Health and Drop are both green), but on a grid that has both, the
+  // one on fewer tiles takes the theme's next colour that is not in use and
+  // not close to one in use (deltaE 12), else any unused one, else none.
+  const spare = [...pal, ...Object.values(FIXED[look.theme] || {})];
+  const used = [];
+  const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+  for (const k of byCount) {
+    let c = base.get(k);
+    if (c && used.some((u) => same(u, c))) {
+      const free = spare.filter((x) => !used.some((u) => same(u, x)));
+      c = free.find((x) => used.every((u) => deltaE(x, u) >= 12)) || free[0] || null;
+      base.set(k, c);
+    }
+    if (c) used.push(c);
+  }
+  const out = new Map();
+  for (const k of byCount) { const c = base.get(k); out.set(k, c ? toned(c, look.tone) : null); }
+  return out;
+}
+const PLAIN_INK = '#e2e8f0';   // a mod past the theme's colours, or coloured text off
+
 // WHAT THE LABELS SHOW, and the rotate button that switches it (R69 round 7,
 // the maintainer: a rotate button that swaps "name + percentage" for "name +
 // sculpture ilevel"; R267 added a third view, the sculpture's Relative, see
@@ -19666,14 +19899,23 @@ const NEXT_VIEW = { roll: 'ilevel', ilevel: 'roll', power: 'roll' };
 // players too: names only, soft mod colours, cleaner tiles and the presets
 // list on; uniques in their own colours, no tile pop-up. uniqueVisuals (the
 // faint beams showing what each unique reaches) is off by default.
-const VIEW_DEFAULTS = { show: 'roll', rotateButton: true, powerMode: false, modTint: true, uniqueOneColour: false, modStyle: 'soft', tilePopups: false, gridScale: 120, splitPresets: true, gameSkin: true, gameSkinOff: false, namesOnly: false, uniqueVisuals: false, decimals: 1, font: 'auto' };
+// R270 (2026-11-11) replaced modTint and modStyle with the colour look: look
+// (the nine settings in use), lookPreset (default, calm, vibrant, old, or a
+// Custom slot c0-c2), customLooks (the saved Custom slots) and customNames.
+const VIEW_DEFAULTS = { show: 'roll', rotateButton: true, powerMode: false, uniqueOneColour: false, uniqueWarning: true, tilePopups: false, gridScale: 120, splitPresets: true, gameSkin: true, gameSkinOff: false, namesOnly: false, uniqueVisuals: false, decimals: 1, font: 'auto',
+  look: Object.assign({}, LOOK_PRESETS.default), lookPreset: 'default', customLooks: [Object.assign({}, LOOK_PRESETS.default)], customNames: [] };
 // Anton's look (2026-11-07, his screenshot of the quick settings), pushed to
 // EVERY player once with the release that carries it: a stored view from
 // before (no lookV, or an older one) gets these keys replaced, and lookV
 // records it, so a choice made afterwards is kept. The start view, Weakest,
 // the grid size and the font are not part of the look and stay.
-const LOOK_V = 2;
-const LOOK_PUSH = { namesOnly: false, modTint: true, uniqueOneColour: false, uniqueVisuals: false, gameSkin: true, gameSkinOff: false, splitPresets: true, tilePopups: false, decimals: 1 };
+// LOOK_V 3 (R270): the colour look arrives. A player who had "Mod colours"
+// switched off keeps a grid without fill: they get Default with No fill, in
+// their first Custom slot. Everyone else gets the Default preset. Version 2's
+// push is applied only to a record from before version 2, so a choice made
+// since then is not overwritten again.
+const LOOK_V = 3;
+const LOOK_PUSH = { namesOnly: false, uniqueOneColour: false, uniqueVisuals: false, gameSkin: true, gameSkinOff: false, splitPresets: true, tilePopups: false, decimals: 1 };
 // The overlay's own font (setting "Font on the tiles"): 'auto' follows
 // Settings › Fonts, except with three decimals, where Quicksand (rounded and
 // narrow) keeps the longer numbers inside the tile. Any other choice is used
@@ -19717,14 +19959,29 @@ function readView() {
   const raw = viewStore.read();
   const v = Object.assign({}, VIEW_DEFAULTS, raw && typeof raw === 'object' ? raw : {});
   if (raw && typeof raw === 'object' && raw.lookV !== LOOK_V) {
-    Object.assign(v, LOOK_PUSH);
-    viewStore.write(Object.assign({}, raw, LOOK_PUSH, { lookV: LOOK_V }));
+    const before = Number(raw.lookV) || 0;
+    const patch = before < 2 ? Object.assign({}, LOOK_PUSH) : {};
+    if (before < 3) {
+      if (raw.modTint === false) {
+        const plain = Object.assign({}, LOOK_PRESETS.default, { fill: 0 });
+        Object.assign(patch, { look: plain, lookPreset: 'c0', customLooks: [Object.assign({}, plain)], customNames: [] });
+      } else {
+        Object.assign(patch, { look: Object.assign({}, LOOK_PRESETS.default), lookPreset: 'default', customLooks: [Object.assign({}, LOOK_PRESETS.default)], customNames: [] });
+      }
+    }
+    Object.assign(v, patch);
+    const kept = Object.assign({}, raw, patch, { lookV: LOOK_V });
+    delete kept.modTint; delete kept.modStyle;
+    viewStore.write(kept);
   }
+  const customLooks = (Array.isArray(v.customLooks) && v.customLooks.length ? v.customLooks : [LOOK_PRESETS.default]).slice(0, CUSTOM_MAX).map(cleanLook);
+  const lookPreset = has(LOOK_PRESETS, v.lookPreset) || (isCustomId(v.lookPreset) && Number(v.lookPreset.slice(1)) < customLooks.length) ? v.lookPreset : 'default';
   return {
     show: v.show === 'ilevel' ? 'ilevel' : 'roll', rotateButton: v.rotateButton !== false, powerMode: v.powerMode === true || v.show === 'power',
-    modTint: v.modTint !== false, uniqueOneColour: v.uniqueOneColour === true, tilePopups: v.tilePopups === true,
+    uniqueOneColour: v.uniqueOneColour === true, uniqueWarning: v.uniqueWarning !== false, tilePopups: v.tilePopups === true,
     gridScale: clampScale(v.gridScale), splitPresets: v.splitPresets !== false, gameSkin: v.gameSkin !== false, gameSkinOff: v.gameSkinOff === true,
-    modStyle: ['soft', 'normal', 'vibrant'].includes(v.modStyle) ? v.modStyle : 'soft',
+    look: cleanLook(v.look), lookPreset, customLooks,
+    customNames: customLooks.map((_, i) => (Array.isArray(v.customNames) && typeof v.customNames[i] === 'string' ? v.customNames[i].slice(0, 16) : '')),
     namesOnly: v.namesOnly !== false, uniqueVisuals: v.uniqueVisuals === true,
     decimals: [0, 1, 2, 3].includes(Number(v.decimals)) ? Number(v.decimals) : 1,
     font: v.font === 'auto' || TILE_FONTS[v.font] ? v.font : 'auto',
@@ -19792,15 +20049,27 @@ const STAT_DISPLAY_NAMES = {
 //    border, a tint over that dark ground and a small filled tag, instead of a
 //    68% wash of colour under the text, where green or red text on a purple
 //    or orange wash was hard to read.
-//  - Each mod has ONE colour, by family (relics gold, Description teal, the
-//    other recipes sky, XP violet, stats coral, gold and drop green, resources
-//    tan), everywhere and always. It used to be the grid's five most common
-//    mods in a fixed rank order, so a mod changed colour when a swap changed
-//    the counts.
-//  - The number is the brightest thing on the tile (near-white, bold); the
-//    mod name above it carries the colour.
-const TILE_GROUND = 'rgba(8,12,20,.82)';
-const TILE_BORDER = '#55657d';
+//  - Which colour each mod gets, and how strongly, is THE COLOURS above
+//    (R270); this round's one-colour-per-family table was found too alike.
+// Round 10 (R270, 2026-11-12): the ground is opaque, so a mod's colour looks
+// the same on every game theme (at 82% about a fifth of the game's own
+// background showed through, and the measured text contrast held only on
+// dark ones). The edge is opaque too, and quieter, close to the cleaner
+// tiles' edge: a see-through edge was soft, and the old #55657d was bright
+// enough to make the gaps between tiles read as holes.
+const TILE_GROUND = '#080a0d';   // round 11: near black and neutral, as the old 82% ground looked over the page
+// Round 13 (Anton: Plain clashed with the colours): Plain is a quiet neutral
+// edge with no mod colour in it, so it sits with every colour; a faint
+// highlight along the top gives it depth. Round 14: about as strong as the
+// cleaner tiles' edge with the overlay off, in the game grid's own slate blue.
+// Round 15 (Anton: "it depends on the colours people use in their game's
+// CSS"): Plain is the game's own border colour, its CSS variable --border
+// (CODE: main-*.css, bundle-2026-11-09-live, one value per game theme, and
+// players may restyle it), blended 70% into the overlay's dark ground so a
+// light theme's border does not glare on the dark tiles. The slate is the
+// fallback where the page has no --border.
+const TILE_BORDER = `color-mix(in oklch, var(--border, #3a4354) 70%, #080a0d)`;
+const TILE_TOP_LIGHT = 'inset 0 1px 0 rgba(255,255,255,.06)';
 const UNIQUE_THEMES = {
   obelisk:        { hue: '#f0657d', rgb: '240,101,125' },
   cornerstone:    { hue: '#f08a45', rgb: '240,138,69' },
@@ -19825,46 +20094,6 @@ function uniqueTheme(type) {
 function hexRgb(hex) {
   const h = String(hex).replace('#', '');
   return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)).join(',');
-}
-// One colour per mod. Mods used together on a grid never share one:
-//  - recipes, drop rate and relic mods (the 15 colours below, all different);
-//  - stats (the game's own: Strength red, Health green, Agility blue, Dexterity
-//    orange), stat rate, resources and Partner XP;
-//  - XP and gold.
-// Different groups may reuse a hue, since they are never on one grid.
-const MOD_COLOURS = {
-  relicsAmount: '#ffd23f', relicsAmountFlat: '#ff9a3c', drop: '#33c24d',
-  recipeDescriptions: '#2fe0c4', recipeImplicit: '#7cc4ff', recipeCopy: '#4468ff',
-  recipeSanctum: '#9166ff', recipeReroll: '#e070ff', recipeLock: '#ff7aa8',
-  recipeInstantaneous: '#ff5a4a', recipeMerge: '#c6e04a', recipeStatReroll: '#12b5d6',
-  recipeEnhance: '#ffc27a', recipeUpgrade: '#e8e46a', recipeVirtue: '#e6e6f0', recipeSculpture: '#a8754f',
-  statStrength: '#ff3b3b', statHealth: '#2fd45a', statAgility: '#3b82ff', statDexterity: '#ffa51f',
-  stat: '#ff7fc0', meat: '#d9856c', iron: '#aab4c4', wood: '#a47a45', stone: '#6fa0a8', partnerExperience: '#b08cff',
-  experience: '#b48cff', gold: '#ffd23f',
-};
-// Mod colours (setting modStyle): soft is the pastel version used so far,
-// normal in between, vibrant the full colour. [saturation kept, lightness, wash on the tile].
-const MOD_STYLES = { soft: [0.62, 0.74, 0.16], normal: [0.85, 0.66, 0.26], vibrant: [1, 0.58, 0.40] };
-function hexHsl(hex) {
-  const [r, g, b] = hexRgb(hex).split(',').map((n) => Number(n) / 255);
-  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, l = (mx + mn) / 2;
-  let h = 0;
-  if (d) h = mx === r ? ((g - b) / d + (g < b ? 6 : 0)) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  return [h * 60, d ? d / (1 - Math.abs(2 * l - 1)) : 0, l];
-}
-function hslHex(h, s, l) {
-  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
-  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
-  return '#' + [r, g, b].map((v) => Math.round((v + m) * 255).toString(16).padStart(2, '0')).join('');
-}
-function styledColour(hex, style) {
-  const [keepS, light] = MOD_STYLES[style] || MOD_STYLES.soft;
-  const [h, s] = hexHsl(hex);
-  return hslHex(h, Math.min(1, s * keepS + (s ? 0 : 0)), light);
-}
-function modColour(key) {
-  const base = MOD_COLOURS[key] || (/^stat[A-Z]/.test(key) ? MOD_COLOURS.stat : '#e2e8f0');
-  return styledColour(base, view.modStyle);
 }
 const NUMBER_INK = '#f8fafc';
 
@@ -21004,7 +21233,7 @@ function buildSignature(sculptures) {
     })
     .sort()
     .join('::') + '#' + showNow + '#' + readsSignature(sculptures)
-    + '#' + [view.modTint, view.modStyle, view.uniqueOneColour, view.tilePopups, view.namesOnly, view.uniqueVisuals, view.gameSkin, view.gameSkinOff, view.decimals, view.font].join(',');
+    + '#' + [JSON.stringify(lookNow()), view.uniqueOneColour, view.tilePopups, view.namesOnly, view.uniqueVisuals, view.gameSkin, view.gameSkinOff, view.decimals, view.font].join(',');
 }
 
 
@@ -21040,7 +21269,7 @@ function beamSignature(sculptures) {
     const p = placed(s);
     const t = getUniqueType(s);
     return p && BEAM_TYPES.has(t) ? [p.x, p.y, p.w, p.h, t].join('|') : '';
-  }).filter(Boolean).sort().join('::') + '#' + [view.uniqueOneColour, view.modStyle, skinNow(), view.gridScale].join(',');
+  }).filter(Boolean).sort().join('::') + '#' + [view.uniqueOneColour, skinNow(), view.gridScale].join(',');
 }
 function drawUniqueVisuals(buttons, sculptures, geo) {
   clearBeams();
@@ -21289,7 +21518,8 @@ function syncPresets(buttons) {
   if (!picker) { if (!box) presetsKey = ''; return; }
   if (pendingActive && picker.list.some((p) => p._id === pendingActive && p.isActive)) setPending('');
   const card = grid.parentElement;
-  const key = JSON.stringify([picker.viewed, pendingActive, picker.list.map((p) => [p._id, p.name, p.isActive])]);
+  const missing = missingUniques();
+  const key = JSON.stringify([picker.viewed, pendingActive, picker.list.map((p) => [p._id, p.name, p.isActive]), missing]);
   if (box && box.isConnected !== false && key === presetsKey) return;
   presetsKey = key;
   if (!box || box.isConnected === false) {
@@ -21314,7 +21544,19 @@ function syncPresets(buttons) {
   while (box.firstChild) box.firstChild.remove();
   const title = document.createElement('div');
   title.className = 'awoo-sculpture-grid-labels-presets-title';
-  title.textContent = 'Presets';
+  const titleText = document.createElement('span');
+  titleText.textContent = 'Presets';
+  title.appendChild(titleText);
+  // R270: the gear opens the overlay's quick settings, the same menu as
+  // right-clicking the pill.
+  const gear = document.createElement('button');
+  gear.type = 'button';
+  gear.className = 'awoo-sculpture-grid-labels-presets-gear';
+  gear.setAttribute('aria-label', 'Grid Overlay settings');
+  gear.setAttribute('data-tooltip', 'Grid Overlay settings');
+  gear.innerHTML = COG_SVG;
+  scope.on(gear, 'click', (e) => { e.preventDefault(); e.stopPropagation(); openQuickSettings(gear); });
+  title.appendChild(gear);
   box.appendChild(title);
   const viewed = picker.list.find((p) => p._id === picker.viewed);
   for (const p of picker.list) {
@@ -21368,6 +21610,41 @@ function syncPresets(buttons) {
     queueDecorate();
   });
   box.appendChild(act);
+  // Round 11 (Anton): a quiet note under the list when a unique is not on the
+  // grid shown. Setting uniqueWarning (on by default).
+  if (missing.length) {
+    const note = document.createElement('div');
+    note.className = 'awoo-sculpture-grid-labels-presets-missing';
+    note.textContent = `Missing: ${missing.join(', ')}`;
+    note.setAttribute('data-tooltip', 'Unique sculptures that are not on this grid. Switch this note off in the Control Panel (Grid Overlay).');
+    box.appendChild(note);
+  }
+}
+const UNIQUE_NAMES = { obelisk: 'Obelisk', cornerstone: 'Cornerstone', resonator: 'Resonator', amplifier: 'Amplifier', perimeterStone: 'Perimeter Stone', nexus: 'Nexus', channeler: 'Channeler' };
+// The uniques not on the grid shown, by name; none while the grid is unknown or empty
+// (a preset's grid that is still loading must not read as "everything missing").
+function missingUniques() {
+  const sc = hostState && Array.isArray(hostState.sculptures) ? hostState.sculptures : null;
+  if (!view.uniqueWarning || !sc || !sc.length) return [];
+  const have = new Set(sc.map((x) => getUniqueType(x)).filter(Boolean));
+  return Object.keys(UNIQUE_NAMES).filter((k) => !have.has(k)).map((k) => UNIQUE_NAMES[k]);
+}
+
+// Round 12 (Anton: "a very short refresh when something updates"): a redraw
+// clears every tile and paints it again in the same pass. When anything in
+// that pass makes the browser work out the styles in between, the tiles'
+// transitions (edge, ground, ring) animated from the cleared look back to the
+// same look: a flicker. While a redraw is under way the grid carries an
+// attribute that switches transitions off, for two frames; hover keeps its fade.
+let transitionsHeld = null;
+function holdTransitions(grid) {
+  if (!grid || typeof grid.setAttribute !== 'function') return;
+  grid.setAttribute('data-awoo-sculpture-grid-labels-redraw', '1');
+  const mine = {};
+  transitionsHeld = mine;
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (transitionsHeld === mine) { grid.removeAttribute('data-awoo-sculpture-grid-labels-redraw'); transitionsHeld = null; }
+  }));
 }
 
 function decorate() {
@@ -21399,6 +21676,7 @@ function decorate() {
   // (round 2, the input lag): reading positions after each write made the
   // browser lay the page out again once per sculpture.
   const geo = measureGrid(buttons);
+  holdTransitions(buttons[0] && buttons[0].parentElement);
   clearOld(buttons);
   if (view.uniqueVisuals) drawUniqueVisuals(buttons, sculptures, geo); else clearBeams();
 
@@ -21411,6 +21689,13 @@ function decorate() {
 
   const occupiedBy = new Map();
   const fontNow = tileFont();
+  // The look in use (the Colours window's draft while it is open) and this
+  // grid's colours, worked out once per pass.
+  const look = lookNow();
+  const statCounts = new Map();
+  for (const sc of sculptures) for (const st of (Array.isArray(sc.stats) ? sc.stats : [])) if (st && st.type) statCounts.set(st.type, (statCounts.get(st.type) || 0) + 1);
+  const colours = gridColours(statCounts, look);
+  const weight = WEIGHTS[look.weight] || WEIGHTS.bold;
 
   for (const s of sculptures) {
     const coords = s.grid?.coordinates;
@@ -21493,8 +21778,24 @@ function decorate() {
     const { w, h } = parseSize(s.size);
     const uniqueType = getUniqueType(s);
     const theme = uniqueTheme(uniqueType);
-    const border = theme?.hue || TILE_BORDER;
-    const bg = tileGround(theme);
+    // A plain sculpture's fill and edge are painted on the game's tile itself
+    // (round 10), the way a unique's are: on a label inside the tile's border
+    // the fill stopped short of the rounded corners and the tile showed dark
+    // wedges there. Its first mod gives the colour (a plain 1x1 has one).
+    const firstColour = !theme && Array.isArray(s.stats) && s.stats[0] ? colours.get(s.stats[0].type) : null;
+    const washPct = firstColour ? look.fill : 0;
+    // Round 11: Plain carries a hint of the mod's colour (a third of it) over a
+    // cool light edge, so it reads clean rather than grey; Coloured is the
+    // colour itself. Both are opaque, so the edge stays crisp.
+    // Round 12: Plain is toned halfway back (round 11 was a little loud): a
+    // quarter of the mod's colour over a quieter slate. Thin (a separate
+    // switch) halves any plain tile's edge into the ground and drops its outer
+    // ring, for quieter lines; uniques keep theirs.
+    const [edgeShare, ringPct] = EDGE_STEPS[look.edge] || EDGE_STEPS.full;
+    let border = theme?.hue || (firstColour && look.border === 'coloured' ? `color-mix(in oklch, ${firstColour} 75%, ${TILE_GROUND})` : TILE_BORDER);
+    if (!theme && edgeShare < 100) border = `color-mix(in oklch, ${border} ${edgeShare}%, ${TILE_GROUND})`;
+    const bg = theme || !washPct ? tileGround(theme)
+      : `linear-gradient(color-mix(in oklch, ${firstColour} ${washPct}%, transparent), color-mix(in oklch, ${firstColour} ${washPct}%, transparent)), ${TILE_GROUND}`;
 
     const isMulti = w > 1 || h > 1;
 
@@ -21507,6 +21808,11 @@ function decorate() {
         // shadow had to be painted afresh at every redraw of the tile.
         btn.style.setProperty('border-color', border, 'important');
         btn.style.setProperty('background', bg, 'important');
+        // A faint outer ring in the edge's colour, about a third of the hover's
+        // ring, so the edge reads a touch thicker (not !important: hover wins).
+        // Coloured: a faint outer ring in its colour; Plain: the top highlight.
+        // Thin has neither. (Not !important, so the hover ring wins.)
+        if (!theme && ringPct) btn.style.setProperty('box-shadow', look.border === 'coloured' && firstColour ? `0 0 0 1px color-mix(in oklch, ${border} ${ringPct}%, transparent)` : TILE_TOP_LIGHT);
       }
     } else {
       const first = buttons[y0 * COLS + x0];
@@ -21540,6 +21846,7 @@ function decorate() {
         `;
 
         gridParent.appendChild(solid);
+        for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) { const fb = buttons[(y0 + dy) * COLS + x0 + dx]; if (fb) fb.awooBlock = solid; }
 
         const line = (css) => {
           const el = document.createElement('div');
@@ -21547,17 +21854,24 @@ function decorate() {
           el.style.cssText = `position:absolute;${css}background:rgba(148,163,184,.16);pointer-events:none;z-index:46;`;
           gridParent.appendChild(el);
         };
+        // Round 11 (Anton: the lines of different uniques were not equally
+        // thick): a 1px line at a fractional position, inside a zoomed grid,
+        // lands on screen pixels differently each time. Each line is now one
+        // whole screen pixel thick (or more at high zoom) and starts on one.
+        const px = (Number(gridParent.style && gridParent.style.zoom) || 1) * ((typeof window !== 'undefined' && window.devicePixelRatio) || 1);
+        const snap = (v) => Math.round(v * px) / px;
+        const thick = Math.max(1, Math.round(px)) / px;
         for (let col = 1; col < w; col++) {
           const lb = geo.boxes[y0 * COLS + (x0 + col - 1)];
           const rb = geo.boxes[y0 * COLS + (x0 + col)];
-          const xLine = (lb.l + lb.w + rb.l) / 2;
-          line(`left:${xLine - 0.5}px;top:${top + 6}px;width:1px;height:${height - 12}px;`);
+          const xLine = snap((lb.l + lb.w + rb.l) / 2 - thick / 2);
+          line(`left:${xLine}px;top:${top + 6}px;width:${thick}px;height:${height - 12}px;`);
         }
         for (let row = 1; row < h; row++) {
           const tb = geo.boxes[(y0 + row - 1) * COLS + x0];
           const bb = geo.boxes[(y0 + row) * COLS + x0];
-          const yLine = (tb.t + tb.h + bb.t) / 2;
-          line(`left:${left + 6}px;top:${yLine - 0.5}px;width:${width - 12}px;height:1px;`);
+          const yLine = snap((tb.t + tb.h + bb.t) / 2 - thick / 2);
+          line(`left:${left + 6}px;top:${yLine}px;width:${width - 12}px;height:${thick}px;`);
         }
       }
 
@@ -21617,7 +21931,21 @@ function decorate() {
       const pct = formatRoll(stat.value);
       const lv = iLevelOf(s);
       const lvText = lv === null ? '—' : `iLv ${lv}`;
-      const statColor = modColour(stat.type);
+      const statColor = colours.get(stat.type) || null;
+      // The fill under this tile: the mod's colour mixed into a neutral grey
+      // (a unique keeps its own 26% tint, so its text is judged at that).
+      const fillPct = uniqueType ? 26 : (!statColor ? 0 : look.fill);
+      // Coloured text blends toward white as the fill grows, so it never
+      // sinks into a fill of its own colour and never flips to another one.
+      const inkOn = !statColor ? PLAIN_INK
+        : (fillPct <= 20 ? statColor : `color-mix(in oklch, ${statColor} ${Math.round(100 - Math.min(55, (fillPct - 20) * 1.4))}%, #ffffff)`);
+      const nameInk = look.ctext === 'off' ? PLAIN_INK : inkOn;
+      const numberInk = look.ctext === 'numbers' ? inkOn : NUMBER_INK;
+      const nameWeight = look.bold === 'off' ? 600 : weight;
+      const numberWeight = look.bold === 'numbers' ? weight : 500;
+      // No text shadow (round 10: it made the text look blurred); the opaque
+      // ground keeps the contrast measured for the fill.
+      const shade = '';
 
       const label = document.createElement('div');
       label.className = 'awoo-sculpture-grid-labels-simple-label';
@@ -21638,9 +21966,13 @@ function decorate() {
         overflow:hidden;
         border-radius:inherit;
       `;
-      // "Soft mod colours" (setting): a light wash of the mod's own colour, on
-      // plain sculptures only (a unique keeps its own tint).
-      if (view.modTint && !uniqueType) label.style.background = `rgba(${hexRgb(statColor)},${(MOD_STYLES[view.modStyle] || MOD_STYLES.soft)[2]})`;
+      // The fill, on plain sculptures only (a unique keeps its own tint): a
+      // wash of the mod's colour over the tile's own dark ground, as the
+      // overlay drew it before R270 (round 9: an opaque mix with grey went
+      // muddy and hid the tile's edge). The edge itself is the tile's border.
+      // A 1x1 is filled on the tile (above); a multi-tile plain sculpture has
+      // one mod per tile, so each of its tiles' labels carries its own wash.
+      if (!uniqueType && fillPct && isMulti) label.style.background = `color-mix(in oklch, ${statColor} ${fillPct}%, transparent)`;
 
       // Round 3 (Anton: "the text looks really cluttered"): the unique's tag
       // sits in the tile's top-left corner instead of on a third line, so
@@ -21662,7 +21994,7 @@ function decorate() {
       // reads faster in a block of tiles than capitals; bigger when it is
       // the only thing on the tile (names only).
       modEl.style.cssText =
-        `font-size:${view.namesOnly ? 11 : 9.5}px;font-weight:600;color:${statColor};max-width:94%;white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:.01em;`;
+        `font-size:${view.namesOnly ? 11 : 9.5}px;font-weight:${nameWeight};color:${nameInk};max-width:94%;white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:.01em;${shade}`;
 
       // The Relative view puts the sculpture's one Roll Relative (two decimals) on
       // its first tile only; the others keep just the mod name. "—" when it is
@@ -21676,7 +22008,7 @@ function decorate() {
         pctEl.textContent = numberText;
 
         pctEl.style.cssText =
-          `font-size:12px;font-weight:500;color:${NUMBER_INK};font-family:${fontNow || 'var(--awoo-font-num, var(--awoo-font, system-ui, sans-serif))'};font-variant-numeric:tabular-nums;letter-spacing:0;margin-top:1px;`;
+          `font-size:12px;font-weight:${numberWeight};color:${numberInk};${shade}font-family:${fontNow || 'var(--awoo-font-num, var(--awoo-font, system-ui, sans-serif))'};font-variant-numeric:tabular-nums;letter-spacing:0;margin-top:1px;`;
 
         label.appendChild(pctEl);
       }
@@ -21740,74 +22072,370 @@ function setEnabled(next) {
 }
 
 // The pill's right-click menu: the everyday look options as ticks.
+// THE QUICK SETTINGS (right-click the pill, or the gear on the Presets list),
+// in the order of R270's final mockup: Uniques [Uniform] [Visuals], Cleaner
+// tiles [Overlay on] [Overlay off], Presets list, Tile tooltips, Size,
+// Decimals, Colours…, Show all settings. Show/hide stats left the menu (it is
+// on right-click of the grid); "Mod colours" became Tile transparency in the
+// Colours window.
 function quickSettingsItems() {
   const flip = (key) => () => setView({ [key]: !view[key] });
   // keepOpen: the menu stays while ticks are flipped (Anton, 2026-11-07).
   return [
-    { label: 'Show/hide stats', checked: !view.namesOnly, onClick: flip('namesOnly'), keepOpen: true },
-    { label: 'Mod colours', checked: view.modTint, onClick: flip('modTint'), keepOpen: true },
-    { label: 'Uniques one colour', checked: view.uniqueOneColour, onClick: flip('uniqueOneColour'), keepOpen: true },
-    { label: 'Unique visuals', checked: view.uniqueVisuals, onClick: flip('uniqueVisuals'), keepOpen: true },
-    { separator: true },
-    { label: 'Cleaner grid tiles (overlay on)', checked: view.gameSkin, onClick: flip('gameSkin'), keepOpen: true },
-    { label: 'Cleaner grid tiles (overlay off)', checked: view.gameSkinOff, onClick: flip('gameSkinOff'), keepOpen: true },
-    { label: 'Separate presets tab', checked: view.splitPresets, onClick: flip('splitPresets'), keepOpen: true },
+    { label: 'Presets list', checked: view.splitPresets, onClick: flip('splitPresets'), keepOpen: true },
     { label: 'Tile tooltips', checked: view.tilePopups, onClick: flip('tilePopups'), keepOpen: true },
   ];
 }
 // Final round (Anton, 2026-11-07): "at the bottom, four numbers 0 1 2 3" for
-// the decimals on the tiles. Core's menu has no row of buttons, so this one
-// row is added under its items, inside the menu (a click there is inside it,
-// so the menu stays until a number is picked).
+// the decimals on the tiles. Core's menu has no row of buttons, so these rows
+// are added to its element (a click there is inside it, so the menu stays).
 const DECIMALS_ROW = 'awoo-sculpture-grid-labels-decimals';
 function openQuickSettings(anchor) {
   if (!Core.ui || typeof Core.ui.menu !== 'function') return;
   const handle = Core.ui.menu(anchor, quickSettingsItems());
   const menuEl = document.getElementById('awoo-ui-menu-active');
   if (!menuEl) return;
-  // A row of choices that stays open: the picked one lights up in place.
-  const choiceRow = (label, values, text, current, pick) => {
-    const row = document.createElement('div');
-    row.className = DECIMALS_ROW;
+  const btn = (text, on, onClick, tip) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = text;
+    if (tip) b.setAttribute('data-tooltip', tip);
+    const paint = () => { const v = on(); b.dataset.on = v ? '1' : '0'; b.setAttribute('aria-pressed', v ? 'true' : 'false'); };
+    b.addEventListener('click', (e) => { e.stopPropagation(); onClick(); paint(); for (const o of b.parentElement.querySelectorAll('button')) if (o !== b && o._paint) o._paint(); });
+    b._paint = paint;
+    paint();
+    return b;
+  };
+  const row = (label, buttons, extra) => {
+    const r = document.createElement('div');
+    r.className = DECIMALS_ROW + (extra ? ' ' + extra : '');
     const name = document.createElement('span');
     name.textContent = label;
-    row.appendChild(name);
-    const btns = values.map((n) => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.textContent = text(n);
-      b.dataset.on = current() === n ? '1' : '0';
-      b.setAttribute('aria-pressed', current() === n ? 'true' : 'false');
-      b.addEventListener('click', (e) => {
-        e.stopPropagation();
-        pick(n);
-        for (const o of btns) { const on = current() === values[btns.indexOf(o)]; o.dataset.on = on ? '1' : '0'; o.setAttribute('aria-pressed', on ? 'true' : 'false'); }
-      });
-      row.appendChild(b);
-      return b;
-    });
-    return row;
+    r.appendChild(name);
+    for (const b of buttons) r.appendChild(b);
+    return r;
   };
-  menuEl.appendChild(choiceRow('Size', [80, 90, 100, 110, 120], (n) => String(n), () => view.gridScale, (n) => setView({ gridScale: n })));
-  const dec = choiceRow('Decimals', [0, 1, 2, 3], (n) => String(n), () => view.decimals, (n) => setView({ decimals: n }));
-  dec.classList.add(`${DECIMALS_ROW}-flush`);
-  menuEl.appendChild(dec);
-  if (view.modTint) {
-    const styleRow = choiceRow('Mod colours', ['soft', 'normal', 'vibrant'], (n) => n[0].toUpperCase() + n.slice(1), () => view.modStyle, (n) => setView({ modStyle: n }));
-    styleRow.classList.add(`${DECIMALS_ROW}-flush`);
-    menuEl.appendChild(styleRow);
-  }
+  // Two pairs of toggles at the top, above Core's ticks.
+  const toggles = [
+    row('Uniques', [
+      btn('Uniform', () => view.uniqueOneColour, () => setView({ uniqueOneColour: !view.uniqueOneColour }), 'Every unique sculpture in the same orange-red; the tags keep each kind\'s own colour'),
+      btn('Visuals', () => view.uniqueVisuals, () => setView({ uniqueVisuals: !view.uniqueVisuals }), 'Coloured grid lines around the row of a resonator, the column of a channeler and the tiles around a cornerstone'),
+    ], `${DECIMALS_ROW}-top`),
+    row('Cleaner tiles', [
+      btn('Overlay on', () => view.gameSkin, () => setView({ gameSkin: !view.gameSkin }), 'Calmer game tiles while the overlay is on'),
+      btn('Overlay off', () => view.gameSkinOff, () => setView({ gameSkinOff: !view.gameSkinOff }), 'The same calmer tiles on the game\'s normal grid, with the overlay off'),
+    ], `${DECIMALS_ROW}-flush`),
+  ];
+  for (const r of toggles.reverse()) menuEl.insertBefore(r, menuEl.firstChild);
+  const choice = (label, values, current, pick, extra) => row(label, values.map((n) => btn(String(n), () => current() === n, () => pick(n))), extra);
+  menuEl.appendChild(choice('Size', [80, 90, 100, 110, 120], () => view.gridScale, (n) => setView({ gridScale: n })));
+  menuEl.appendChild(choice('Decimals', [0, 1, 2, 3], () => view.decimals, (n) => setView({ decimals: n }), `${DECIMALS_ROW}-flush`));
+  const wide = (text, cls, onClick) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `${DECIMALS_ROW}-all${cls ? ' ' + cls : ''}`;
+    b.textContent = text;
+    b.addEventListener('click', (e) => { e.stopPropagation(); if (handle && typeof handle.close === 'function') handle.close(); onClick(); });
+    return b;
+  };
+  menuEl.appendChild(wide('Colours menu', '', () => openColours()));
   // Every option, the Control Panel's page for this overlay.
-  const all = document.createElement('button');
-  all.type = 'button';
-  all.className = `${DECIMALS_ROW}-all`;
-  all.textContent = 'Show all settings';
-  all.addEventListener('click', (e) => {
-    e.stopPropagation();
-    if (handle && typeof handle.close === 'function') handle.close();
-    if (typeof Core.openSettings === 'function') Core.openSettings(MODULE_ID);
-  });
-  menuEl.appendChild(all);
+  menuEl.appendChild(wide('Show all settings', '', () => { if (typeof Core.openSettings === 'function') Core.openSettings(MODULE_ID); }));
+}
+
+// THE COLOURS WINDOW (R270). A Core window, so it is dragged, stacked,
+// remembered and cleaned up like every other AWOO+ window. It is made when it
+// opens and destroyed when it closes: Core clamps a window onto the screen
+// when it is made, and not when a hidden one is opened again (REGISTER.md
+// R271), so this way it can never reopen off-screen.
+// Every change applies at once (round 16); Save custom preset stores the
+// look in the selected Custom slot.
+// Presets: pressing one sets every colour setting; any change after that moves
+// the selection to a Custom slot (the first, when a built-in preset was
+// selected), and Save writes only the selected Custom slot. The four built-in
+// presets never change.
+let colourDraft = null;
+let coloursWin = null;
+let coloursActivity = null;   // the window's activity strip (DESIGN.md §5): what each press did
+function coloursSay(text) { if (coloursActivity && typeof coloursActivity.info === 'function') coloursActivity.info(text); }
+function dropColoursWindow() {
+  if (coloursActivity && typeof coloursActivity.dispose === 'function') { try { coloursActivity.dispose(); } catch (err) { /* already gone */ } }
+  coloursActivity = null;
+  if (coloursWin) { const w = coloursWin; coloursWin = null; try { w.destroy(); } catch (err) { /* already gone */ } }
+}
+function lookNow() { return colourDraft ? colourDraft.look : view.look; }
+// Round 16 (Anton): every change in the window applies at once and is kept;
+// there is no Cancel. The draft below is the window's working copy of what is
+// in use: d.customs are the Custom slots AS SAVED, so a slot whose settings
+// differ from the look in use shows an asterisk until Save custom preset
+// writes it. Reset goes back to the selected preset's saved settings.
+function newDraft() {
+  return {
+    look: Object.assign({}, view.look), preset: view.lookPreset,
+    customs: view.customLooks.map((c) => Object.assign({}, c)), names: view.customNames.slice(),
+  };
+}
+// What is in use, written to the stored view (the slots as saved).
+function commitDraft(d) {
+  setView({ look: Object.assign({}, d.look), lookPreset: d.preset, customLooks: d.customs.map((c) => Object.assign({}, c)), customNames: d.names.slice() });
+}
+const customLabel = (d, i) => d.names[i] || (i ? `Custom ${i + 1}` : 'Custom');
+const presetLook = (d, id) => (isCustomId(id) ? d.customs[Number(id.slice(1))] : LOOK_PRESETS[id]);
+function draftDirty(d) { const p = presetLook(d, d.preset); return !p || JSON.stringify(d.look) !== JSON.stringify(cleanLook(p)); }
+function draftCanSave(d) { return isCustomId(d.preset) && draftDirty(d); }
+function draftPick(d, id) {
+  const p = presetLook(d, id);
+  if (!p) return;
+  d.preset = id;
+  d.look = cleanLook(p);
+}
+function draftSet(d, key, value) {
+  d.look = cleanLook(Object.assign({}, d.look, { [key]: value }));
+  // Classic original has no Fixed colours (the old script only coloured by count).
+  if (d.look.theme === 'classicOrig' && d.look.sort === 'fixed') d.look.sort = 'used';
+  if (!isCustomId(d.preset)) d.preset = 'c0';
+}
+function draftAdd(d) {
+  if (d.customs.length >= CUSTOM_MAX) return;
+  d.customs.push(Object.assign({}, d.look));
+  d.names.push('');
+  d.preset = 'c' + (d.customs.length - 1);
+}
+// Delete a Custom slot (round 13): the slots after it move up one; at least one
+// slot stays. A selected slot that goes leaves the look on the grid as it is
+// and selects the Default preset button.
+function draftDelete(d, i) {
+  if (d.customs.length <= 1 || i < 0 || i >= d.customs.length) return false;
+  d.customs.splice(i, 1);
+  d.names.splice(i, 1);
+  if (isCustomId(d.preset)) {
+    const n = Number(d.preset.slice(1));
+    if (n === i) d.preset = 'default';
+    else if (n > i) d.preset = 'c' + (n - 1);
+  }
+  return true;
+}
+function draftRename(d, i, name) { if (i >= 0 && i < d.customs.length) d.names[i] = String(name || '').trim().slice(0, 16).trim(); }
+// Reset: back to the selected preset's settings as saved.
+function draftReset(d) { draftPick(d, d.preset); }
+// Save custom preset: the look in use becomes the selected Custom slot's settings.
+function draftSave(d) {
+  if (isCustomId(d.preset)) d.customs[Number(d.preset.slice(1))] = Object.assign({}, d.look);
+  return { look: Object.assign({}, d.look), lookPreset: d.preset, customLooks: d.customs.map((c) => Object.assign({}, c)), customNames: d.names.slice() };
+}
+function colourPreview() { lastGridSignature = ''; if (coreEnabled) queueDecorate(); }
+// Save custom preset: the window stays open and the asterisk goes.
+function saveColours() {
+  const d = colourDraft;
+  if (!d || !isCustomId(d.preset)) return;
+  setView(draftSave(d));
+  renderColours();
+  colourPreview();
+  coloursSay(`Saved ${customLabel(d, Number(d.preset.slice(1)))}`);
+}
+// Closing keeps what is in use (it was applied as it changed).
+let coloursClosing = false;
+function closeColours() {
+  if (coloursClosing) return;
+  coloursClosing = true;
+  try {
+    const d = colourDraft;
+    colourDraft = null;
+    if (d) commitDraft(d);
+    dropColoursWindow();
+    colourPreview();
+  } finally { coloursClosing = false; }
+}
+const CW = 'awoo-sculpture-grid-labels-cw';
+const fillText = (n) => (n ? `${n}%` : 'no fill');
+// A cog: eight square teeth around a ring with a hole, drawn once.
+const COG_SVG = (() => {
+  const pts = [];
+  const teeth = 8, rOut = 7.2, rIn = 5.6;
+  for (let i = 0; i < teeth; i++) {
+    const a = (i / teeth) * Math.PI * 2, w = Math.PI / teeth * 0.52;
+    for (const [r, t] of [[rIn, a - w * 1.35], [rOut, a - w], [rOut, a + w], [rIn, a + w * 1.35]]) pts.push(`${(8 + r * Math.cos(t)).toFixed(2)},${(8 + r * Math.sin(t)).toFixed(2)}`);   // fmt-raw: SVG path coordinates, never shown
+  }
+  return '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M'
+    + pts.join('L') + 'Z M8,5.6 a2.4,2.4 0 1,0 0.001,0 Z"/></svg>';
+})();
+function openColours() {
+  if (!colourDraft) colourDraft = newDraft();
+  if (!coloursWin) {
+    // One wrapper for the window body (an awoo-ui-stack): the settings, then
+    // the activity strip.
+    const content = document.createElement('div');
+    content.className = 'awoo-ui-stack';
+    const inner = document.createElement('div');
+    inner.className = CW;
+    inner.addEventListener('click', onColoursClick);
+    inner.addEventListener('input', onColoursInput);
+    inner.addEventListener('change', (e) => { if (colourDraft && e.target && e.target.type === 'range') { commitDraft(colourDraft); paintFooter(colourDraft); } });
+    inner.addEventListener('contextmenu', onColoursContext);
+    content.appendChild(inner);
+    if (Core.ui && typeof Core.ui.activity === 'function') {
+      coloursActivity = Core.ui.activity({ name: `${MODULE_ID}-colours`, max: 3 });
+      if (coloursActivity && coloursActivity.el) content.appendChild(coloursActivity.el);
+    }
+    coloursWin = Core.createWindow({
+      id: `${MODULE_ID}-colours`,
+      title: 'Colours',
+      content,
+      defaultSize: { w: 370, h: 760 },
+      minSize: { w: 300, h: 360 },
+      resizable: true,
+      onClose: () => closeColours(),
+    });
+    if (!coloursWin) { colourDraft = null; return; }
+  }
+  renderColours();
+  coloursWin.open();
+  colourPreview();
+}
+function coloursEl() { return coloursWin && coloursWin.el ? coloursWin.el.querySelector('.' + CW) : null; }
+const escHtml = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function presetRowHtml(d) {
+  const b = (id, label, tip) => `<button type="button" data-preset="${id}" aria-pressed="${d.preset === id}"${tip ? ` data-tooltip="${tip}"` : ''}>${escHtml(label)}</button>`;
+  // Round 13: the Custom presets sit apart, on their own row, with a short hint.
+  return `<div class="${CW}-btns">${Object.keys(PRESET_LABELS).map((id) => b(id, PRESET_LABELS[id])).join('')}</div>`
+    + `<div class="${CW}-customs"><div class="${CW}-btns">`
+    + d.customs.map((_, i) => b(`c${i}`, customLabel(d, i) + (d.preset === `c${i}` && draftDirty(d) ? ' *' : ''), 'Your own look: Save custom preset stores it here. Right-click to rename or delete.')).join('')
+    + (d.customs.length < CUSTOM_MAX ? '<button type="button" data-act="add" data-tooltip="Add another Custom slot (up to 3)" aria-label="Add a Custom slot">+</button>' : '')
+    + `</div><span class="${CW}-hint">Right-click a custom preset to rename or delete it</span></div>`;
+}
+function paintFooter(d) {
+  const el = coloursEl();
+  if (!el) return;
+  const custom = isCustomId(d.preset);
+  const save = el.querySelector('[data-act="save"]');
+  if (save) {
+    save.hidden = !custom;
+    if (custom) save.setAttribute('data-tooltip', `Store these settings in ${customLabel(d, Number(d.preset.slice(1)))}`);
+    save.disabled = !draftCanSave(d);
+  }
+  const reset = el.querySelector('[data-act="reset"]');
+  if (reset) reset.hidden = !draftCanSave(d);
+  const row = el.querySelector('.' + CW + '-presets');
+  if (row) row.innerHTML = presetRowHtml(d);
+}
+function renderColours() {
+  const el = coloursEl();
+  const d = colourDraft;
+  if (!el || !d) return;
+  const L = d.look;
+  const seg = (key, labels, offFn) => Object.keys(labels).map((v) => {
+    const off = offFn && offFn(v);
+    return `<button type="button" data-k="${key}" data-v="${v}" aria-pressed="${L[key] === v}"${off ? ` disabled data-tooltip="${off}"` : ''}>${labels[v]}</button>`;
+  }).join('');
+  const ticks = Array.from({ length: FILL_MAX / 5 + 1 }, (_, i) => `<i style="left:${(i / (FILL_MAX / 5)) * 100}%;height:${i % 2 ? 4 : 7}px"></i>`).join('');
+  // Each number sits centred under its own tick (round 11: three spread labels did not line up).
+  const tickLabels = Array.from({ length: FILL_MAX / 10 + 1 }, (_, i) => `<span style="left:${(i / (FILL_MAX / 10)) * 100}%">${i * 10}</span>`).join('');
+  const wl = { semi: 'Semi', bold: 'Bold', heavy: 'Heavy' }[L.weight];
+  el.innerHTML = `
+    <div class="${CW}-f"><span class="${CW}-k">Presets</span><div class="${CW}-presets">${presetRowHtml(d)}</div></div>
+    <div class="${CW}-f ${CW}-sep"><span class="${CW}-k">Theme</span><div class="${CW}-btns">${seg('theme', THEME_LABELS)}</div></div>
+    <div class="${CW}-f"><span class="${CW}-k">Tone</span><div class="${CW}-btns">${seg('tone', TONE_LABELS)}</div></div>
+    <div class="${CW}-f"><span class="${CW}-k">Colour sorting</span><div class="${CW}-btns">${seg('sort', SORT_LABELS, (v) => (v === 'fixed' && !FIXED[L.theme] ? 'Classic original has no Fixed colours: the old script coloured by tile count' : ''))}</div></div>
+    <div class="${CW}-f"><span class="${CW}-k">Tile transparency <b data-fill-label>${fillText(L.fill)}</b></span>
+      <div class="${CW}-slider"><input type="range" min="0" max="${FILL_MAX}" step="5" value="${L.fill}" aria-label="Tile transparency">
+        <div class="${CW}-ticks">${ticks}</div><div class="${CW}-tickl">${tickLabels}</div></div></div>
+    <div class="${CW}-f"><span class="${CW}-k">Border</span><div class="${CW}-btns">${seg('border', BORDER_LABELS)}<span class="${CW}-apart"></span>${seg('edge', EDGE_LABELS)}</div></div>
+    <div class="${CW}-f"><span class="${CW}-k">Bold text</span><div class="${CW}-btns">${seg('bold', { off: 'Off', on: 'On', numbers: 'Numbers' })}<button type="button" data-act="weight" class="${CW}-weight${L.bold === 'off' ? ' is-dim' : ''}" data-tooltip="How bold: Semi, Bold, Heavy (click to change)">↻ ${wl}</button></div></div>
+    <div class="${CW}-f"><span class="${CW}-k">Coloured text</span><div class="${CW}-btns">${seg('ctext', { off: 'Off', on: 'On', numbers: 'Numbers' })}</div></div>
+    <div class="${CW}-foot"><span class="${CW}-foot-note">Changes apply at once</span><button type="button" data-act="reset" data-tooltip="Back to this custom preset as last saved">Reset</button><button type="button" data-act="save" class="${CW}-save">Save custom preset</button></div>`;
+  paintFooter(d);
+}
+function onColoursClick(e) {
+  const d = colourDraft;
+  const t = e.target && typeof e.target.closest === 'function' ? e.target : null;
+  if (!d || !t) return;
+  const pre = t.closest('[data-preset]'), opt = t.closest('[data-k]'), act = t.closest('[data-act]');
+  if (pre) { draftPick(d, pre.dataset.preset); coloursSay(`${isCustomId(d.preset) ? customLabel(d, Number(d.preset.slice(1))) : PRESET_LABELS[d.preset]} in use`); }
+  else if (opt && !opt.disabled) draftSet(d, opt.dataset.k, opt.dataset.v);
+  else if (act) {
+    const a = act.dataset.act;
+    if (a === 'save') { saveColours(); return; }
+    if (a === 'reset') { draftReset(d); coloursSay(`Back to ${customLabel(d, Number(String(d.preset).slice(1)))} as saved`); }
+    else if (a === 'weight') draftSet(d, 'weight', NEXT_WEIGHT[d.look.weight]);
+    else if (a === 'add') { const n = d.customs.length; draftAdd(d); if (d.customs.length > n) coloursSay(`${customLabel(d, n)} added: Save stores this look in it`); }
+  } else return;
+  commitDraft(d);
+  renderColours();
+  colourPreview();
+}
+// The slider redraws nothing of its own, so a drag is never interrupted.
+function onColoursInput(e) {
+  const d = colourDraft;
+  if (!d || !e.target || e.target.type !== 'range') return;
+  draftSet(d, 'fill', Number(e.target.value));
+  const el = coloursEl();
+  const label = el && el.querySelector('[data-fill-label]');
+  if (label) label.textContent = fillText(d.look.fill);
+  paintFooter(d);
+  colourPreview();
+}
+// Rename a Custom slot (round 12): right-click it, press Rename, type, Enter.
+// Esc or clicking away keeps the old name. A double-click could not work: the
+// first click redraws the row, so the second lands on a new button.
+function onColoursContext(e) {
+  const d = colourDraft;
+  const b = d && e.target && typeof e.target.closest === 'function' ? e.target.closest('[data-preset]') : null;
+  if (!b || !isCustomId(b.dataset.preset)) return;
+  e.preventDefault();
+  const i = Number(b.dataset.preset.slice(1));
+  const items = [{ label: 'Rename', onClick: () => startRename(i) }];
+  if (d.customs.length > 1) items.push({ separator: true }, { label: 'Delete', danger: true, onClick: () => deleteCustom(i) });
+  if (Core.ui && typeof Core.ui.menu === 'function') Core.ui.menu(b, items);
+  else startRename(i);
+}
+// Deleting is saved at once, like a rename: it is about the slots, not the look.
+function deleteCustom(i) {
+  const d = colourDraft;
+  if (!d) return;
+  const label = customLabel(d, i);
+  if (!draftDelete(d, i)) return;
+  const customs = view.customLooks.slice();
+  const names = view.customNames.slice();
+  if (i < customs.length) { customs.splice(i, 1); names.splice(i, 1); }
+  let lookPreset = view.lookPreset;
+  if (isCustomId(lookPreset)) {
+    const n = Number(lookPreset.slice(1));
+    if (n === i) lookPreset = 'default'; else if (n > i) lookPreset = 'c' + (n - 1);
+  }
+  setView({ customLooks: customs, customNames: names, lookPreset });
+  renderColours();
+  colourPreview();
+  coloursSay(`Deleted ${label}`);
+}
+function startRename(i) {
+  const d = colourDraft;
+  const el = coloursEl();
+  const b = el && el.querySelector(`[data-preset="c${i}"]`);
+  if (!d || !b) return;
+  const input = document.createElement('input');
+  input.className = `${CW}-rename`;
+  input.value = customLabel(d, i);
+  input.maxLength = 16;
+  b.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = (keep) => {
+    if (done) return;
+    done = true;
+    if (keep && colourDraft === d) {
+      draftRename(d, i, input.value);
+      // A name is saved at once: it names the slot, it is not part of the look.
+      const names = view.customNames.slice();
+      while (names.length < d.customs.length) names.push('');
+      names[i] = d.names[i];
+      if (i < view.customLooks.length) setView({ customNames: names.slice(0, view.customLooks.length) });
+      coloursSay(`Renamed to ${customLabel(d, i)}`);
+    }
+    paintFooter(d);
+  };
+  input.addEventListener('keydown', (ev) => { ev.stopPropagation(); if (ev.key === 'Enter') finish(true); else if (ev.key === 'Escape') finish(false); });
+  input.addEventListener('blur', () => finish(false));
 }
 
 // The pill: overlay on/off while the module stays loaded.
@@ -21910,10 +22538,29 @@ function injectStyles() {
       transition:border-color .12s ease, background-color .12s ease;
     }
     [data-awoo-sculpture-grid-labels-skin="1"] > button[data-drop-target-for-element="true"]:not([data-qsg-simple="1"]){
-      background-color:rgba(15,23,42,.5) !important;
+      background-color:rgba(20,24,30,.55) !important;
     }
     [data-awoo-sculpture-grid-labels-skin="1"] > button[data-drop-target-for-element="true"]:hover{
       border-color:rgba(203,213,225,.7) !important;
+    }
+    /* Round 10: a labelled tile's edge colour is set on the tile itself, which
+       outranks the hover rule above, so its hover is a light ring and a
+       slightly brighter tile instead. */
+    /* Round 11: no brightness filter any more. A filter made a multi-tile
+       sculpture's tile its own layer, drawn under the sculpture's block, so
+       its text vanished while hovered. A multi-tile sculpture lights its whole
+       block instead (a class set from the pointer). */
+    button[data-drop-target-for-element="true"][data-qsg-simple="1"]{
+      transition:box-shadow .12s ease;
+    }
+    button[data-drop-target-for-element="true"][data-qsg-simple="1"]:not(.awoo-sculpture-grid-labels-multi-cell):hover{
+      box-shadow:0 0 0 1px rgba(226,232,240,.85), 0 0 6px rgba(226,232,240,.25) !important;
+    }
+    .awoo-sculpture-grid-labels-footprint-bg{ transition:box-shadow .12s ease; }
+    [data-awoo-sculpture-grid-labels-redraw="1"] > button,
+    [data-awoo-sculpture-grid-labels-redraw="1"] > div{ transition:none !important; }
+    .awoo-sculpture-grid-labels-footprint-bg.awoo-sculpture-grid-labels-hover{
+      box-shadow:0 0 0 1px rgba(226,232,240,.85), 0 0 6px rgba(226,232,240,.25);
     }
     /* The game draws a frame around every sculpture (an absolutely placed
        div beside the tiles). With the overlay on, our own tile frames already
@@ -21923,7 +22570,7 @@ function injectStyles() {
        thinner and without its glow. */
     [data-awoo-sculpture-grid-labels-skin="1"] > div.absolute.pointer-events-none:not(.awoo-sculpture-grid-labels-beam):not(.awoo-sculpture-grid-labels-footprint-bg):not(.awoo-sculpture-grid-labels-footprint-gridline){
       box-shadow:none !important;
-      border-width:1.5px !important;
+      border-width:2px !important;
       border-radius:7px !important;
     }
     /* Round 4 (Anton: "a lot of blank space between the sculptures"): the
@@ -21938,12 +22585,21 @@ function injectStyles() {
     /* With the overlay off the game's own sculpture tiles (bg-primary/10) get
        a calm slate ground instead of the bright primary wash. */
     [data-awoo-sculpture-grid-labels-skin="1"] > button.bg-primary\\/10:not([data-qsg-simple="1"]){
-      background-color:rgba(30,41,59,.92) !important;
+      background-color:rgba(33,38,46,.92) !important;
       border-color:rgba(148,163,184,.34) !important;
       box-shadow:none !important;
     }
     [data-awoo-sculpture-grid-labels-skin="1"][data-awoo-sculpture-grid-labels-on="1"] > div.absolute.pointer-events-none:not(.border-accent):not(.awoo-sculpture-grid-labels-beam){
       display:none !important;
+    }
+    /* Round 10 (Anton): with the overlay off the cleaner tiles drop the
+       sculpture's picture. Round 16: the picture is the 🗿 emoji in a
+       div.drop-shadow-sm, which is also the game's hover-card trigger
+       (CODE: SculpturesPage-*.js, bundle-2026-11-09-live), not an <img>, so
+       the round-10 rule missed it. It is made invisible, not removed: the
+       small square in the middle of the tile still opens the game's pop-up. */
+    [data-awoo-sculpture-grid-labels-skin="1"]:not([data-awoo-sculpture-grid-labels-on="1"]) > button[data-drop-target-for-element="true"] div.drop-shadow-sm{
+      opacity:0 !important;
     }
     /* The decimals row at the bottom of the quick settings menu. */
     .${DECIMALS_ROW}{
@@ -22016,14 +22672,66 @@ function injectStyles() {
       background:transparent;
     }
     .awoo-sculpture-grid-labels-presets-title{
+      display:flex;
+      align-items:center;
+      gap:4px;
       font-size:.6rem;
       font-weight:600;
       letter-spacing:.09em;
       text-transform:uppercase;
       color:var(--awoo-ink-mute, #94a3b8);
-      padding:0 2px 2px;
+      padding:0 0 2px 2px;
     }
+    .awoo-sculpture-grid-labels-presets-title span{ flex:1; }
+    .awoo-sculpture-grid-labels-presets .awoo-sculpture-grid-labels-presets-gear{
+      display:grid; place-items:center; flex:none; margin-left:auto;
+      width:20px; min-width:20px; height:20px; padding:0;
+      border:1px solid transparent; border-radius:var(--awoo-in-radius, 3px);
+      background:transparent; color:var(--awoo-ink-mute, #94a3b8); cursor:pointer;
+    }
+    .awoo-sculpture-grid-labels-presets .awoo-sculpture-grid-labels-presets-gear:hover{ border-color:var(--awoo-border-control, #64748b); color:var(--awoo-ink, #f8fafc); }
+    /* The two toggle rows at the top of the quick settings (R270). */
+    .${DECIMALS_ROW}-top{ margin-top:0; border-top:0; padding-top:6px; }
+    .${DECIMALS_ROW}-top + .${DECIMALS_ROW}-flush{ border-bottom:1px solid var(--awoo-border, rgba(148,163,184,.25)); padding-bottom:6px; margin-bottom:2px; }
+    /* The Colours window (R270). */
+    .${CW}{ display:flex; flex-direction:column; gap:8px; padding:8px 10px 10px; font:12px/1.3 var(--awoo-font, system-ui, sans-serif); color:var(--awoo-ink-soft, #cbd5e1); }
+    .${CW}-f{ display:flex; flex-direction:column; gap:4px; }
+    .${CW}-sep{ border-top:1px solid var(--awoo-border, rgba(148,163,184,.25)); padding-top:8px; }
+    .${CW}-k{ font-size:11px; color:var(--awoo-ink-mute, #94a3b8); display:flex; justify-content:space-between; }
+    .${CW}-k b{ font-weight:600; color:var(--awoo-ink-soft, #cbd5e1); font-variant-numeric:tabular-nums; }
+    .${CW}-btns{ display:flex; flex-wrap:wrap; gap:3px; }
+    .${CW} button{
+      min-width:22px; height:22px; padding:0 7px;
+      border:1px solid var(--awoo-border-control, #64748b); border-radius:var(--awoo-in-radius, 3px);
+      background:transparent; color:var(--awoo-ink-soft, #cbd5e1);
+      font:600 11px/1 var(--awoo-font, system-ui, sans-serif); cursor:pointer;
+    }
+    .${CW} button[aria-pressed="true"]{ border-color:var(--awoo-accent, #38bdf8); color:var(--awoo-ink, #f8fafc); background:color-mix(in srgb, var(--awoo-accent, #38bdf8) 18%, transparent); }
+    .${CW} button[disabled]{ opacity:.45; cursor:default; }
+    .${CW} button[hidden]{ display:none; }
+    .${CW}-weight{ margin-left:6px; }
+    .${CW}-apart{ margin-left:10px; }
+    .${CW}-presets{ display:flex; flex-direction:column; gap:6px; }
+    .${CW}-customs{ display:flex; flex-direction:column; gap:3px; padding-top:6px; border-top:1px dashed var(--awoo-border, rgba(148,163,184,.25)); }
+    .${CW}-hint{ font-size:10px; color:var(--awoo-ink-mute, #94a3b8); }
+    .${CW}-weight.is-dim{ opacity:.45; }
+    .${CW}-slider{ min-width:0; }
+    .${CW}-slider input{ width:100%; margin:0; accent-color:var(--awoo-accent, #38bdf8); }
+    /* The thumb's centre runs from half a thumb in at each end: 7px. */
+    .${CW}-ticks, .${CW}-tickl{ position:relative; margin:0 7px; }
+    .${CW}-ticks{ height:7px; }
+    .${CW}-ticks i{ position:absolute; top:0; width:1px; margin-left:-.5px; background:var(--awoo-border-control, #64748b); }
+    .${CW}-tickl{ height:12px; margin-top:1px; }
+    .${CW}-tickl span{ position:absolute; top:0; transform:translateX(-50%); font-size:9px; line-height:1; color:var(--awoo-ink-mute, #94a3b8); font-variant-numeric:tabular-nums; }
+    .${CW}-foot{ display:flex; gap:6px; padding-top:8px; border-top:1px solid var(--awoo-border, rgba(148,163,184,.25)); }
+    .${CW}-foot-note{ margin-right:auto; align-self:center; font-size:10px; color:var(--awoo-ink-mute, #94a3b8); }
+    .${CW}-foot .${CW}-save{ border-color:var(--awoo-success, #22c55e); color:var(--awoo-success, #86efac); background:var(--awoo-bg-success, rgba(34,197,94,.16)); }
+    .${CW}-rename{ width:96px; height:22px; padding:0 5px; border:1px solid var(--awoo-accent, #38bdf8); border-radius:var(--awoo-in-radius, 3px); background:var(--awoo-surface, #0b1220); color:var(--awoo-ink, #f8fafc); font:600 11px/1 var(--awoo-font, system-ui, sans-serif); }
     .awoo-sculpture-grid-labels-presets.is-inline .awoo-sculpture-grid-labels-presets-title{ display:none; }
+    .awoo-sculpture-grid-labels-presets-missing{
+      margin-top:6px; padding:4px 6px 2px; border-top:1px solid var(--awoo-border, rgba(148,163,184,.25));
+      font-size:.66rem; line-height:1.3; color:var(--awoo-warn, #fbbf24); white-space:normal;
+    }
     .awoo-sculpture-grid-labels-presets-act{
       margin-top:4px;
       justify-content:center;
@@ -22132,6 +22840,14 @@ function bootstrap() {
     ...AWOO_ABOUT,
     id: MODULE_ID,
     onToggle: (next) => setEnabled(next),
+    // The Colours window is this module's only window (R270).
+    onResetPosition: () => { if (coloursWin) coloursWin.resetPosition(); },
+    __forTest: {
+      gridColours, cleanLook, toned, deltaE, LOOK_PRESETS, PALETTES, FIXED,
+      newDraft, draftPick, draftSet, draftAdd, draftRename, draftReset, draftSave, draftCanSave, draftDirty, saveColours, startRename, draftDelete, deleteCustom,
+      openColours, closeColours, draft: () => colourDraft, view: () => view, lookNow,
+      missingUniques, setView,
+    },
     settings: {
       label: AWOO_ABOUT.label,
       render(container) {
@@ -22182,18 +22898,29 @@ function bootstrap() {
             .concat(Object.keys(TILE_FONTS).map((id) => ({ value: id, label: TILE_FONTS[id].label }))),
           onChange: (v) => setView({ font: v === 'auto' || TILE_FONTS[v] ? v : 'auto' }),
         }));
-        check('Mod colours', 'modTint', 'A light wash of each mod\'s colour behind its tile');
-        container.appendChild(Core.ui.inputRow({
-          label: 'Mod colour style', type: 'select', value: view.modStyle,
-          options: [{ value: 'soft', label: 'Soft' }, { value: 'normal', label: 'Normal' }, { value: 'vibrant', label: 'Vibrant' }],
-          onChange: (v) => setView({ modStyle: v }),
-        }));
-        check('Uniques one colour', 'uniqueOneColour', 'Every unique sculpture tile and line in the same orange-red; the small labels keep each unique\'s own colour');
+        {
+          // R270: every colour setting lives in the Colours window.
+          const row = document.createElement('div');
+          row.style.cssText = 'display:flex; align-items:center; gap:var(--awoo-s3); margin:var(--awoo-s2) 0; font-size:var(--awoo-fs-control);';
+          const open = document.createElement('button');
+          open.type = 'button';
+          open.className = 'awoo-ui-btn';
+          open.textContent = 'Colours…';
+          open.setAttribute('data-tooltip', 'Theme, tone, colour sorting, tile transparency, border and text');
+          scope.on(open, 'click', () => openColours());
+          const now = document.createElement('span');
+          now.style.color = 'var(--awoo-ink-mute)';
+          now.textContent = isCustomId(view.lookPreset) ? (view.customNames[Number(view.lookPreset.slice(1))] || 'Custom') : PRESET_LABELS[view.lookPreset];
+          row.append(open, now);
+          container.appendChild(row);
+        }
+        check('Missing-unique note', 'uniqueWarning', 'A quiet note under the presets list naming any unique sculpture that is not on the grid shown');
+        check('Uniques uniform', 'uniqueOneColour', 'Every unique sculpture tile and line in the same orange-red; the small labels keep each unique\'s own colour');
         check('Unique visuals', 'uniqueVisuals', 'Coloured grid lines around the row of a resonator, the column of a channeler and the tiles around a cornerstone. Also with the overlay off');
         check('Tile tooltips', 'tilePopups', 'The roll and item level of the tile under the mouse');
         check('Cleaner grid tiles (overlay on)', 'gameSkin', 'Bigger tiles with less space between them, quieter borders and a darker ground, while the overlay is on');
         check('Cleaner grid tiles (overlay off)', 'gameSkinOff', 'The same cleaner tiles on the game\'s normal grid, with the overlay off');
-        check('Separate presets tab', 'splitPresets', 'A narrow list of your presets left of the grid; click one to show it. Renaming, Set Active and New stay in the game\'s Presets tab');
+        check('Presets list', 'splitPresets', 'A narrow list of your presets left of the grid; click one to show it. Renaming, Set Active and New stay in the game\'s Presets tab');
         container.appendChild(Core.ui.inputRow({
           label: 'Grid size', type: 'select', value: String(view.gridScale),
           options: Array.from({ length: (GRID_SCALE_MAX - GRID_SCALE_MIN) / 10 + 1 }, (_, i) => GRID_SCALE_MIN + i * 10).map((n) => ({ value: String(n), label: `${n}%` })),
@@ -22222,6 +22949,24 @@ function bootstrap() {
   // Round 3: right-click on the grid flips "names only" (the numbers hide,
   // the mod names stay). Only on the tiles, only while the overlay is on;
   // anywhere else the browser's own menu is left alone.
+  // A multi-tile sculpture lights its whole block while the pointer is on any
+  // of its tiles (round 11). One listener pair on the document, cheap: it only
+  // follows a tile that carries a block.
+  let hoverBlock = null;
+  scope.on(document, 'pointerover', (e) => {
+    const t = e.target && typeof e.target.closest === 'function' ? e.target.closest(GRID_TILE_SELECTOR) : null;
+    const b = t && t.awooBlock && t.awooBlock.isConnected !== false ? t.awooBlock : null;
+    if (b === hoverBlock) return;
+    if (hoverBlock) hoverBlock.classList.remove('awoo-sculpture-grid-labels-hover');
+    hoverBlock = b;
+    if (b) b.classList.add('awoo-sculpture-grid-labels-hover');
+  }, true);
+  scope.add(() => { if (hoverBlock) hoverBlock.classList.remove('awoo-sculpture-grid-labels-hover'); hoverBlock = null; });
+  // Esc closes the Colours window; what is in use stays (R270 round 16).
+  scope.on(document, 'keydown', (e) => { if (colourDraft && e.key === 'Escape') closeColours(); });
+  // On unload the window goes, without a repaint: a pass queued by a module
+  // that is being unloaded would run over the next instance's page.
+  scope.add(() => { colourDraft = null; dropColoursWindow(); });
   scope.on(document, 'contextmenu', (e) => {
     if (!enabled) return;
     const t = e.target;
@@ -22354,7 +23099,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.25", function (Core) {
+  })("awoo-tools-public", "7.0.26", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
