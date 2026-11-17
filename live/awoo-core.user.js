@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.28
+// @version      7.0.29
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -19,7 +19,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.28",
+    "version": "7.0.29",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -671,7 +671,7 @@
     // src/awoo-core.changelog.md (build.mjs changelog(), which also refuses a
     // line that names anything private). Each entry: { title, date, lines }.
     // Shown on General › Changelog; the raw src/ file carries an empty list.
-    const CHANGELOG = [{"title":"7.0.28","date":"2026-11-15","lines":["Menus and confirm boxes no longer open behind the Control Panel after a long session","A tab left open for days uses less memory, and dragging windows is lighter","If you installed from your own link, the menu, Updates page and Changelog show your channel"],"groups":[{"name":"Control Panel","lines":["Menus and confirm boxes no longer open behind the Control Panel after a long session","A tab left open for days uses less memory, and dragging windows is lighter"]},{"name":"Updates & install","lines":["If you installed from your own link, the menu, Updates page and Changelog show your channel"]}]},{"title":"7.0.27","date":"2026-11-12","lines":["The All Tweaks hover lists your Tweaks under On and Off, in alphabetical order","Sync can read another player's profile while you have it open, so add-ons can show more there"],"groups":[{"name":"Menu & top bar","lines":["The All Tweaks hover lists your Tweaks under On and Off, in alphabetical order"]},{"name":"Profile Sync","lines":["Sync can read another player's profile while you have it open, so add-ons can show more there"]}]},{"title":"7.0.26","date":"2026-11-12","lines":["The Changelog catches up: it now lists 7.0.20 to 7.0.25, which were missing","A window you closed near the edge comes back on-screen when you reopen it in a smaller browser","Bring window on-screen no longer shrinks a closed window to nothing","Grid Overlay: a new Colours window with presets (Default, AWOO+, Calm, Vibrant, Old script look, Alternative) and your own custom ones","Grid Overlay: crisper tiles, a clear highlight on hover, and no flicker when the grid updates","Grid Overlay: a shorter right-click menu, and a note that names any unique sculpture missing from the grid","Win rate is now called Dungeon Win rate, and is on for a new player","Dungeon Win rate: after loading older entries, the log scrolls back to where you were"],"groups":[{"name":"Control Panel","lines":["The Changelog catches up: it now lists 7.0.20 to 7.0.25, which were missing"]},{"name":"Menu & top bar","lines":["A window you closed near the edge comes back on-screen when you reopen it in a smaller browser","Bring window on-screen no longer shrinks a closed window to nothing"]},{"name":"Modules & Tweaks","lines":["Grid Overlay: a new Colours window with presets (Default, AWOO+, Calm, Vibrant, Old script look, Alternative) and your own custom ones","Grid Overlay: crisper tiles, a clear highlight on hover, and no flicker when the grid updates","Grid Overlay: a shorter right-click menu, and a note that names any unique sculpture missing from the grid","Win rate is now called Dungeon Win rate, and is on for a new player","Dungeon Win rate: after loading older entries, the log scrolls back to where you were"]}]},{"title":"7.0.25","date":"2026-11-09","lines":["Grid Overlay sits under the game's own pop-ups and drop-down menus","Grid Overlay: with \"Uniques one colour\" on, the small unique labels keep each unique's own colour"],"groups":[{"name":"Modules & Tweaks","lines":["Grid Overlay sits under the game's own pop-ups and drop-down menus","Grid Overlay: with \"Uniques one colour\" on, the small unique labels keep each unique's own colour"]}]},{"title":"7.0.24","date":"2026-11-09","lines":["Calmer feature lists in three views (Minimal, Normal, Descriptive), with a short summary beside each name and Tweak categories you can fold","Tweaks that belong together sit under one head with one switch for all of them","Feature settings have their own entry in the sidebar, listing the features that are on","Clearer headings, with a choice of style under Appearance › Control Panel › Headings","A setting changed from its default gets a small mark (hover it to see the default)","General › Reset: Reset all saved data, and Reset window sizes now asks first","Nunito is now the text font as well as the number font (pick another under Appearance › Formatting)","New fonts (Calibri, Segoe UI, System default, Match game), a Text size and a Letter spacing option","Your font choice now reaches all of AWOO+, and a change shows at once","Notifications can be larger (120 % is the new default), and reminders that stay on screen can be turned off","Hovering All Tweaks lists every Tweak, the ones that are on in normal colour","The AWOO+ bar no longer makes the game's top bar taller","Choose how often AWOO+ checks for updates: every 1, 2, 6 or 12 hours","A shorter welcome tour in four visual steps, with Skip on every step","Dungeon Win Rate is now a Tweak on the Dungeon log page: win rate, wins and losses over the last hours, days or all time","Grid Overlay: every mod has its own colour, with Soft, Normal or Vibrant mod colours"],"groups":[{"name":"Control Panel","lines":["Calmer feature lists in three views (Minimal, Normal, Descriptive), with a short summary beside each name and Tweak categories you can fold","Tweaks that belong together sit under one head with one switch for all of them","Feature settings have their own entry in the sidebar, listing the features that are on","Clearer headings, with a choice of style under Appearance › Control Panel › Headings","A setting changed from its default gets a small mark (hover it to see the default)","General › Reset: Reset all saved data, and Reset window sizes now asks first"]},{"name":"Menu & top bar","lines":["Hovering All Tweaks lists every Tweak, the ones that are on in normal colour","The AWOO+ bar no longer makes the game's top bar taller"]},{"name":"Look & themes","lines":["Nunito is now the text font as well as the number font (pick another under Appearance › Formatting)","New fonts (Calibri, Segoe UI, System default, Match game), a Text size and a Letter spacing option","Your font choice now reaches all of AWOO+, and a change shows at once","Notifications can be larger (120 % is the new default), and reminders that stay on screen can be turned off"]},{"name":"Modules & Tweaks","lines":["Dungeon Win Rate is now a Tweak on the Dungeon log page: win rate, wins and losses over the last hours, days or all time","Grid Overlay: every mod has its own colour, with Soft, Normal or Vibrant mod colours"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates: every 1, 2, 6 or 12 hours","A shorter welcome tour in four visual steps, with Skip on every step"]}]},{"title":"7.0.23","date":"2026-11-07","lines":["Nunito (rounded) is everyone's number font; three more narrow number fonts to choose from, and Nunito and Quicksand as text fonts","Right-click menus with ticks stay open while you change several options","Grid Overlay: clearer, bigger tiles, a choice of decimals and font for the numbers, and presets beside the grid"],"groups":[{"name":"Menu & top bar","lines":["Right-click menus with ticks stay open while you change several options"]},{"name":"Look & themes","lines":["Nunito (rounded) is everyone's number font; three more narrow number fonts to choose from, and Nunito and Quicksand as text fonts"]},{"name":"Modules & Tweaks","lines":["Grid Overlay: clearer, bigger tiles, a choice of decimals and font for the numbers, and presets beside the grid"]}]},{"title":"7.0.22","date":"2026-11-06","lines":["Module windows open a little larger, and their status line stays at the bottom of the window"],"groups":[{"name":"Look & themes","lines":["Module windows open a little larger, and their status line stays at the bottom of the window"]}]},{"title":"7.0.21","date":"2026-11-03","lines":["The letters after an amount (k, m, b, qa …) can get a faint colour of their own, under Appearance › Fonts & numbers","A clearer info mark replaces the plain letter \"i\""],"groups":[{"name":"Look & themes","lines":["The letters after an amount (k, m, b, qa …) can get a faint colour of their own, under Appearance › Fonts & numbers","A clearer info mark replaces the plain letter \"i\""]}]},{"title":"7.0.20","date":"2026-11-03","lines":["Pop-ups no longer lock when you click them: drag one a short way to keep it, and a short drag springs back"],"groups":[{"name":"Look & themes","lines":["Pop-ups no longer lock when you click them: drag one a short way to keep it, and a short drag springs back"]}]},{"title":"7.0.19","date":"2026-11-02","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table","Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates","The All Tweaks hover fits its text: the names on top, then each Tweak's full description"],"groups":[{"name":"Menu & top bar","lines":["The All Tweaks hover fits its text: the names on top, then each Tweak's full description"]},{"name":"Profile Sync","lines":["Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates"]},{"name":"Tools","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table"]}]},{"title":"7.0.17","date":"2026-10-23","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"],"groups":[{"name":"Control Panel","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"]}]},{"title":"7.0.15","date":"2026-10-17","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General","The Control Panel pages share one tidy table,","Profile Sync writes much less to your browser"],"groups":[{"name":"Control Panel","lines":["The Control Panel pages share one tidy table,"]},{"name":"Look & themes","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General"]},{"name":"Profile Sync","lines":["Profile Sync writes much less to your browser"]}]},{"title":"7.0.4","date":"2026-09-25","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side","The AWOO+ menu is a quick list you can search, with a right-click menu on every module","Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely","A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes","Profile Sync has its own top-bar icon that shows how fresh your data is","Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"],"groups":[{"name":"Control Panel","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side"]},{"name":"Menu & top bar","lines":["The AWOO+ menu is a quick list you can search, with a right-click menu on every module"]},{"name":"Look & themes","lines":["A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes"]},{"name":"Profile Sync","lines":["Profile Sync has its own top-bar icon that shows how fresh your data is"]},{"name":"Modules & Tweaks","lines":["Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"]}]},{"title":"7.0.3","date":"2026-09-24","lines":["Profile Sync reads more of your profile and shows how old each part is"],"groups":[{"name":"Profile Sync","lines":["Profile Sync reads more of your profile and shows how old each part is"]}]},{"title":"7.0.2","date":"2026-09-23","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details","Cost Tables opens from the Tools menu","Profile Sync keeps what it read on a page after you move on"],"groups":[{"name":"Profile Sync","lines":["Profile Sync keeps what it read on a page after you move on"]},{"name":"Tools","lines":["Cost Tables opens from the Tools menu"]},{"name":"Updates & install","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details"]}]},{"title":"7.0.1","date":"2026-09-22","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format","Export and import your settings"],"groups":[{"name":"Control Panel","lines":["Export and import your settings"]},{"name":"Look & themes","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format"]}]},{"title":"7.0.0","date":"2026-09-18","lines":["Apoz Core becomes AWOO+"],"groups":[{"name":"Updates & install","lines":["Apoz Core becomes AWOO+"]}]}] /* GENERATED from src/awoo-core.changelog.md */;
+    const CHANGELOG = [{"title":"7.0.29","date":"2026-11-17","lines":["Opening a module window refreshes its data if it is more than fifteen minutes old","Reading other players' profiles has its own hourly allowance, so it no longer runs out part-way","Your allocated fighter gold is now part of your synced profile"],"groups":[{"name":"Profile Sync","lines":["Opening a module window refreshes its data if it is more than fifteen minutes old","Reading other players' profiles has its own hourly allowance, so it no longer runs out part-way","Your allocated fighter gold is now part of your synced profile"]}]},{"title":"7.0.28","date":"2026-11-15","lines":["Menus and confirm boxes no longer open behind the Control Panel after a long session","A tab left open for days uses less memory, and dragging windows is lighter","If you installed from your own link, the menu, Updates page and Changelog show your channel"],"groups":[{"name":"Control Panel","lines":["Menus and confirm boxes no longer open behind the Control Panel after a long session","A tab left open for days uses less memory, and dragging windows is lighter"]},{"name":"Updates & install","lines":["If you installed from your own link, the menu, Updates page and Changelog show your channel"]}]},{"title":"7.0.27","date":"2026-11-12","lines":["The All Tweaks hover lists your Tweaks under On and Off, in alphabetical order","Sync can read another player's profile while you have it open, so add-ons can show more there"],"groups":[{"name":"Menu & top bar","lines":["The All Tweaks hover lists your Tweaks under On and Off, in alphabetical order"]},{"name":"Profile Sync","lines":["Sync can read another player's profile while you have it open, so add-ons can show more there"]}]},{"title":"7.0.26","date":"2026-11-12","lines":["The Changelog catches up: it now lists 7.0.20 to 7.0.25, which were missing","A window you closed near the edge comes back on-screen when you reopen it in a smaller browser","Bring window on-screen no longer shrinks a closed window to nothing","Grid Overlay: a new Colours window with presets (Default, AWOO+, Calm, Vibrant, Old script look, Alternative) and your own custom ones","Grid Overlay: crisper tiles, a clear highlight on hover, and no flicker when the grid updates","Grid Overlay: a shorter right-click menu, and a note that names any unique sculpture missing from the grid","Win rate is now called Dungeon Win rate, and is on for a new player","Dungeon Win rate: after loading older entries, the log scrolls back to where you were"],"groups":[{"name":"Control Panel","lines":["The Changelog catches up: it now lists 7.0.20 to 7.0.25, which were missing"]},{"name":"Menu & top bar","lines":["A window you closed near the edge comes back on-screen when you reopen it in a smaller browser","Bring window on-screen no longer shrinks a closed window to nothing"]},{"name":"Modules & Tweaks","lines":["Grid Overlay: a new Colours window with presets (Default, AWOO+, Calm, Vibrant, Old script look, Alternative) and your own custom ones","Grid Overlay: crisper tiles, a clear highlight on hover, and no flicker when the grid updates","Grid Overlay: a shorter right-click menu, and a note that names any unique sculpture missing from the grid","Win rate is now called Dungeon Win rate, and is on for a new player","Dungeon Win rate: after loading older entries, the log scrolls back to where you were"]}]},{"title":"7.0.25","date":"2026-11-09","lines":["Grid Overlay sits under the game's own pop-ups and drop-down menus","Grid Overlay: with \"Uniques one colour\" on, the small unique labels keep each unique's own colour"],"groups":[{"name":"Modules & Tweaks","lines":["Grid Overlay sits under the game's own pop-ups and drop-down menus","Grid Overlay: with \"Uniques one colour\" on, the small unique labels keep each unique's own colour"]}]},{"title":"7.0.24","date":"2026-11-09","lines":["Calmer feature lists in three views (Minimal, Normal, Descriptive), with a short summary beside each name and Tweak categories you can fold","Tweaks that belong together sit under one head with one switch for all of them","Feature settings have their own entry in the sidebar, listing the features that are on","Clearer headings, with a choice of style under Appearance › Control Panel › Headings","A setting changed from its default gets a small mark (hover it to see the default)","General › Reset: Reset all saved data, and Reset window sizes now asks first","Nunito is now the text font as well as the number font (pick another under Appearance › Formatting)","New fonts (Calibri, Segoe UI, System default, Match game), a Text size and a Letter spacing option","Your font choice now reaches all of AWOO+, and a change shows at once","Notifications can be larger (120 % is the new default), and reminders that stay on screen can be turned off","Hovering All Tweaks lists every Tweak, the ones that are on in normal colour","The AWOO+ bar no longer makes the game's top bar taller","Choose how often AWOO+ checks for updates: every 1, 2, 6 or 12 hours","A shorter welcome tour in four visual steps, with Skip on every step","Dungeon Win Rate is now a Tweak on the Dungeon log page: win rate, wins and losses over the last hours, days or all time","Grid Overlay: every mod has its own colour, with Soft, Normal or Vibrant mod colours"],"groups":[{"name":"Control Panel","lines":["Calmer feature lists in three views (Minimal, Normal, Descriptive), with a short summary beside each name and Tweak categories you can fold","Tweaks that belong together sit under one head with one switch for all of them","Feature settings have their own entry in the sidebar, listing the features that are on","Clearer headings, with a choice of style under Appearance › Control Panel › Headings","A setting changed from its default gets a small mark (hover it to see the default)","General › Reset: Reset all saved data, and Reset window sizes now asks first"]},{"name":"Menu & top bar","lines":["Hovering All Tweaks lists every Tweak, the ones that are on in normal colour","The AWOO+ bar no longer makes the game's top bar taller"]},{"name":"Look & themes","lines":["Nunito is now the text font as well as the number font (pick another under Appearance › Formatting)","New fonts (Calibri, Segoe UI, System default, Match game), a Text size and a Letter spacing option","Your font choice now reaches all of AWOO+, and a change shows at once","Notifications can be larger (120 % is the new default), and reminders that stay on screen can be turned off"]},{"name":"Modules & Tweaks","lines":["Dungeon Win Rate is now a Tweak on the Dungeon log page: win rate, wins and losses over the last hours, days or all time","Grid Overlay: every mod has its own colour, with Soft, Normal or Vibrant mod colours"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates: every 1, 2, 6 or 12 hours","A shorter welcome tour in four visual steps, with Skip on every step"]}]},{"title":"7.0.23","date":"2026-11-07","lines":["Nunito (rounded) is everyone's number font; three more narrow number fonts to choose from, and Nunito and Quicksand as text fonts","Right-click menus with ticks stay open while you change several options","Grid Overlay: clearer, bigger tiles, a choice of decimals and font for the numbers, and presets beside the grid"],"groups":[{"name":"Menu & top bar","lines":["Right-click menus with ticks stay open while you change several options"]},{"name":"Look & themes","lines":["Nunito (rounded) is everyone's number font; three more narrow number fonts to choose from, and Nunito and Quicksand as text fonts"]},{"name":"Modules & Tweaks","lines":["Grid Overlay: clearer, bigger tiles, a choice of decimals and font for the numbers, and presets beside the grid"]}]},{"title":"7.0.22","date":"2026-11-06","lines":["Module windows open a little larger, and their status line stays at the bottom of the window"],"groups":[{"name":"Look & themes","lines":["Module windows open a little larger, and their status line stays at the bottom of the window"]}]},{"title":"7.0.21","date":"2026-11-03","lines":["The letters after an amount (k, m, b, qa …) can get a faint colour of their own, under Appearance › Fonts & numbers","A clearer info mark replaces the plain letter \"i\""],"groups":[{"name":"Look & themes","lines":["The letters after an amount (k, m, b, qa …) can get a faint colour of their own, under Appearance › Fonts & numbers","A clearer info mark replaces the plain letter \"i\""]}]},{"title":"7.0.20","date":"2026-11-03","lines":["Pop-ups no longer lock when you click them: drag one a short way to keep it, and a short drag springs back"],"groups":[{"name":"Look & themes","lines":["Pop-ups no longer lock when you click them: drag one a short way to keep it, and a short drag springs back"]}]},{"title":"7.0.19","date":"2026-11-02","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table","Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates","The All Tweaks hover fits its text: the names on top, then each Tweak's full description"],"groups":[{"name":"Menu & top bar","lines":["The All Tweaks hover fits its text: the names on top, then each Tweak's full description"]},{"name":"Profile Sync","lines":["Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates"]},{"name":"Tools","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table"]}]},{"title":"7.0.17","date":"2026-10-23","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"],"groups":[{"name":"Control Panel","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"]}]},{"title":"7.0.15","date":"2026-10-17","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General","The Control Panel pages share one tidy table,","Profile Sync writes much less to your browser"],"groups":[{"name":"Control Panel","lines":["The Control Panel pages share one tidy table,"]},{"name":"Look & themes","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General"]},{"name":"Profile Sync","lines":["Profile Sync writes much less to your browser"]}]},{"title":"7.0.4","date":"2026-09-25","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side","The AWOO+ menu is a quick list you can search, with a right-click menu on every module","Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely","A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes","Profile Sync has its own top-bar icon that shows how fresh your data is","Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"],"groups":[{"name":"Control Panel","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side"]},{"name":"Menu & top bar","lines":["The AWOO+ menu is a quick list you can search, with a right-click menu on every module"]},{"name":"Look & themes","lines":["A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes"]},{"name":"Profile Sync","lines":["Profile Sync has its own top-bar icon that shows how fresh your data is"]},{"name":"Modules & Tweaks","lines":["Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"]}]},{"title":"7.0.3","date":"2026-09-24","lines":["Profile Sync reads more of your profile and shows how old each part is"],"groups":[{"name":"Profile Sync","lines":["Profile Sync reads more of your profile and shows how old each part is"]}]},{"title":"7.0.2","date":"2026-09-23","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details","Cost Tables opens from the Tools menu","Profile Sync keeps what it read on a page after you move on"],"groups":[{"name":"Profile Sync","lines":["Profile Sync keeps what it read on a page after you move on"]},{"name":"Tools","lines":["Cost Tables opens from the Tools menu"]},{"name":"Updates & install","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details"]}]},{"title":"7.0.1","date":"2026-09-22","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format","Export and import your settings"],"groups":[{"name":"Control Panel","lines":["Export and import your settings"]},{"name":"Look & themes","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format"]}]},{"title":"7.0.0","date":"2026-09-18","lines":["Apoz Core becomes AWOO+"],"groups":[{"name":"Updates & install","lines":["Apoz Core becomes AWOO+"]}]}] /* GENERATED from src/awoo-core.changelog.md */;
 
     // DEV-PROXY LINKS (2026-10-07, the maintainer: two buttons in the menu's
     // bottom strip, "strictly only visible for proxy-users"). Generated like
@@ -13279,6 +13279,17 @@
       renderQuickRow();
       notifyPanel();
       signalModules(id, isOpen ? 'open' : 'close');
+      // A MODULE ASKS WHEN ITS WINDOW OPENS, as a tool does (openTool): the
+      // sections it declares, each read now if older than fifteen minutes. The
+      // background schedule keeps them inside their intervals (up to five
+      // hours for the slow ones); this makes what a window opens with at most
+      // fifteen minutes old, for the reads opening those game pages would
+      // cost. Refused inside request() when background reads are off, before
+      // the game's client is found (a window restored at page load), and at
+      // the hourly ceiling.
+      if (isOpen && Array.isArray(mod.uses) && mod.uses.length && typeof profileApi.request === 'function') {
+        try { Promise.resolve(profileApi.request(mod.uses.slice())).catch(() => { /* a read refused is not an open failed */ }); } catch (e) { /* ditto */ }
+      }
     }
 
     // WHICH MODULES RUN AND WHICH WINDOWS ARE OPEN, as an event (REGISTER.md
@@ -16081,8 +16092,11 @@
     }
 
     // 8. Fighters
+    // The dungeon preset's fighters last: only what the Dungeon page happens
+    // to hold for you when neither of the others is in the cache.
     const rawFighters = q['fighters.public.getCharacterFightersRaw'] ||
-                        q['fighters.public.getActivePresetFighters'] || null;
+                        q['fighters.public.getActivePresetFighters'] ||
+                        q['fighters.public.getAssignmentPresetFighters'] || null;
     let fighters = null;
     if (rawFighters) {
       fighters = {
@@ -16319,7 +16333,13 @@
     //     provider. A currency it does not carry is null.
     const CAVE_TOOL_NAMES = ['scouting', 'compass', 'map', 'repeater', 'chisel', 'lure', 'brush', 'backpack', 'knife', 'sieve', 'trowel', 'mallet'];
     const HOUSE_ROOMS = ['chairs', 'sink', 'stove', 'basket', 'pitchfork', 'fountain', 'tools', 'shed', 'table', 'carpet', 'couch', 'candlestick', 'crate', 'painting'];
-    const CAVE_CURRENCIES = ['shatteredGold', 'diamonds', 'meat', 'iron', 'wood', 'stone', 'shatteredMeat', 'shatteredIron', 'shatteredWood', 'shatteredStone'];
+    // fighterGold is not a cave currency: it is the gold you have allocated to
+    // fighters, the pool every fighter preset spends from ("Currency used to
+    // track the amount of gold you have allocated to fighters",
+    // CharacterDataProvider, the 2026-11-09 bundle; the Fighters page shows
+    // what is left as fighterGold minus the open preset's cost, page-CXzvu8Wx).
+    // Kept here because it comes from the same document at no cost.
+    const CAVE_CURRENCIES = ['shatteredGold', 'diamonds', 'meat', 'iron', 'wood', 'stone', 'shatteredMeat', 'shatteredIron', 'shatteredWood', 'shatteredStone', 'fighterGold'];
     const rawCaveTools = q['fighters.fighterCaves.queries.getCaveTools'];
     let caveTools = null;
     if (rawCaveTools && typeof rawCaveTools === 'object' && !Array.isArray(rawCaveTools)) {
@@ -16836,15 +16856,22 @@
     { section: 'sanctum', name: 'sanctum.public.getSanctumCore', args: { characterId: VIEWED }, every: null },
     { section: 'relicBoosts', name: 'character.boosts.public.getBoosts', args: { characterId: VIEWED }, every: null },
     { section: 'equipment', name: 'equipment.queries.getEquipmentSlots', args: { characterId: VIEWED }, every: null },
+    // Fighter Scout (dev): the active-preset fighters with their raw stat points.
+    { section: 'fighters', name: 'fighters.public.getActivePresetFighters', args: { characterId: VIEWED }, every: null },
+    // The preset assigned to dungeons, when there is one: the Dungeon page
+    // asks it with exactly { assignment: 'dungeon', characterId } and falls
+    // back to the active preset when the answer is empty (page-CXzvu8Wx `Wt`,
+    // `mt(i ? r || i : [])`, the 2026-11-09 bundle). `fixed` holds the
+    // arguments that are the same for everyone. NOT YET SEEN LIVE for another
+    // player: only the dev build's Profile Board asks for it.
+    { section: 'fighters', name: 'fighters.public.getAssignmentPresetFighters', args: { characterId: VIEWED }, fixed: { assignment: 'dungeon' }, every: null },
   ];
+  const argKeysOf = (row) => [...Object.keys(row.args), ...Object.keys(row.fixed || {})];
 
   // Queries normalizeProfile reads that the catalogue deliberately never asks
   // for: taken when a game page happens to hold them. The catalogue audit
   // fails on a name read above that is in neither list.
   const PAGE_ONLY = [
-    // An alternative feed of the fighters section; the catalogue reads
-    // getCharacterFightersRaw.
-    { section: 'fighters', name: 'fighters.public.getActivePresetFighters' },
     // Each partner's last action (R132): the sidebar's partner rings hold it
     // for every partner on every game page (page-Cz0tcgy_ `ir`, 2026-09-28
     // bundle), so the cache always has it and asking would add nothing.
@@ -16855,7 +16882,7 @@
   // The legacy watch's allowlist, derived: every catalogue query, with its
   // argument keys (rows sharing a name share a shape; the audit checks).
   const WATCHABLE = {};
-  for (const row of CATALOGUE) WATCHABLE[row.name] = Object.keys(row.args);
+  for (const row of CATALOGUE) WATCHABLE[row.name] = argKeysOf(row);
   // Which argument names the village, per village query (splitQueries).
   const VILLAGE_ARG = {};
   for (const row of CATALOGUE) for (const [k, role] of Object.entries(row.args)) if (role === VILLAGE) VILLAGE_ARG[row.name] = k;
@@ -16873,7 +16900,7 @@
   const PUBLIC_CATALOGUE = Object.freeze(CATALOGUE.map((r) => Object.freeze({
     section: r.section,
     name: r.name,
-    argKeys: Object.freeze(Object.keys(r.args)),
+    argKeys: Object.freeze(argKeysOf(r)),
     every: r.every,
     live: !!r.live,
     hold: !!r.hold,
@@ -16896,6 +16923,13 @@
   // player asking, so it is bounded separately and never spends (or waits on)
   // the background's 60.
   const MAX_MANUAL_READS_PER_HOUR = 120;
+  // A profile on screen has a budget of its own too (readViewed): a visit is
+  // up to seven reads, and the Profile Board's Sync pinned visits up to twelve
+  // players a run. Counted on the background's 60 it ran out after eight
+  // players and then held back the background reads for the rest of the hour.
+  // Every one is a page the player opened or a run they started, in the
+  // visible tab.
+  const MAX_VIEWED_READS_PER_HOUR = 240;
   const BACKOFF_BASE_MS = 5 * MIN_MS;
   const BACKOFF_MAX_MS = 24 * HOUR_MS;
   const JITTER = 0.1;
@@ -17440,6 +17474,7 @@
   const inFlight = new Map(); // key -> read
   const readLog = [];         // start times of background and request reads, the last hour
   const manualLog = [];       // start times of Sync now reads, the last hour
+  const viewedLog = [];       // start times of readViewed reads, the last hour
   const peerReads = [];       // what the leader reported, the last hour
   const refused = { ceiling: 0, offline: 0, lastAt: null, lastWhy: null };
   let lastReadStartAt = -Infinity;
@@ -17829,8 +17864,8 @@
   //                taken from the cache: no read at all.
   //   ONE READ     each query still missing is one one-shot read, the same
   //                kind as a background read (subscribe, first answer,
-  //                unsubscribe), counted against the SAME hourly ceiling
-  //                (readLog), and spaced like the others.
+  //                unsubscribe), counted against an hourly ceiling of its own
+  //                (viewedLog), and spaced like the others.
   //   CACHED       an answer is kept 30 minutes per characterId in memory
   //                (5 for a failure), so re-opening the profile asks nothing.
   //   VISIBLE ONLY a hidden tab reads nothing, and neither does a tab with
@@ -17855,7 +17890,11 @@
   const VIEWED_NAME_QUERY = 'character.public.getCharacterIdByNameQuery';
   const VIEWED_CACHE_MS = 30 * MIN_MS;
   const VIEWED_FAIL_MS = 5 * MIN_MS;
+  const VIEWED_NO_CEILING = typeof AWOO_RELEASE !== 'undefined' && AWOO_RELEASE.channel === 'dev';
   const VIEWED_NAMES = [...new Set(CATALOGUE.filter((r) => Object.values(r.args).includes(VIEWED)).map((r) => r.name))];
+  // The arguments a viewed row asks with besides the characterId.
+  const VIEWED_FIXED = {};
+  for (const r of CATALOGUE) if (Object.values(r.args).includes(VIEWED) && r.fixed) VIEWED_FIXED[r.name] = r.fixed;
   const viewedCache = new Map();   // `${characterId}#${name}` -> { at, ok, value }
   const viewedPending = new Map(); // the same key -> the read in flight, shared by callers
   const viewedWaiting = new Set(); // reads waiting for their answer
@@ -17882,7 +17921,10 @@
   // What the page holds for this characterId: the value (null included), or
   // undefined when it holds nothing.
   function viewedPageValue(entries, name, characterId) {
-    const e = entries.find((x) => x.name === name && argCharacterId(x.args) === characterId);
+    const fixed = VIEWED_FIXED[name] || {};
+    const one = (x) => (Array.isArray(x.args) ? x.args[0] : x.args) || {};
+    const e = entries.find((x) => x.name === name && argCharacterId(x.args) === characterId
+      && Object.keys(fixed).every((k) => one(x)[k] === fixed[k]));
     return e ? e.value : undefined;
   }
 
@@ -17931,10 +17973,10 @@
     return new Promise((resolve) => {
       const client = attachedClient;
       const now = Date.now();
-      const args = { characterId };
+      const args = Object.assign({}, VIEWED_FIXED[name], { characterId });
       let sub = null;
       try { sub = client.subscribe(canonicalUdfPath(name), args); } catch (e) { console.warn('[AwooCore:ProfileSync] viewed read failed:', name, e); }
-      readLog.push(now);
+      viewedLog.push(now);
       lastReadStartAt = now;
       if (!sub) { resolve({ ok: false }); return; }
       const w = {
@@ -17979,8 +18021,10 @@
       if (held !== undefined) return { ok: true, value: held, page: true };
       if (viewedRefusal(entries)) return { ok: false, skipped: true };
       now = Date.now();
-      pruneLog(readLog, now);
-      if (readLog.length >= MAX_BACKGROUND_READS_PER_HOUR) { refuse('ceiling'); return { ok: false, skipped: true }; }
+      pruneLog(viewedLog, now);
+      // The dev build's Sync all reads every kept player, so there the viewed
+      // reads keep their spacing but not the ceiling.
+      if (!VIEWED_NO_CEILING && viewedLog.length >= MAX_VIEWED_READS_PER_HOUR) { refuse('ceiling'); return { ok: false, skipped: true }; }
       return startViewedRead(name, characterId);
     })();
     viewedPending.set(key, job);
@@ -18041,6 +18085,7 @@
     const locks = !!locksApi();
     pruneLog(readLog, now);
     pruneLog(manualLog, now);
+    pruneLog(viewedLog, now);
     pruneLog(peerReads, now);
     const demand = demandOf(startedModules());
     const rows = [];
@@ -18069,6 +18114,7 @@
       otherLeader: locks ? otherLeader : null,
       background: !locks ? 'unsupported' : (backgroundOn() ? 'on' : 'off'),
       readsLastHour: isLeader ? readLog.length + manualLog.length : peerReads.length,
+      viewedLastHour: viewedLog.length,
       inFlight: inFlight.size,
       queued: queue.size,
       holds: [...holds.values()].filter((h) => h.unsubscribe).map((h) => h.key),
@@ -18167,14 +18213,14 @@
     VIEWED_NAMES,
     VIEWED_CACHE_MS,
     limits: {
-      READ_FLOOR_MS, READ_TIMEOUT_MS, MAX_IN_FLIGHT, READ_SPACING_MS, MAX_BACKGROUND_READS_PER_HOUR, MAX_MANUAL_READS_PER_HOUR,
+      READ_FLOOR_MS, READ_TIMEOUT_MS, MAX_IN_FLIGHT, READ_SPACING_MS, MAX_BACKGROUND_READS_PER_HOUR, MAX_MANUAL_READS_PER_HOUR, MAX_VIEWED_READS_PER_HOUR,
       BACKOFF_BASE_MS, BACKOFF_MAX_MS, JITTER, ARM_MIN_MS, ARM_MAX_MS, MAX_WATCHES,
       AMBIENT_POLL_MS, AMBIENT_ATTACHED_MS, REQUEST_MAX_AGE_MS, SYNC_NOW_MAX_AGE_MS, LEADER_LOCK,
     },
     scheduler: {
       get isLeader() { return isLeader; },
       get schedAt() { return schedAt; },
-      queue, inFlight, rowState, readLog, manualLog,
+      queue, inFlight, rowState, readLog, manualLog, viewedLog,
       tick, armTimer, pump, syncHolds,
     },
   };
@@ -23479,7 +23525,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.28", function (Core) {
+  })("awoo-tools-public", "7.0.29", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //

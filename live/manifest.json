@@ -1,10 +1,10 @@
 {
   "channel": "live",
-  "generated": "2026-11-15T00:16:45.513Z",
+  "generated": "2026-11-17T07:55:54.216Z",
   "core": {
-    "version": "7.0.28",
+    "version": "7.0.29",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
-    "notes": "After a long session, menus and confirm boxes no longer open behind the Control Panel or another window you have clicked a lot\nA tab left open for days holds on to less: closed menus, pop-ups and finished timers are forgotten at once\nThe coloured size letters do no work while the tab is in the background, and dragging a window is lighter\nIf you installed AWOO+ from your own link, the menu, the Updates page and the Changelog show your copy's own version number, and the Changelog can have a second tab for what is shared with you"
+    "notes": "The Changelog page now lists this update's Profile Sync changes\nOpening a module's window now refreshes the data it uses if it is more than fifteen minutes old, as opening a tool already did\nReading another player's profile has its own hourly allowance, so reading several in a row no longer runs out part-way or holds back the background sync\nYour allocated fighter gold is now part of your synced profile"
   },
   "modules": [
     {
