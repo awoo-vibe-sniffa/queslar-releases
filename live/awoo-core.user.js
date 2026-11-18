@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.29
+// @version      7.0.30
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -19,7 +19,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.29",
+    "version": "7.0.30",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -671,7 +671,7 @@
     // src/awoo-core.changelog.md (build.mjs changelog(), which also refuses a
     // line that names anything private). Each entry: { title, date, lines }.
     // Shown on General › Changelog; the raw src/ file carries an empty list.
-    const CHANGELOG = [{"title":"7.0.29","date":"2026-11-17","lines":["Opening a module window refreshes its data if it is more than fifteen minutes old","Reading other players' profiles has its own hourly allowance, so it no longer runs out part-way","Your allocated fighter gold is now part of your synced profile"],"groups":[{"name":"Profile Sync","lines":["Opening a module window refreshes its data if it is more than fifteen minutes old","Reading other players' profiles has its own hourly allowance, so it no longer runs out part-way","Your allocated fighter gold is now part of your synced profile"]}]},{"title":"7.0.28","date":"2026-11-15","lines":["Menus and confirm boxes no longer open behind the Control Panel after a long session","A tab left open for days uses less memory, and dragging windows is lighter","If you installed from your own link, the menu, Updates page and Changelog show your channel"],"groups":[{"name":"Control Panel","lines":["Menus and confirm boxes no longer open behind the Control Panel after a long session","A tab left open for days uses less memory, and dragging windows is lighter"]},{"name":"Updates & install","lines":["If you installed from your own link, the menu, Updates page and Changelog show your channel"]}]},{"title":"7.0.27","date":"2026-11-12","lines":["The All Tweaks hover lists your Tweaks under On and Off, in alphabetical order","Sync can read another player's profile while you have it open, so add-ons can show more there"],"groups":[{"name":"Menu & top bar","lines":["The All Tweaks hover lists your Tweaks under On and Off, in alphabetical order"]},{"name":"Profile Sync","lines":["Sync can read another player's profile while you have it open, so add-ons can show more there"]}]},{"title":"7.0.26","date":"2026-11-12","lines":["The Changelog catches up: it now lists 7.0.20 to 7.0.25, which were missing","A window you closed near the edge comes back on-screen when you reopen it in a smaller browser","Bring window on-screen no longer shrinks a closed window to nothing","Grid Overlay: a new Colours window with presets (Default, AWOO+, Calm, Vibrant, Old script look, Alternative) and your own custom ones","Grid Overlay: crisper tiles, a clear highlight on hover, and no flicker when the grid updates","Grid Overlay: a shorter right-click menu, and a note that names any unique sculpture missing from the grid","Win rate is now called Dungeon Win rate, and is on for a new player","Dungeon Win rate: after loading older entries, the log scrolls back to where you were"],"groups":[{"name":"Control Panel","lines":["The Changelog catches up: it now lists 7.0.20 to 7.0.25, which were missing"]},{"name":"Menu & top bar","lines":["A window you closed near the edge comes back on-screen when you reopen it in a smaller browser","Bring window on-screen no longer shrinks a closed window to nothing"]},{"name":"Modules & Tweaks","lines":["Grid Overlay: a new Colours window with presets (Default, AWOO+, Calm, Vibrant, Old script look, Alternative) and your own custom ones","Grid Overlay: crisper tiles, a clear highlight on hover, and no flicker when the grid updates","Grid Overlay: a shorter right-click menu, and a note that names any unique sculpture missing from the grid","Win rate is now called Dungeon Win rate, and is on for a new player","Dungeon Win rate: after loading older entries, the log scrolls back to where you were"]}]},{"title":"7.0.25","date":"2026-11-09","lines":["Grid Overlay sits under the game's own pop-ups and drop-down menus","Grid Overlay: with \"Uniques one colour\" on, the small unique labels keep each unique's own colour"],"groups":[{"name":"Modules & Tweaks","lines":["Grid Overlay sits under the game's own pop-ups and drop-down menus","Grid Overlay: with \"Uniques one colour\" on, the small unique labels keep each unique's own colour"]}]},{"title":"7.0.24","date":"2026-11-09","lines":["Calmer feature lists in three views (Minimal, Normal, Descriptive), with a short summary beside each name and Tweak categories you can fold","Tweaks that belong together sit under one head with one switch for all of them","Feature settings have their own entry in the sidebar, listing the features that are on","Clearer headings, with a choice of style under Appearance › Control Panel › Headings","A setting changed from its default gets a small mark (hover it to see the default)","General › Reset: Reset all saved data, and Reset window sizes now asks first","Nunito is now the text font as well as the number font (pick another under Appearance › Formatting)","New fonts (Calibri, Segoe UI, System default, Match game), a Text size and a Letter spacing option","Your font choice now reaches all of AWOO+, and a change shows at once","Notifications can be larger (120 % is the new default), and reminders that stay on screen can be turned off","Hovering All Tweaks lists every Tweak, the ones that are on in normal colour","The AWOO+ bar no longer makes the game's top bar taller","Choose how often AWOO+ checks for updates: every 1, 2, 6 or 12 hours","A shorter welcome tour in four visual steps, with Skip on every step","Dungeon Win Rate is now a Tweak on the Dungeon log page: win rate, wins and losses over the last hours, days or all time","Grid Overlay: every mod has its own colour, with Soft, Normal or Vibrant mod colours"],"groups":[{"name":"Control Panel","lines":["Calmer feature lists in three views (Minimal, Normal, Descriptive), with a short summary beside each name and Tweak categories you can fold","Tweaks that belong together sit under one head with one switch for all of them","Feature settings have their own entry in the sidebar, listing the features that are on","Clearer headings, with a choice of style under Appearance › Control Panel › Headings","A setting changed from its default gets a small mark (hover it to see the default)","General › Reset: Reset all saved data, and Reset window sizes now asks first"]},{"name":"Menu & top bar","lines":["Hovering All Tweaks lists every Tweak, the ones that are on in normal colour","The AWOO+ bar no longer makes the game's top bar taller"]},{"name":"Look & themes","lines":["Nunito is now the text font as well as the number font (pick another under Appearance › Formatting)","New fonts (Calibri, Segoe UI, System default, Match game), a Text size and a Letter spacing option","Your font choice now reaches all of AWOO+, and a change shows at once","Notifications can be larger (120 % is the new default), and reminders that stay on screen can be turned off"]},{"name":"Modules & Tweaks","lines":["Dungeon Win Rate is now a Tweak on the Dungeon log page: win rate, wins and losses over the last hours, days or all time","Grid Overlay: every mod has its own colour, with Soft, Normal or Vibrant mod colours"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates: every 1, 2, 6 or 12 hours","A shorter welcome tour in four visual steps, with Skip on every step"]}]},{"title":"7.0.23","date":"2026-11-07","lines":["Nunito (rounded) is everyone's number font; three more narrow number fonts to choose from, and Nunito and Quicksand as text fonts","Right-click menus with ticks stay open while you change several options","Grid Overlay: clearer, bigger tiles, a choice of decimals and font for the numbers, and presets beside the grid"],"groups":[{"name":"Menu & top bar","lines":["Right-click menus with ticks stay open while you change several options"]},{"name":"Look & themes","lines":["Nunito (rounded) is everyone's number font; three more narrow number fonts to choose from, and Nunito and Quicksand as text fonts"]},{"name":"Modules & Tweaks","lines":["Grid Overlay: clearer, bigger tiles, a choice of decimals and font for the numbers, and presets beside the grid"]}]},{"title":"7.0.22","date":"2026-11-06","lines":["Module windows open a little larger, and their status line stays at the bottom of the window"],"groups":[{"name":"Look & themes","lines":["Module windows open a little larger, and their status line stays at the bottom of the window"]}]},{"title":"7.0.21","date":"2026-11-03","lines":["The letters after an amount (k, m, b, qa …) can get a faint colour of their own, under Appearance › Fonts & numbers","A clearer info mark replaces the plain letter \"i\""],"groups":[{"name":"Look & themes","lines":["The letters after an amount (k, m, b, qa …) can get a faint colour of their own, under Appearance › Fonts & numbers","A clearer info mark replaces the plain letter \"i\""]}]},{"title":"7.0.20","date":"2026-11-03","lines":["Pop-ups no longer lock when you click them: drag one a short way to keep it, and a short drag springs back"],"groups":[{"name":"Look & themes","lines":["Pop-ups no longer lock when you click them: drag one a short way to keep it, and a short drag springs back"]}]},{"title":"7.0.19","date":"2026-11-02","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table","Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates","The All Tweaks hover fits its text: the names on top, then each Tweak's full description"],"groups":[{"name":"Menu & top bar","lines":["The All Tweaks hover fits its text: the names on top, then each Tweak's full description"]},{"name":"Profile Sync","lines":["Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates"]},{"name":"Tools","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table"]}]},{"title":"7.0.17","date":"2026-10-23","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"],"groups":[{"name":"Control Panel","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"]}]},{"title":"7.0.15","date":"2026-10-17","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General","The Control Panel pages share one tidy table,","Profile Sync writes much less to your browser"],"groups":[{"name":"Control Panel","lines":["The Control Panel pages share one tidy table,"]},{"name":"Look & themes","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General"]},{"name":"Profile Sync","lines":["Profile Sync writes much less to your browser"]}]},{"title":"7.0.4","date":"2026-09-25","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side","The AWOO+ menu is a quick list you can search, with a right-click menu on every module","Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely","A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes","Profile Sync has its own top-bar icon that shows how fresh your data is","Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"],"groups":[{"name":"Control Panel","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side"]},{"name":"Menu & top bar","lines":["The AWOO+ menu is a quick list you can search, with a right-click menu on every module"]},{"name":"Look & themes","lines":["A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes"]},{"name":"Profile Sync","lines":["Profile Sync has its own top-bar icon that shows how fresh your data is"]},{"name":"Modules & Tweaks","lines":["Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"]}]},{"title":"7.0.3","date":"2026-09-24","lines":["Profile Sync reads more of your profile and shows how old each part is"],"groups":[{"name":"Profile Sync","lines":["Profile Sync reads more of your profile and shows how old each part is"]}]},{"title":"7.0.2","date":"2026-09-23","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details","Cost Tables opens from the Tools menu","Profile Sync keeps what it read on a page after you move on"],"groups":[{"name":"Profile Sync","lines":["Profile Sync keeps what it read on a page after you move on"]},{"name":"Tools","lines":["Cost Tables opens from the Tools menu"]},{"name":"Updates & install","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details"]}]},{"title":"7.0.1","date":"2026-09-22","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format","Export and import your settings"],"groups":[{"name":"Control Panel","lines":["Export and import your settings"]},{"name":"Look & themes","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format"]}]},{"title":"7.0.0","date":"2026-09-18","lines":["Apoz Core becomes AWOO+"],"groups":[{"name":"Updates & install","lines":["Apoz Core becomes AWOO+"]}]}] /* GENERATED from src/awoo-core.changelog.md */;
+    const CHANGELOG = [{"title":"7.0.30","date":"2026-11-18","lines":["Dungeon Win rate has 15 and 30 minute ranges, a clear Scanning notice with Stop while it loads, and Esc to stop"],"groups":[{"name":"Modules & Tweaks","lines":["Dungeon Win rate has 15 and 30 minute ranges, a clear Scanning notice with Stop while it loads, and Esc to stop"]}]},{"title":"7.0.29","date":"2026-11-17","lines":["Opening a module window refreshes its data if it is more than fifteen minutes old","Reading other players' profiles has its own hourly allowance, so it no longer runs out part-way"],"groups":[{"name":"Profile Sync","lines":["Opening a module window refreshes its data if it is more than fifteen minutes old","Reading other players' profiles has its own hourly allowance, so it no longer runs out part-way"]}]},{"title":"7.0.28","date":"2026-11-15","lines":["Menus and confirm boxes no longer open behind the Control Panel after a long session","A tab left open for days uses less memory, and dragging windows is lighter","If you installed from your own link, the menu, Updates page and Changelog show your channel"],"groups":[{"name":"Control Panel","lines":["Menus and confirm boxes no longer open behind the Control Panel after a long session","A tab left open for days uses less memory, and dragging windows is lighter"]},{"name":"Updates & install","lines":["If you installed from your own link, the menu, Updates page and Changelog show your channel"]}]},{"title":"7.0.27","date":"2026-11-12","lines":["The All Tweaks hover lists your Tweaks under On and Off, in alphabetical order","Sync can read another player's profile while you have it open, so add-ons can show more there"],"groups":[{"name":"Menu & top bar","lines":["The All Tweaks hover lists your Tweaks under On and Off, in alphabetical order"]},{"name":"Profile Sync","lines":["Sync can read another player's profile while you have it open, so add-ons can show more there"]}]},{"title":"7.0.26","date":"2026-11-12","lines":["The Changelog catches up: it now lists 7.0.20 to 7.0.25, which were missing","A window you closed near the edge comes back on-screen when you reopen it in a smaller browser","Bring window on-screen no longer shrinks a closed window to nothing","Grid Overlay: a new Colours window with presets (Default, AWOO+, Calm, Vibrant, Old script look, Alternative) and your own custom ones","Grid Overlay: crisper tiles, a clear highlight on hover, and no flicker when the grid updates","Grid Overlay: a shorter right-click menu, and a note that names any unique sculpture missing from the grid","Win rate is now called Dungeon Win rate, and is on for a new player","Dungeon Win rate: after loading older entries, the log scrolls back to where you were"],"groups":[{"name":"Control Panel","lines":["The Changelog catches up: it now lists 7.0.20 to 7.0.25, which were missing"]},{"name":"Menu & top bar","lines":["A window you closed near the edge comes back on-screen when you reopen it in a smaller browser","Bring window on-screen no longer shrinks a closed window to nothing"]},{"name":"Modules & Tweaks","lines":["Grid Overlay: a new Colours window with presets (Default, AWOO+, Calm, Vibrant, Old script look, Alternative) and your own custom ones","Grid Overlay: crisper tiles, a clear highlight on hover, and no flicker when the grid updates","Grid Overlay: a shorter right-click menu, and a note that names any unique sculpture missing from the grid","Win rate is now called Dungeon Win rate, and is on for a new player","Dungeon Win rate: after loading older entries, the log scrolls back to where you were"]}]},{"title":"7.0.25","date":"2026-11-09","lines":["Grid Overlay sits under the game's own pop-ups and drop-down menus","Grid Overlay: with \"Uniques one colour\" on, the small unique labels keep each unique's own colour"],"groups":[{"name":"Modules & Tweaks","lines":["Grid Overlay sits under the game's own pop-ups and drop-down menus","Grid Overlay: with \"Uniques one colour\" on, the small unique labels keep each unique's own colour"]}]},{"title":"7.0.24","date":"2026-11-09","lines":["Calmer feature lists in three views (Minimal, Normal, Descriptive), with a short summary beside each name and Tweak categories you can fold","Tweaks that belong together sit under one head with one switch for all of them","Feature settings have their own entry in the sidebar, listing the features that are on","Clearer headings, with a choice of style under Appearance › Control Panel › Headings","A setting changed from its default gets a small mark (hover it to see the default)","General › Reset: Reset all saved data, and Reset window sizes now asks first","Nunito is now the text font as well as the number font (pick another under Appearance › Formatting)","New fonts (Calibri, Segoe UI, System default, Match game), a Text size and a Letter spacing option","Your font choice now reaches all of AWOO+, and a change shows at once","Notifications can be larger (120 % is the new default), and reminders that stay on screen can be turned off","Hovering All Tweaks lists every Tweak, the ones that are on in normal colour","The AWOO+ bar no longer makes the game's top bar taller","Choose how often AWOO+ checks for updates: every 1, 2, 6 or 12 hours","A shorter welcome tour in four visual steps, with Skip on every step","Dungeon Win Rate is now a Tweak on the Dungeon log page: win rate, wins and losses over the last hours, days or all time","Grid Overlay: every mod has its own colour, with Soft, Normal or Vibrant mod colours"],"groups":[{"name":"Control Panel","lines":["Calmer feature lists in three views (Minimal, Normal, Descriptive), with a short summary beside each name and Tweak categories you can fold","Tweaks that belong together sit under one head with one switch for all of them","Feature settings have their own entry in the sidebar, listing the features that are on","Clearer headings, with a choice of style under Appearance › Control Panel › Headings","A setting changed from its default gets a small mark (hover it to see the default)","General › Reset: Reset all saved data, and Reset window sizes now asks first"]},{"name":"Menu & top bar","lines":["Hovering All Tweaks lists every Tweak, the ones that are on in normal colour","The AWOO+ bar no longer makes the game's top bar taller"]},{"name":"Look & themes","lines":["Nunito is now the text font as well as the number font (pick another under Appearance › Formatting)","New fonts (Calibri, Segoe UI, System default, Match game), a Text size and a Letter spacing option","Your font choice now reaches all of AWOO+, and a change shows at once","Notifications can be larger (120 % is the new default), and reminders that stay on screen can be turned off"]},{"name":"Modules & Tweaks","lines":["Dungeon Win Rate is now a Tweak on the Dungeon log page: win rate, wins and losses over the last hours, days or all time","Grid Overlay: every mod has its own colour, with Soft, Normal or Vibrant mod colours"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates: every 1, 2, 6 or 12 hours","A shorter welcome tour in four visual steps, with Skip on every step"]}]},{"title":"7.0.23","date":"2026-11-07","lines":["Nunito (rounded) is everyone's number font; three more narrow number fonts to choose from, and Nunito and Quicksand as text fonts","Right-click menus with ticks stay open while you change several options","Grid Overlay: clearer, bigger tiles, a choice of decimals and font for the numbers, and presets beside the grid"],"groups":[{"name":"Menu & top bar","lines":["Right-click menus with ticks stay open while you change several options"]},{"name":"Look & themes","lines":["Nunito (rounded) is everyone's number font; three more narrow number fonts to choose from, and Nunito and Quicksand as text fonts"]},{"name":"Modules & Tweaks","lines":["Grid Overlay: clearer, bigger tiles, a choice of decimals and font for the numbers, and presets beside the grid"]}]},{"title":"7.0.22","date":"2026-11-06","lines":["Module windows open a little larger, and their status line stays at the bottom of the window"],"groups":[{"name":"Look & themes","lines":["Module windows open a little larger, and their status line stays at the bottom of the window"]}]},{"title":"7.0.21","date":"2026-11-03","lines":["The letters after an amount (k, m, b, qa …) can get a faint colour of their own, under Appearance › Fonts & numbers","A clearer info mark replaces the plain letter \"i\""],"groups":[{"name":"Look & themes","lines":["The letters after an amount (k, m, b, qa …) can get a faint colour of their own, under Appearance › Fonts & numbers","A clearer info mark replaces the plain letter \"i\""]}]},{"title":"7.0.20","date":"2026-11-03","lines":["Pop-ups no longer lock when you click them: drag one a short way to keep it, and a short drag springs back"],"groups":[{"name":"Look & themes","lines":["Pop-ups no longer lock when you click them: drag one a short way to keep it, and a short drag springs back"]}]},{"title":"7.0.19","date":"2026-11-02","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table","Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates","The All Tweaks hover fits its text: the names on top, then each Tweak's full description"],"groups":[{"name":"Menu & top bar","lines":["The All Tweaks hover fits its text: the names on top, then each Tweak's full description"]},{"name":"Profile Sync","lines":["Profile Sync also reads the game's own multipliers inside your running sanctum and your personal tax rates"]},{"name":"Tools","lines":["Level tables work the same way in every tool: choose how tall the table is, jump to the top, your level or the bottom, and add more rows from the line under the table"]}]},{"title":"7.0.17","date":"2026-10-23","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"],"groups":[{"name":"Control Panel","lines":["The Changelog groups each version's changes by category (Control Panel, Menu & top bar, Look & themes, and so on), always in the same order"]}]},{"title":"7.0.15","date":"2026-10-17","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General","The Control Panel pages share one tidy table,","Profile Sync writes much less to your browser"],"groups":[{"name":"Control Panel","lines":["The Control Panel pages share one tidy table,"]},{"name":"Look & themes","lines":["A new default look: calmer, light or dark as your device is set","Times follow the time zone you choose in General"]},{"name":"Profile Sync","lines":["Profile Sync writes much less to your browser"]}]},{"title":"7.0.4","date":"2026-09-25","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side","The AWOO+ menu is a quick list you can search, with a right-click menu on every module","Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely","A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes","Profile Sync has its own top-bar icon that shows how fresh your data is","Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"],"groups":[{"name":"Control Panel","lines":["A new Control Panel: settings grouped into General, Appearance and Modules, each with its own pages","Every settings page has Defaults and Reset side by side"]},{"name":"Menu & top bar","lines":["The AWOO+ menu is a quick list you can search, with a right-click menu on every module"]},{"name":"Look & themes","lines":["A calmer look that follows your theme, with a UI scale, a separate top-bar scale and more panel sizes"]},{"name":"Profile Sync","lines":["Profile Sync has its own top-bar icon that shows how fresh your data is"]},{"name":"Modules & Tweaks","lines":["Load or switch off each module; a module that is off does not run at all","Dungeon Win Rate: Clear now clears the results completely"]},{"name":"Updates & install","lines":["Choose how often AWOO+ checks for updates; a Diagnostics page shows what is running","Runs on Queslar 2 only"]}]},{"title":"7.0.3","date":"2026-09-24","lines":["Profile Sync reads more of your profile and shows how old each part is"],"groups":[{"name":"Profile Sync","lines":["Profile Sync reads more of your profile and shows how old each part is"]}]},{"title":"7.0.2","date":"2026-09-23","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details","Cost Tables opens from the Tools menu","Profile Sync keeps what it read on a page after you move on"],"groups":[{"name":"Profile Sync","lines":["Profile Sync keeps what it read on a page after you move on"]},{"name":"Tools","lines":["Cost Tables opens from the Tools menu"]},{"name":"Updates & install","lines":["Dungeon Win Rate and Sculpture Grid Labels are now part of AWOO+: one script to install","A small diagnostics check-in helps fix problems; it never includes your inventory, currencies or login details"]}]},{"title":"7.0.1","date":"2026-09-22","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format","Export and import your settings"],"groups":[{"name":"Control Panel","lines":["Export and import your settings"]},{"name":"Look & themes","lines":["Appearance settings: themes, number format and fonts","Tools follow your theme and the game's number format"]}]},{"title":"7.0.0","date":"2026-09-18","lines":["Apoz Core becomes AWOO+"],"groups":[{"name":"Updates & install","lines":["Apoz Core becomes AWOO+"]}]}] /* GENERATED from src/awoo-core.changelog.md */;
 
     // DEV-PROXY LINKS (2026-10-07, the maintainer: two buttons in the menu's
     // bottom strip, "strictly only visible for proxy-users"). Generated like
@@ -3244,6 +3244,9 @@
         .awoo-ui-menu-item { display: block; width: 100%; text-align: left; background: none; border: none;
           color: inherit; font: inherit; font-size: 11.5px; padding: 6px 8px; border-radius: 4px; cursor: pointer; }
         .awoo-ui-menu-item:hover { background: var(--awoo-hover); }
+        .awoo-ui-menu-item-hinted { padding: 6px 10px; max-width: 280px; }
+        .awoo-ui-menu-item-hinted .awoo-ui-menu-label { display: block; font-weight: 600; }
+        .awoo-ui-menu-item-hinted .awoo-ui-menu-hint { display: block; white-space: normal; opacity: var(--awoo-em-muted); margin-top: 1px; }
         .awoo-ui-modal-overlay { position: fixed; inset: 0; z-index: 1001000; background: rgba(0,0,0,.45);
           display: flex; align-items: center; justify-content: center; font: calc(12px * var(--awoo-ui-scale, 1)) var(--awoo-font, ${CORE_FONT}); }
         .awoo-ui-modal { background: var(--awoo-card); color: var(--awoo-popover-foreground);
@@ -4048,6 +4051,9 @@
           padding: var(--awoo-s3) 11px; background: none; border: none; color: inherit;
           font: inherit; font-size: var(--awoo-fs-body); text-align: left; cursor: pointer; }
         .awoo-ui-activity-head:hover { background: var(--awoo-hover); }
+        .awoo-ui-activity-bar { display: flex; align-items: center; }
+        .awoo-ui-activity-bar > .awoo-ui-activity-head { flex: 1; min-width: 0; }
+        .awoo-ui-activity-cancel { flex: none; margin-right: 11px; }
         .awoo-ui-activity-g { flex: none; width: 11px; text-align: center; }
         .awoo-ui-activity-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
           white-space: nowrap; opacity: var(--awoo-em-normal); }
@@ -4826,7 +4832,22 @@
           if (item.danger) btn.style.color = 'var(--awoo-danger)';
           // A choice that is on or off shows a tick, and always keeps the
           // tick's column so the labels line up.
-          const paint = () => { btn.textContent = (item.checked === undefined ? '' : (item.checked ? '✓ ' : '\u2003 ')) + item.label; };
+          // `hint` (2026-11-18, optional): a quieter second line saying what
+          // the item does, for a menu of choices that need one (the Fighter
+          // Allocator's Optimize menu). Without it an item is exactly as before.
+          const paint = () => {
+            const label = (item.checked === undefined ? '' : (item.checked ? '✓ ' : '\u2003 ')) + item.label;
+            if (!item.hint) { btn.textContent = label; return; }
+            btn.textContent = '';
+            btn.classList.add('awoo-ui-menu-item-hinted');
+            const l = document.createElement('span');
+            l.className = 'awoo-ui-menu-label';
+            l.textContent = label;
+            const h = document.createElement('span');
+            h.className = 'awoo-ui-menu-hint';
+            h.textContent = item.hint;
+            btn.append(l, h);
+          };
           paint();
           // keepOpen (2026-11-07, Anton: "don't close the drop-down for the
           // settings"): a tick flips in place and the menu stays until a
@@ -4950,10 +4971,22 @@
         chev.className = 'awoo-ui-activity-chev';
         chev.textContent = '⌃';
         for (const n of [glyph, text, ago, chev]) head.appendChild(n);
+        // A busy entry opened with { cancel } shows this beside the line
+        // (2026-11-18, the quick gold scan: a job you can stop belongs where
+        // its progress is). A sibling of the head, never inside it: the head
+        // is a button, and a button in a button is not a thing.
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'awoo-ui-btn awoo-ui-btn-danger awoo-ui-activity-cancel';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.hidden = true;
+        const bar = document.createElement('div');
+        bar.className = 'awoo-ui-activity-bar';
+        bar.appendChild(head); bar.appendChild(cancelBtn);
         const list = document.createElement('div');
         list.className = 'awoo-ui-activity-list';
         list.hidden = true;
-        el.appendChild(head); el.appendChild(list);
+        el.appendChild(bar); el.appendChild(list);
 
         const GLYPH = { done: '✓', busy: '⋯', refused: '!', failed: '✕', stopped: '■', info: '·' };
 
@@ -4990,6 +5023,7 @@
           domWrite.attr(glyph, 'class', 'awoo-ui-activity-g awoo-ui-lvl-' + (top ? top.level : 'info'));
           domWrite.text(text, top ? top.text : 'Nothing yet.');
           domWrite.text(ago, top ? agoText(top.atMs) : '');
+          domWrite.attr(cancelBtn, 'hidden', (top && top.level === 'busy' && top === openBusy && top.cancel) ? null : '');
           domWrite.attr(chev, 'style', 'transform:rotate(' + (expanded ? 180 : 0) + 'deg)');
           if (!expanded) { list.hidden = true; return; }
           list.hidden = false;
@@ -5064,6 +5098,15 @@
           }
         });
 
+        cancelBtn.addEventListener('click', () => {
+          const e = openBusy;
+          if (!e || !e.cancel) return;
+          const fn = e.cancel;
+          e.cancel = null; // once
+          paint();
+          try { fn(); } catch (err) { console.error('[AwooCore] activity cancel failed:', err); }
+        });
+
         const handle = {
           el,
           done: (m) => push('done', m),
@@ -5071,12 +5114,16 @@
           failed: (m) => push('failed', m),
           stopped: (m) => push('stopped', m),
           info: (m) => push('info', m),
-          busy(m) {
+          // busy(text, { cancel }?): with `cancel` (a function), the line
+          // carries a Cancel button while it is the open busy entry; pressing
+          // it calls cancel() once, and the caller closes the entry (stopped).
+          busy(m, opts) {
             // A second busy replaces the first rather than stacking, so the
             // strip can never show two things in flight when one of them was
             // abandoned. The stale handle's methods become no-ops.
             if (openBusy && entries[0] === openBusy) entries.shift();
-            const mine = { level: 'busy', text: String(m), atMs: Date.now() };
+            const mine = { level: 'busy', text: String(m), atMs: Date.now(),
+              cancel: opts && typeof opts.cancel === 'function' ? opts.cancel : null };
             entries.unshift(mine);
             while (entries.length > max) entries.pop();
             openBusy = mine;
@@ -7502,6 +7549,8 @@
       { id: 'sanctum', label: 'Sanctum Maps', what: 'Your active sanctum maps and skill-tree points' },
       { id: 'sculpture', label: 'Sculptures', what: 'The sculpture grid and its multipliers' },
       { id: 'fighters', label: 'Fighters', what: 'The fighters in your active preset' },
+      // The level climbs with every win; the presets change when you re-allocate.
+      { id: 'dungeon', label: 'Dungeon', what: 'Your dungeon level and the fighters of your dungeon and active presets' },
       { id: 'equipment', label: 'Equipment & Gems', what: 'Equipped fighter gear and gems, per slot' },
       { id: 'village', label: 'Village & PvP', what: 'Your village\'s name, buildings and strengths (PvP tiles are not read yet)' },
       // Rank rates change only when a village leader edits the rank.
@@ -7632,7 +7681,7 @@
       ['Party', ['party', 'partyActions', 'partyLastAction', 'partyMonster', 'partyLevels']],
       ['Pets', ['pets']],
       ['Partners', ['partner', 'partnerLastActions']],
-      ['Fighters', ['fighters', 'caveTools']],
+      ['Fighters', ['fighters', 'dungeon', 'caveTools']],
       ['Sanctum', ['sanctum', 'sculpture']],
       ['Village', ['village', 'villageTaxes']],
     ];
@@ -9798,7 +9847,7 @@
         relicBoosts: 'Boosts', baseStats: 'Boosts', statBoosts: 'Boosts', mergedMultipliers: 'Boosts', potions: 'Boosts',
         pets: 'Pets', partner: 'Partners', partnerLastActions: 'Partners',
         party: 'Party', partyActions: 'Party', partyLastAction: 'Party', partyMonster: 'Party', partyLevels: 'Party',
-        sanctum: 'Sanctum', sculpture: 'Fighters', fighters: 'Fighters', equipment: 'Fighters',
+        sanctum: 'Sanctum', sculpture: 'Fighters', fighters: 'Fighters', dungeon: 'Fighters', equipment: 'Fighters',
         village: 'Village', villageTaxes: 'Village', house: 'Village', caveTools: 'Caves',
       };
       const syncGroups = (keys) => [...new Set((keys || []).map((k) => SYNC_GROUP[k] || sectionLabel(k)))];
@@ -16104,6 +16153,30 @@
       };
     }
 
+    // 8b. Dungeon: your dungeon level and the fighters the dungeon fights
+    // with, read as the game's Dungeon page reads them (page-CXzvu8Wx `Wt`,
+    // the 2026-11-09 bundle): getCharacterFighter's `dungeonLevel`, the preset
+    // assigned to dungeons (getAssignmentPresetFighters({ assignment:
+    // 'dungeon' })) and the active preset. The page fights with `r || i`, the
+    // assigned preset or, when that answers null, the active one; the section
+    // keeps what was observed and leaves that rule to its reader, so one
+    // answer never stands in for another (rule 3). `noAssignedPreset` is true
+    // when the game answered null, false when it answered a preset, absent
+    // when the question was not seen. Fighters are kept raw, the game's own
+    // objects (class, placement, the six bought stat points, equipment with
+    // its stat lines), so a planner can hand them on unchanged.
+    const rawCharFighter = q['fighters.public.getCharacterFighter'];
+    const rawAssigned = q['fighters.public.getAssignmentPresetFighters'];
+    const rawActive = q['fighters.public.getActivePresetFighters'];
+    const dungeonParts = {
+      level: rawCharFighter && typeof rawCharFighter === 'object' && typeof rawCharFighter.dungeonLevel === 'number'
+        && Number.isFinite(rawCharFighter.dungeonLevel) ? rawCharFighter.dungeonLevel : null,
+      assignedFighters: Array.isArray(rawAssigned) ? rawAssigned : null,
+      noAssignedPreset: rawAssigned === null ? true : Array.isArray(rawAssigned) ? false : null,
+      activeFighters: Array.isArray(rawActive) ? rawActive : null,
+    };
+    const dungeon = Object.values(dungeonParts).some((v) => v !== null) ? dungeonParts : null;
+
     // 9. Equipment & Gems
     const rawEquipSlots = q['equipment.queries.getEquipmentSlots'] || fiber.equipmentSlots || null;
     const rawGems = q['character.gems.queries.getEquippedGems'] || null;
@@ -16451,6 +16524,7 @@
       sanctum,
       sculpture,
       fighters,
+      dungeon,
       equipment,
       loadouts,
       village,
@@ -16800,6 +16874,14 @@
     { section: 'loadouts', name: 'sanctum.skilltree.public.getSkillTreePoints', args: { skillTreeId: SKILL_TREE }, every: 12 * HOUR_MS },
     { section: 'loadouts', name: 'sets.public.getCharacterItemSets', args: { characterId: OWN }, every: 12 * HOUR_MS },
     { section: 'fighters', name: 'fighters.public.getCharacterFightersRaw', args: { characterId: OWN }, every: 5 * HOUR_MS },
+    // THE DUNGEON: what the Fighters > Dungeon page opens for you, with
+    // exactly its arguments (page-CXzvu8Wx `Wt`, the 2026-11-09 bundle). The
+    // level climbs with every win, so it is read hourly; the preset changes
+    // when you re-allocate, so a reader that plans asks for both fresh before
+    // it plans. `fixed` is the argument that is the same for everyone.
+    { section: 'dungeon', name: 'fighters.public.getCharacterFighter', args: { characterId: OWN }, every: HOUR_MS },
+    { section: 'dungeon', name: 'fighters.public.getAssignmentPresetFighters', args: { characterId: OWN }, fixed: { assignment: 'dungeon' }, every: 5 * HOUR_MS },
+    { section: 'dungeon', name: 'fighters.public.getActivePresetFighters', args: { characterId: OWN }, every: 5 * HOUR_MS },
     // CAVES (R141). Both are opened with { characterId } by the game's own
     // pages: the Fighter Caves tools page and the cave description card
     // (getCaveTools), the house page and the same card (getHouse). Levels
@@ -16856,14 +16938,14 @@
     { section: 'sanctum', name: 'sanctum.public.getSanctumCore', args: { characterId: VIEWED }, every: null },
     { section: 'relicBoosts', name: 'character.boosts.public.getBoosts', args: { characterId: VIEWED }, every: null },
     { section: 'equipment', name: 'equipment.queries.getEquipmentSlots', args: { characterId: VIEWED }, every: null },
-    // Fighter Scout (dev): the active-preset fighters with their raw stat points.
+    // A module asks for: the active-preset fighters with their raw stat points.
     { section: 'fighters', name: 'fighters.public.getActivePresetFighters', args: { characterId: VIEWED }, every: null },
     // The preset assigned to dungeons, when there is one: the Dungeon page
     // asks it with exactly { assignment: 'dungeon', characterId } and falls
     // back to the active preset when the answer is empty (page-CXzvu8Wx `Wt`,
     // `mt(i ? r || i : [])`, the 2026-11-09 bundle). `fixed` holds the
     // arguments that are the same for everyone. NOT YET SEEN LIVE for another
-    // player: only the dev build's Profile Board asks for it.
+    // player: only a module on a private channel asks for it.
     { section: 'fighters', name: 'fighters.public.getAssignmentPresetFighters', args: { characterId: VIEWED }, fixed: { assignment: 'dungeon' }, every: null },
   ];
   const argKeysOf = (row) => [...Object.keys(row.args), ...Object.keys(row.fixed || {})];
@@ -16924,7 +17006,7 @@
   // the background's 60.
   const MAX_MANUAL_READS_PER_HOUR = 120;
   // A profile on screen has a budget of its own too (readViewed): a visit is
-  // up to seven reads, and the Profile Board's Sync pinned visits up to twelve
+  // up to seven reads, and a module's pinned-player visits up to twelve
   // players a run. Counted on the background's 60 it ran out after eight
   // players and then held back the background reads for the rest of the hour.
   // Every one is a page the player opened or a run they started, in the
@@ -17007,6 +17089,9 @@
         .filter((inst) => inst.args);
     }
     const args = resolve(null);
+    // The arguments that are the same for everyone ride along (the dungeon
+    // preset's assignment), so the ask and the answer it matches are the page's.
+    if (args && row.fixed) Object.assign(args, row.fixed);
     return args ? [{ row, name: row.name, section: row.section, args, key: row.name, stale: row.section === 'party' && ctx.partyStale }] : [];
   }
 
@@ -19237,7 +19322,7 @@
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("dungeon-win-rate", "0.2.2", function (Core) {
+  })("dungeon-win-rate", "0.2.3", function (Core) {
   if (AWOO_ABOUT.needsCore && !(Core.version >= AWOO_ABOUT.needsCore)) {
     if (Core.registerModule) Core.registerModule(Object.assign({ id: "dungeon-win-rate" }, AWOO_ABOUT));
     return null;
@@ -19268,7 +19353,10 @@ const OLD_KEY = `awoo:${MODULE_ID}:v1`;   // the old window kept its scan here; 
 const ROUTE_RX = /\/game\/fighters\/dungeon-log\/?$/;
 
 const HOUR = 3600000;
+const MIN = 60000;
 const RANGES = [
+  { id: '15m', label: '15m', name: '15 minutes', ms: 15 * MIN },
+  { id: '30m', label: '30m', name: '30 minutes', ms: 30 * MIN },
   { id: '1h', label: '1h', name: '1 hour', ms: HOUR },
   { id: '2h', label: '2h', name: '2 hours', ms: 2 * HOUR },
   { id: '3h', label: '3h', name: '3 hours', ms: 3 * HOUR },
@@ -19278,7 +19366,7 @@ const RANGES = [
   { id: '3d', label: '3 days', name: '3 days', ms: 72 * HOUR },
   { id: 'all', label: 'All time', name: 'all time', ms: null },
 ];
-const rangeById = (id) => RANGES.find((r) => r.id === id) || RANGES[5];
+const rangeById = (id) => RANGES.find((r) => r.id === id) || RANGES.find((r) => r.id === '24h');
 
 const scope = Core.createScope(MODULE_ID);
 const prefStore = Core.store(PREF_KEY);
@@ -19293,6 +19381,7 @@ let listEl = null;
 let blockEl = null;
 let loading = false;
 let stopRequested = false;
+let escToTop = false;   // Esc stops a scan and brings the panel to the top
 let endReached = false;
 let note = '';
 let lastSig = '';
@@ -19476,11 +19565,17 @@ async function loadUntilCovered() {
   let stuck = 0;
   if (typeof Core.setState === 'function') Core.setState(MODULE_ID, 'running', 'loading');
   const putBack = rememberScroll(listEl);
+  escToTop = false;
+  const pop = showScanPopup();
+  const onKey = (e) => { if (e && e.key === 'Escape') { stopRequested = true; escToTop = true; } };
+  const keyScope = scope.child('scan');
+  keyScope.on(document, 'keydown', onKey, true);
   let outcome = 'done';
   try {
     while (!stopRequested && listEl && listEl.isConnected) {
       ingest();
       note = `Loading… ${fmtInt(Object.keys(results).length)} cards, back to ${fmtWhen(oldestOf(results))}`;
+      pop.set(note);
       paint();
       if (covered(results, range.ms, Date.now(), endReached)) break;
       if (!sentinelEl() && !endReached) { await sleep(150); if (++stuck >= 10) { outcome = 'stuck'; break; } continue; }
@@ -19500,9 +19595,45 @@ async function loadUntilCovered() {
     stopRequested = false;
     if (typeof Core.setState === 'function') Core.setState(MODULE_ID, 'running', '');
     // Back to where the player was reading: the panel is at the top.
+    keyScope.dispose();
+    pop.remove();
     if (listEl && listEl.isConnected) putBack();
     paint(true);
+    if (escToTop) {
+      escToTop = false;
+      if (typeof window.scrollTo === 'function') { try { window.scrollTo(0, 0); } catch (e) { /* page gone */ } }
+      if (blockEl && typeof blockEl.scrollIntoView === 'function') { try { blockEl.scrollIntoView({ block: 'start' }); } catch (e) { /* page gone */ } }
+    }
   }
+}
+
+// A large "Scanning" notice where AWOO+ notices show, with its own Stop: the
+// panel's Stop scrolls away with the log while the scan pulls the page down.
+// Not a Core.toast: a click anywhere on a toast closes it, which would hide
+// the notice and leave the scan running.
+function showScanPopup() {
+  if (!document.body) return { set() {}, remove() {} };
+  const el = document.createElement('div');
+  el.className = 'awoo-dungeon-win-rate-pop';
+  el.setAttribute('role', 'status');
+  const head = document.createElement('div');
+  head.className = 'awoo-dungeon-win-rate-pop-h';
+  head.textContent = 'Scanning the log…';
+  const text = document.createElement('div');
+  text.className = 'awoo-dungeon-win-rate-pop-t';
+  text.textContent = 'Esc also stops';
+  const stop = document.createElement('button');
+  stop.type = 'button';
+  stop.className = 'awoo-dungeon-win-rate-pop-stop';
+  stop.textContent = 'Stop';
+  stop.addEventListener('click', () => { stopRequested = true; stop.disabled = true; stop.textContent = 'Stopping…'; });
+  el.appendChild(head); el.appendChild(text); el.appendChild(stop);
+  const host = document.getElementById('awoo-core-toasts');
+  if (host) host.insertBefore(el, host.firstChild); else { el.classList.add('awoo-dungeon-win-rate-pop-free'); document.body.appendChild(el); }
+  return {
+    set(msg) { text.textContent = `${msg} · Esc also stops`; },
+    remove() { el.remove(); },
+  };
 }
 
 // ---- the panel ----
@@ -19599,6 +19730,15 @@ function injectStyles() {
     .awoo-dungeon-win-rate-facts{display:flex;gap:1rem;color:var(--awoo-ink-soft);font-family:var(--awoo-font-num,var(--awoo-font))}
     .awoo-dungeon-win-rate-facts b{font-weight:600;color:var(--awoo-ink,var(--awoo-foreground))}
     .awoo-dungeon-win-rate-state{display:flex;align-items:center;gap:.5rem;color:var(--awoo-ink-mute);margin-left:auto}
+    .awoo-dungeon-win-rate-pop{pointer-events:auto;display:flex;flex-direction:column;gap:8px;padding:14px 16px;margin-bottom:8px;min-width:260px;
+      border-radius:var(--awoo-r-lg,8px);background:var(--awoo-surface,var(--awoo-card));color:var(--awoo-ink,var(--awoo-foreground));
+      border:2px solid var(--awoo-accent-fill,var(--awoo-accent));box-shadow:0 6px 24px rgba(0,0,0,.35)}
+    .awoo-dungeon-win-rate-pop-free{position:fixed;bottom:14px;right:14px;z-index:1002000}
+    .awoo-dungeon-win-rate-pop-h{font-size:1.05rem;font-weight:700}
+    .awoo-dungeon-win-rate-pop-t{font-size:.8rem;opacity:.8}
+    .awoo-dungeon-win-rate-pop-stop{font:inherit;font-size:1rem;font-weight:700;padding:10px 16px;border-radius:6px;cursor:pointer;
+      background:var(--awoo-danger);color:var(--awoo-surface,#fff);border:none}
+    .awoo-dungeon-win-rate-pop-stop:disabled{opacity:.6;cursor:default}
     .awoo-dungeon-win-rate-btn{font:inherit;font-size:.7rem;padding:1px 8px;border-radius:3px;cursor:pointer;background:var(--awoo-surface-2);
       color:var(--awoo-ink,var(--awoo-foreground));border:1px solid var(--awoo-border-control,var(--awoo-border))}
     .awoo-dungeon-win-rate-btn:hover,.awoo-dungeon-win-rate-go{border-color:var(--awoo-accent-fill,var(--awoo-accent));color:var(--awoo-accent)}
@@ -23525,7 +23665,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.29", function (Core) {
+  })("awoo-tools-public", "7.0.30", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //

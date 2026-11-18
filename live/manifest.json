@@ -1,19 +1,19 @@
 {
   "channel": "live",
-  "generated": "2026-11-17T07:55:54.216Z",
+  "generated": "2026-11-18T15:34:48.036Z",
   "core": {
-    "version": "7.0.29",
+    "version": "7.0.30",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
-    "notes": "The Changelog page now lists this update's Profile Sync changes\nOpening a module's window now refreshes the data it uses if it is more than fifteen minutes old, as opening a tool already did\nReading another player's profile has its own hourly allowance, so reading several in a row no longer runs out part-way or holds back the background sync\nYour allocated fighter gold is now part of your synced profile"
+    "notes": "The Changelog page has a line for this update\nRemoved code notes that named modules not in the public script\nDungeon Win rate: New 15m and 30m ranges. While older entries load, a large Scanning notice with a Stop button shows where notices appear, and Esc stops loading and brings the panel back to the top"
   },
   "modules": [
     {
       "id": "dungeon-win-rate",
       "label": "Dungeon Win rate",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
       "bundledIn": "awoo-core",
-      "notes": "Renamed to Dungeon Win rate (was Win rate), by Apoz and Weeble\nAfter loading older entries for a range, the log scrolls back up to where you were, instead of staying at the bottom",
+      "notes": "New 15m and 30m ranges. While older entries load, a large Scanning notice with a Stop button shows where notices appear, and Esc stops loading and brings the panel back to the top",
       "standalone": {
         "version": "0.1.1",
         "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/dungeon-win-rate.user.js",
