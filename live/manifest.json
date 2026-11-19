@@ -1,10 +1,10 @@
 {
   "channel": "live",
-  "generated": "2026-11-18T15:34:48.036Z",
+  "generated": "2026-11-19T01:40:01.670Z",
   "core": {
-    "version": "7.0.30",
+    "version": "7.0.31",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
-    "notes": "The Changelog page has a line for this update\nRemoved code notes that named modules not in the public script\nDungeon Win rate: New 15m and 30m ranges. While older entries load, a large Scanning notice with a Stop button shows where notices appear, and Esc stops loading and brings the panel back to the top"
+    "notes": ""
   },
   "modules": [
     {

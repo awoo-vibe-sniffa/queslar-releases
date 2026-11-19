@@ -2,7 +2,7 @@
 // @name         AWOO+
 // @namespace    awoo-core
 // @author       Apoz
-// @version      7.0.30
+// @version      7.0.31
 // @description  AWOO+ for Queslar: the menu, the shared plumbing every module plugs into, and every public module in one script. Install this one first; anything shared with you personally comes as AWOO+ Extras, through your own link. AWOO+ sends daily diagnostics (character name, village, install and browser info, versions and errors) to run and improve the app. Diagnostics never include your inventory, currencies or login details. Everything sent is either already public in-game or about AWOO+ itself.
 // @match        https://v2.queslar.com/*
 // @match        https://test.v2.queslar.com/*
@@ -19,7 +19,7 @@
   // ==== GENERATED — release identity ====
   const AWOO_RELEASE = {
     "channel": "live",
-    "version": "7.0.30",
+    "version": "7.0.31",
     "manifestUrl": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/manifest.json",
     "checkinUrl": "https://awoo-key.apoz.workers.dev/p/hello"
   };
@@ -6217,6 +6217,14 @@
       group.appendChild(sepProfile);
       group.appendChild(updateBarBtn);
       group.appendChild(leftoverBarBtn);
+      // THE NOTICE BUTTONS (barNotice, 2026-11-18): a module's own "this needs
+      // you now" button, in the update button's shape and amber, beside it.
+      // Like the update button they are not module buttons, so the bar's cap
+      // (barMax) never hides one. renderBarNotices() fills this.
+      const noticeHost = document.createElement('span');
+      noticeHost.id = 'awoo-core-notice-host';
+      noticeHost.style.display = 'contents';
+      group.appendChild(noticeHost);
       // THE MINIMISED CONTROL PANEL (R218): the panel's "_" button parks it
       // here; a click brings it back on the page it was on.
       const cpMinBtn = document.createElement('button');
@@ -6511,7 +6519,7 @@
 
       coreUi = {
         menuSpot, openProfileData,
-        group, coreBtn, quickRow, profileBtn, profileDot, sepCore, sepProfile, setupBtn, updateBarBtn, leftoverBarBtn, cpMinBtn, dropdown, pal,
+        group, coreBtn, quickRow, profileBtn, profileDot, sepCore, sepProfile, setupBtn, updateBarBtn, leftoverBarBtn, noticeHost, cpMinBtn, dropdown, pal,
         // reachable from outside buildUi()'s closure: the shared browser-resize
         // listener, and the palette's own actions (which close the menu).
         repositionDropdownIfOpen, closeDropdown,
@@ -6520,6 +6528,7 @@
       renderUpdateRow();
       renderSetupButton();
       renderProfileRow();
+      renderBarNotices();
       anchorGroup();
       watchForAnchor();
     }
@@ -11713,6 +11722,54 @@
       try { localStorage.setItem(UPDATE_LATER_KEY, JSON.stringify({ what: updatesOnOffer(), until: now + UPDATE_LATER_MS })); } catch (e) { /* storage blocked: it shows again next load */ }
       renderUpdateButton();
     }
+    // ---- barNotice (2026-11-18) ----
+    // barNotice(key, spec | null): a module's notice button on the top bar,
+    // next to the update button and outside the bar's cap. spec is
+    // { text, title?, items?: [{ label, onClick }], onClick? }: a click opens
+    // `items` as a menu, else calls onClick. null removes it. The key is the
+    // caller's (use your module id as a prefix); setting it again updates the
+    // button in place. A throwing onClick is logged, never thrown at the bar.
+    const barNotices = new Map();
+    function barNotice(key, spec) {
+      if (typeof key !== 'string' || !key) return;
+      if (!spec) barNotices.delete(key);
+      else barNotices.set(key, { text: String(spec.text || 'Notice'), title: spec.title ? String(spec.title) : '',
+        items: Array.isArray(spec.items) ? spec.items : null, onClick: typeof spec.onClick === 'function' ? spec.onClick : null });
+      renderBarNotices();
+    }
+    function renderBarNotices() {
+      const host = coreUi && coreUi.noticeHost;
+      if (!host) return;
+      for (const b of [...host.children]) if (!barNotices.has(b.dataset.awooNotice)) b.remove();
+      for (const [key, spec] of barNotices) {
+        let b = [...host.children].find((x) => x.dataset.awooNotice === key);
+        if (!b) {
+          b = document.createElement('button');
+          b.type = 'button';
+          b.className = 'awoo-core-quick-btn awoo-core-setup-btn awoo-core-notice-btn';
+          b.dataset.awooNotice = key;
+          const spark = document.createElement('i');
+          spark.className = 'awoo-core-setup-spark';
+          b.appendChild(spark);
+          b.appendChild(document.createElement('span'));
+          const open = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const cur = barNotices.get(key);
+            if (!cur) return;
+            const safe = (fn) => () => { try { fn(); } catch (err) { console.error('[AwooCore] a bar notice action threw:', err); } };
+            if (cur.items && cur.items.length) ui.menu(b, cur.items.map((it) => ({ label: String(it.label), onClick: safe(it.onClick || (() => {})) })));
+            else if (cur.onClick) safe(cur.onClick)();
+          };
+          b.addEventListener('click', open);
+          b.addEventListener('contextmenu', open);
+          host.appendChild(b);
+        }
+        if (b.children[1].textContent !== spec.text) b.children[1].textContent = spec.text;
+        if (b.title !== spec.title) b.title = spec.title;
+      }
+    }
+
     function renderUpdateButton() {
       const b = coreUi && coreUi.updateBarBtn;
       if (!b) return;
@@ -14861,6 +14918,10 @@
       getNumberConvention: getConvention,
       numberProvenance,
       setNumberLocaleOverride,
+      // 2026-11-18: a module's notice button on the top bar, beside the update
+      // button and outside the bar's cap (see barNotice above). Guard with
+      // `typeof Core.barNotice === 'function'`.
+      barNotice,
       get maxQuickButtons() { return registry.barMax; },
       set maxQuickButtons(v) { setBarMax(v); },
       // ---- v14: the lifecycle and the registry (REGISTER.md R69) ----
@@ -23665,7 +23726,7 @@ if (document.body) {
     setTimeout(function () {
       if (!window.__AwooCore) console.warn('[AWOO+] "' + id + '" is installed but the AWOO+ script is not. Install AWOO+ and reload.');
     }, 8000);
-  })("awoo-tools-public", "7.0.30", function (Core) {
+  })("awoo-tools-public", "7.0.31", function (Core) {
 
   // THE TOOL SHELF: how a tool page reaches the AWOO+ menu (REGISTER.md R84).
   //
