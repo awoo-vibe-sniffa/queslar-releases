@@ -978,14 +978,29 @@ input[type=checkbox]:disabled:hover{border-color:var(--border-control)}
 .awoo-cell.awoo-cell.awoo-cell.awoo-cell > :disabled{opacity:1}
 .awoo-cell.awoo-k-game{border-color:var(--border-strong);font-weight:600}
 
-/* The (i) (§10e): a 13px square that carries the explanation, so the label
-   it sits beside stays short. */
+/* The (i), two marks (DESIGN.md 10g, REGISTER.md R286), both drawn on a
+   pixel grid, never the typed letter the markup still carries (it is hidden:
+   a typed i sits where the font puts it, a pixel off centre).
+   D, the chip, by default: a section's explanation beside a panel heading, a
+   section label or a row. 14px, a square of --ink at 14%, the i in --ink-soft;
+   hover takes the square to 28% and the i to --ink. No accent on hover.
+   A, the ring, for a short tip inside a field label, a tile's label or a
+   table: 10px, raised like a footnote, --ink-mute, --ink on hover. */
 .awoo-i{
-  display:inline-flex; align-items:center; justify-content:center; flex:none; width:13px; height:13px;
-  border-radius:var(--in-radius); background:var(--surface-3); color:var(--ink-soft);
-  font-family:var(--font-body); font-size:.55rem; font-weight:700; font-style:normal; line-height:1;
-  letter-spacing:0; text-transform:none; cursor:help}
-.awoo-i:hover,.awoo-i:focus{color:var(--accent);outline:none}
+  display:inline-block; position:relative; flex:none; box-sizing:border-box; width:14px; height:14px;
+  border-radius:3px; background:color-mix(in oklab,var(--ink) 14%,transparent);
+  color:transparent; overflow:hidden; font-size:0; line-height:0; vertical-align:middle;
+  text-transform:none; cursor:help}
+.awoo-i::before{content:""; position:absolute; inset:0; background:var(--ink-soft);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M6 6.6q0-.4 .4-.4h1.2q.4 0 .4 .4v4q0 .4-.4 .4h-1.2q-.4 0-.4-.4zM7 3a1.2 1.2 0 1 0 0 2.4a1.2 1.2 0 1 0 0-2.4z'/%3E%3C/svg%3E") center/100% 100% no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M6 6.6q0-.4 .4-.4h1.2q.4 0 .4 .4v4q0 .4-.4 .4h-1.2q-.4 0-.4-.4zM7 3a1.2 1.2 0 1 0 0 2.4a1.2 1.2 0 1 0 0-2.4z'/%3E%3C/svg%3E") center/100% 100% no-repeat}
+.awoo-i:hover,.awoo-i:focus-visible{background:color-mix(in oklab,var(--ink) 28%,transparent);outline:none}
+.awoo-i:hover::before,.awoo-i:focus-visible::before{background:var(--ink)}
+label .awoo-i,.awoo-tile-k .awoo-i,.awoo-fields-sub .awoo-i,th .awoo-i,td .awoo-i,p .awoo-i{
+  width:10px; height:10px; border-radius:0; background:var(--ink-mute); vertical-align:4px; align-self:flex-start; margin-top:1px;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='4.475' fill='none' stroke='black' stroke-width='1.05'/%3E%3Cpath d='M4.2 4.95q0-.4 .4-.4h0.8q.4 0 .4 .4v2.45q0 .4-.4 .4h-0.8q-.4 0-.4-.4zM5 2.15a0.9 0.9 0 1 0 0 1.8a0.9 0.9 0 1 0 0-1.8z'/%3E%3C/svg%3E") center/100% 100% no-repeat; mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Ccircle cx='5' cy='5' r='4.475' fill='none' stroke='black' stroke-width='1.05'/%3E%3Cpath d='M4.2 4.95q0-.4 .4-.4h0.8q.4 0 .4 .4v2.45q0 .4-.4 .4h-0.8q-.4 0-.4-.4zM5 2.15a0.9 0.9 0 1 0 0 1.8a0.9 0.9 0 1 0 0-1.8z'/%3E%3C/svg%3E") center/100% 100% no-repeat}
+label .awoo-i::before,.awoo-tile-k .awoo-i::before,.awoo-fields-sub .awoo-i::before,th .awoo-i::before,td .awoo-i::before,p .awoo-i::before{content:none}
+label .awoo-i:hover,.awoo-tile-k .awoo-i:hover,.awoo-fields-sub .awoo-i:hover,th .awoo-i:hover,td .awoo-i:hover,p .awoo-i:hover,
+label .awoo-i:focus-visible,.awoo-tile-k .awoo-i:focus-visible,.awoo-fields-sub .awoo-i:focus-visible,th .awoo-i:focus-visible,td .awoo-i:focus-visible,p .awoo-i:focus-visible{background:var(--ink)}
 
 /* Marks (§10g): tiny, outlined in their role's colour, explained on hover or
    in a legend rather than beside every row. */

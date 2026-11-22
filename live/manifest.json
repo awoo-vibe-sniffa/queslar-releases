@@ -1,10 +1,10 @@
 {
   "channel": "live",
-  "generated": "2026-11-19T17:36:28.160Z",
+  "generated": "2026-11-22T03:32:48.699Z",
   "core": {
-    "version": "7.0.32",
+    "version": "7.0.33",
     "url": "https://raw.githubusercontent.com/awoo-vibe-sniffa/queslar-releases/main/live/awoo-core.user.js",
-    "notes": "The Changelog page has lines for this update\nFeatures › Modules: a module's add-ons are listed under it, marked Included (they load with it)\nThe settings button at the end of each feature row is a cleaner gear, smaller and centred\nA chosen Off has a grey fill, so it reads as chosen\nGrid Overlay: Its Weakest add-on is listed under it in Features"
+    "notes": "The Changelog page has lines for this update\nThe (i) marks are sharp and centred: a small ring after a word, a larger square beside a heading or in the Control Panel"
   },
   "modules": [
     {
